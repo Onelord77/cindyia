@@ -5,8 +5,8 @@ import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
+import { WhatsAppIntegration } from '@/components/integrations/WhatsAppIntegration';
 import { 
-  MessageCircle, 
   Mail, 
   CreditCard, 
   Calendar,
@@ -21,14 +21,6 @@ const useIsSuperAdmin = () => {
 };
 
 const integrations = [
-  {
-    id: 'whatsapp',
-    name: 'WhatsApp Business',
-    description: 'Receba agendamentos e envie lembretes automáticos via WhatsApp',
-    icon: MessageCircle,
-    status: 'connected',
-    color: 'bg-success/10 text-success',
-  },
   {
     id: 'google-calendar',
     name: 'Google Calendar',
@@ -69,7 +61,10 @@ const Integracoes = () => {
           </p>
         </div>
 
-        {/* Available Integrations */}
+        {/* WhatsApp Integration - Full Component */}
+        <WhatsAppIntegration />
+
+        {/* Other Integrations */}
         <div className="grid gap-4 md:grid-cols-2">
           {integrations.map((integration) => {
             const Icon = integration.icon;
