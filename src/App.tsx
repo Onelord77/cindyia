@@ -2,11 +2,10 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import Login from "./pages/Login";
-import Cadastro from "./pages/Cadastro";
 import Dashboard from "./pages/Dashboard";
 import Agenda from "./pages/Agenda";
 import Agendamentos from "./pages/Agendamentos";
@@ -31,9 +30,11 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <Routes>
-            {/* Public Routes */}
+            {/* Public Routes - Only Login, no registration */}
             <Route path="/login" element={<Login />} />
-            <Route path="/cadastro" element={<Cadastro />} />
+            
+            {/* Redirect old cadastro route to login */}
+            <Route path="/cadastro" element={<Navigate to="/login" replace />} />
 
             {/* Protected Routes */}
             <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
