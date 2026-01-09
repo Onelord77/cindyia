@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/hooks/useAuth';
 import {
   LayoutDashboard,
   Calendar,
@@ -24,6 +25,8 @@ interface SidebarItem {
   icon: React.ComponentType<{ className?: string }>;
   href: string;
   superAdminOnly?: boolean;
+  adminOnly?: boolean;
+  managerOnly?: boolean;
 }
 
 const menuItems: SidebarItem[] = [
@@ -31,12 +34,12 @@ const menuItems: SidebarItem[] = [
   { label: 'Agenda', icon: Calendar, href: '/agenda' },
   { label: 'Agendamentos', icon: CalendarCheck, href: '/agendamentos' },
   { label: 'Clientes', icon: Users, href: '/clientes' },
-  { label: 'Equipe', icon: UserCog, href: '/funcionarios' },
+  { label: 'Equipe', icon: UserCog, href: '/funcionarios', managerOnly: true },
   { label: 'Serviços', icon: Sparkles, href: '/servicos' },
-  { label: 'Financeiro', icon: DollarSign, href: '/financeiro' },
-  { label: 'Relatórios', icon: BarChart3, href: '/relatorios' },
-  { label: 'Integrações', icon: Plug, href: '/integracoes' },
-  { label: 'Configurações', icon: Settings, href: '/configuracoes' },
+  { label: 'Financeiro', icon: DollarSign, href: '/financeiro', managerOnly: true },
+  { label: 'Relatórios', icon: BarChart3, href: '/relatorios', managerOnly: true },
+  { label: 'Integrações', icon: Plug, href: '/integracoes', adminOnly: true },
+  { label: 'Configurações', icon: Settings, href: '/configuracoes', adminOnly: true },
 ];
 
 const superAdminItems: SidebarItem[] = [
@@ -44,15 +47,23 @@ const superAdminItems: SidebarItem[] = [
   { label: 'Config. Admin', icon: Shield, href: '/admin/configuracoes', superAdminOnly: true },
 ];
 
-interface SidebarProps {
-  isSuperAdmin?: boolean;
-}
-
-export function Sidebar({ isSuperAdmin = false }: SidebarProps) {
+export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
+  const { isSuperAdmin, isAdmin, isManager } = useAuth();
 
-  const allItems = isSuperAdmin ? [...superAdminItems, ...menuItems] : menuItems;
+  const filterItems = (items: SidebarItem[]) => {
+    return items.filter((item) => {
+      if (item.superAdminOnly && !isSuperAdmin) return false;
+      if (item.adminOnly && !isAdmin) return false;
+      if (item.managerOnly && !isManager) return false;
+      return true;
+    });
+  };
+
+  const allItems = isSuperAdmin 
+    ? [...filterItems(superAdminItems), ...filterItems(menuItems)] 
+    : filterItems(menuItems);
 
   return (
     <aside
@@ -94,8 +105,6 @@ export function Sidebar({ isSuperAdmin = false }: SidebarProps) {
         {allItems.map((item) => {
           const isActive = location.pathname === item.href;
           const Icon = item.icon;
-
-          if (item.superAdminOnly && !isSuperAdmin) return null;
 
           return (
             <NavLink

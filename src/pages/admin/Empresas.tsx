@@ -153,7 +153,7 @@ const SuperAdminEmpresas = () => {
   };
 
   return (
-    <MainLayout isSuperAdmin>
+    <MainLayout>
       <div className="space-y-4 sm:space-y-6">
         <div className="flex flex-col gap-4">
           <div>
