@@ -1,1 +1,4 @@
 project_id = "pyqkcfgkwdisabklrxfl"
+
+[functions.evolution-api]
+verify_jwt = false
