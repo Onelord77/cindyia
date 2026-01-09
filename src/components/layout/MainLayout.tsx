@@ -1,17 +1,15 @@
 import { ReactNode } from 'react';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
-import { cn } from '@/lib/utils';
 
 interface MainLayoutProps {
   children: ReactNode;
-  isSuperAdmin?: boolean;
 }
 
-export function MainLayout({ children, isSuperAdmin = false }: MainLayoutProps) {
+export function MainLayout({ children }: MainLayoutProps) {
   return (
     <div className="min-h-screen bg-background">
-      <Sidebar isSuperAdmin={isSuperAdmin} />
+      <Sidebar />
       <div className="pl-[260px] transition-all duration-300">
         <Header />
         <main className="min-h-[calc(100vh-4rem)] p-6">

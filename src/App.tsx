@@ -3,6 +3,10 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { AuthProvider } from "@/hooks/useAuth";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
+import Login from "./pages/Login";
+import Cadastro from "./pages/Cadastro";
 import Dashboard from "./pages/Dashboard";
 import Agenda from "./pages/Agenda";
 import Agendamentos from "./pages/Agendamentos";
@@ -22,25 +26,35 @@ const queryClient = new QueryClient();
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/agenda" element={<Agenda />} />
-          <Route path="/agendamentos" element={<Agendamentos />} />
-          <Route path="/clientes" element={<Clientes />} />
-          <Route path="/funcionarios" element={<Funcionarios />} />
-          <Route path="/servicos" element={<Servicos />} />
-          <Route path="/financeiro" element={<Financeiro />} />
-          <Route path="/relatorios" element={<Relatorios />} />
-          <Route path="/integracoes" element={<Integracoes />} />
-          <Route path="/configuracoes" element={<Configuracoes />} />
-          <Route path="/admin/empresas" element={<SuperAdminEmpresas />} />
-          <Route path="/admin/configuracoes" element={<AdminConfiguracoes />} />
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
+      <AuthProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <Routes>
+            {/* Public Routes */}
+            <Route path="/login" element={<Login />} />
+            <Route path="/cadastro" element={<Cadastro />} />
+
+            {/* Protected Routes */}
+            <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+            <Route path="/agenda" element={<ProtectedRoute><Agenda /></ProtectedRoute>} />
+            <Route path="/agendamentos" element={<ProtectedRoute><Agendamentos /></ProtectedRoute>} />
+            <Route path="/clientes" element={<ProtectedRoute><Clientes /></ProtectedRoute>} />
+            <Route path="/funcionarios" element={<ProtectedRoute requiredRoles={['admin', 'manager', 'super_admin']}><Funcionarios /></ProtectedRoute>} />
+            <Route path="/servicos" element={<ProtectedRoute><Servicos /></ProtectedRoute>} />
+            <Route path="/financeiro" element={<ProtectedRoute requiredRoles={['admin', 'manager', 'super_admin']}><Financeiro /></ProtectedRoute>} />
+            <Route path="/relatorios" element={<ProtectedRoute requiredRoles={['admin', 'manager', 'super_admin']}><Relatorios /></ProtectedRoute>} />
+            <Route path="/integracoes" element={<ProtectedRoute requiredRoles={['admin', 'super_admin']}><Integracoes /></ProtectedRoute>} />
+            <Route path="/configuracoes" element={<ProtectedRoute requiredRoles={['admin', 'super_admin']}><Configuracoes /></ProtectedRoute>} />
+
+            {/* Super Admin Routes */}
+            <Route path="/admin/empresas" element={<ProtectedRoute requiredRoles={['super_admin']}><SuperAdminEmpresas /></ProtectedRoute>} />
+            <Route path="/admin/configuracoes" element={<ProtectedRoute requiredRoles={['super_admin']}><AdminConfiguracoes /></ProtectedRoute>} />
+
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
+      </AuthProvider>
     </TooltipProvider>
   </QueryClientProvider>
 );

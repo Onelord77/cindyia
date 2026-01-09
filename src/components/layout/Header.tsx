@@ -12,15 +12,15 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
+import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 
-interface HeaderProps {
-  userName?: string;
-  tenantName?: string;
-}
-
-export function Header({ userName = 'Ana Carolina', tenantName = 'Studio Beleza & Arte' }: HeaderProps) {
+export function Header() {
   const navigate = useNavigate();
+  const { profile, signOut } = useAuth();
+  
+  const userName = profile?.full_name || 'Usuário';
+  const tenantName = 'AgendAI';
 
   const handleProfile = () => {
     navigate('/configuracoes');
@@ -31,10 +31,10 @@ export function Header({ userName = 'Ana Carolina', tenantName = 'Studio Beleza 
     navigate('/configuracoes');
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await signOut();
     toast.success('Logout realizado com sucesso!');
-    // In a real app, this would clear auth state and redirect
-    navigate('/');
+    navigate('/login');
   };
 
   return (
@@ -72,9 +72,9 @@ export function Header({ userName = 'Ana Carolina', tenantName = 'Studio Beleza 
                 <p className="text-xs text-muted-foreground">{tenantName}</p>
               </div>
               <Avatar className="h-8 w-8 sm:h-9 sm:w-9 border-2 border-primary/20">
-                <AvatarImage src="" />
+                <AvatarImage src={profile?.avatar_url || ''} />
                 <AvatarFallback className="bg-primary text-primary-foreground text-sm font-semibold">
-                  {userName.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                  {userName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
                 </AvatarFallback>
               </Avatar>
             </Button>

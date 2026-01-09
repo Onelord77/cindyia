@@ -40,7 +40,7 @@ const AdminConfiguracoes = () => {
   };
 
   return (
-    <MainLayout isSuperAdmin>
+    <MainLayout>
       <div className="space-y-6">
         {/* Header */}
         <div>
