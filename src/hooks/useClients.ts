@@ -1,0 +1,102 @@
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
+import { toast } from 'sonner';
+import type { Database } from '@/integrations/supabase/types';
+
+type Client = Database['public']['Tables']['clients']['Row'];
+type ClientInsert = Database['public']['Tables']['clients']['Insert'];
+type ClientUpdate = Database['public']['Tables']['clients']['Update'];
+
+export function useClients() {
+  const { profile } = useAuth();
+  const queryClient = useQueryClient();
+  const tenantId = profile?.tenant_id;
+
+  const { data: clients = [], isLoading, error } = useQuery({
+    queryKey: ['clients', tenantId],
+    queryFn: async () => {
+      if (!tenantId) return [];
+      
+      const { data, error } = await supabase
+        .from('clients')
+        .select('*')
+        .eq('tenant_id', tenantId)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!tenantId,
+  });
+
+  const addClient = useMutation({
+    mutationFn: async (client: Omit<ClientInsert, 'tenant_id'>) => {
+      if (!tenantId) throw new Error('Tenant não encontrado');
+      
+      const { data, error } = await supabase
+        .from('clients')
+        .insert({ ...client, tenant_id: tenantId })
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['clients', tenantId] });
+      toast.success('Cliente cadastrado com sucesso!');
+    },
+    onError: (error) => {
+      toast.error('Erro ao cadastrar cliente: ' + error.message);
+    },
+  });
+
+  const updateClient = useMutation({
+    mutationFn: async ({ id, ...updates }: ClientUpdate & { id: string }) => {
+      const { data, error } = await supabase
+        .from('clients')
+        .update(updates)
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['clients', tenantId] });
+      toast.success('Cliente atualizado com sucesso!');
+    },
+    onError: (error) => {
+      toast.error('Erro ao atualizar cliente: ' + error.message);
+    },
+  });
+
+  const deleteClient = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from('clients')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['clients', tenantId] });
+      toast.success('Cliente excluído com sucesso!');
+    },
+    onError: (error) => {
+      toast.error('Erro ao excluir cliente: ' + error.message);
+    },
+  });
+
+  return {
+    clients,
+    isLoading,
+    error,
+    addClient,
+    updateClient,
+    deleteClient,
+  };
+}

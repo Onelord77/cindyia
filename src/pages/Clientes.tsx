@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -23,7 +23,7 @@ import {
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Search, Plus, Phone, Mail, Calendar, MoreVertical, Edit, Trash2, User } from 'lucide-react';
+import { Search, Plus, Phone, Mail, Calendar, MoreVertical, Edit, Trash2, User, Loader2 } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -40,19 +40,17 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { mockClients as initialClients } from '@/lib/mock-data';
-import { Client } from '@/types';
+import { useClients } from '@/hooks/useClients';
 import { toast } from 'sonner';
 
 const Clientes = () => {
+  const { clients, isLoading, addClient, updateClient, deleteClient } = useClients();
   const [searchTerm, setSearchTerm] = useState('');
-  const [clients, setClients] = useState<Client[]>(initialClients);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [editingClient, setEditingClient] = useState<Client | null>(null);
+  const [editingClient, setEditingClient] = useState<typeof clients[0] | null>(null);
   const [deletingClientId, setDeletingClientId] = useState<string | null>(null);
 
-  // Form state
   const [formData, setFormData] = useState({
     name: '',
     phone: '',
@@ -60,21 +58,29 @@ const Clientes = () => {
     notes: '',
   });
 
-  const filteredClients = clients.filter((client) =>
-    client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    client.phone.includes(searchTerm)
-  );
+  const filteredClients = useMemo(() => {
+    return clients.filter((client) =>
+      client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (client.phone && client.phone.includes(searchTerm))
+    );
+  }, [clients, searchTerm]);
 
-  const activeThisMonth = clients.filter(c => {
-    if (!c.lastVisit) return false;
+  const activeThisMonth = useMemo(() => {
     const now = new Date();
-    return c.lastVisit.getMonth() === now.getMonth() && c.lastVisit.getFullYear() === now.getFullYear();
-  }).length;
+    return clients.filter(c => {
+      if (!c.last_visit) return false;
+      const lastVisit = new Date(c.last_visit);
+      return lastVisit.getMonth() === now.getMonth() && lastVisit.getFullYear() === now.getFullYear();
+    }).length;
+  }, [clients]);
 
-  const newThisMonth = clients.filter(c => {
+  const newThisMonth = useMemo(() => {
     const now = new Date();
-    return c.createdAt.getMonth() === now.getMonth() && c.createdAt.getFullYear() === now.getFullYear();
-  }).length;
+    return clients.filter(c => {
+      const createdAt = new Date(c.created_at || '');
+      return createdAt.getMonth() === now.getMonth() && createdAt.getFullYear() === now.getFullYear();
+    }).length;
+  }, [clients]);
 
   const resetForm = () => {
     setFormData({ name: '', phone: '', email: '', notes: '' });
@@ -86,59 +92,47 @@ const Clientes = () => {
     setIsDialogOpen(true);
   };
 
-  const openEditDialog = (client: Client) => {
+  const openEditDialog = (client: typeof clients[0]) => {
     setEditingClient(client);
     setFormData({
       name: client.name,
-      phone: client.phone,
+      phone: client.phone || '',
       email: client.email || '',
       notes: client.notes || '',
     });
     setIsDialogOpen(true);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!formData.name || !formData.phone) {
       toast.error('Nome e telefone são obrigatórios');
       return;
     }
 
     if (editingClient) {
-      setClients(prev => prev.map(c => 
-        c.id === editingClient.id 
-          ? {
-              ...c,
-              name: formData.name,
-              phone: formData.phone,
-              email: formData.email || undefined,
-              notes: formData.notes || undefined,
-            }
-          : c
-      ));
-      toast.success('Cliente atualizado com sucesso!');
-    } else {
-      const newClient: Client = {
-        id: Date.now().toString(),
-        tenantId: '1',
+      await updateClient.mutateAsync({
+        id: editingClient.id,
         name: formData.name,
         phone: formData.phone,
-        email: formData.email || undefined,
-        notes: formData.notes || undefined,
-        createdAt: new Date(),
-        totalAppointments: 0,
-      };
-      setClients(prev => [...prev, newClient]);
-      toast.success('Cliente cadastrado com sucesso!');
+        email: formData.email || null,
+        notes: formData.notes || null,
+      });
+    } else {
+      await addClient.mutateAsync({
+        name: formData.name,
+        phone: formData.phone,
+        email: formData.email || null,
+        notes: formData.notes || null,
+      });
     }
 
     setIsDialogOpen(false);
     resetForm();
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (deletingClientId) {
-      setClients(prev => prev.filter(c => c.id !== deletingClientId));
-      toast.success('Cliente excluído com sucesso!');
+      await deleteClient.mutateAsync(deletingClientId);
       setDeletingClientId(null);
       setIsDeleteDialogOpen(false);
     }
@@ -148,6 +142,16 @@ const Clientes = () => {
     setDeletingClientId(clientId);
     setIsDeleteDialogOpen(true);
   };
+
+  if (isLoading) {
+    return (
+      <MainLayout>
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      </MainLayout>
+    );
+  }
 
   return (
     <MainLayout>
@@ -231,76 +235,84 @@ const Clientes = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredClients.map((client) => (
-                  <TableRow key={client.id} className="group">
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <Avatar className="h-10 w-10">
-                          <AvatarFallback className="bg-primary/10 text-primary font-semibold">
-                            {client.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div>
-                          <p className="font-medium">{client.name}</p>
-                          <p className="text-sm text-muted-foreground">
-                            Cliente desde {client.createdAt.toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' })}
-                          </p>
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2 text-sm">
-                          <Phone className="h-3.5 w-3.5 text-muted-foreground" />
-                          {client.phone}
-                        </div>
-                        {client.email && (
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                            <Mail className="h-3.5 w-3.5" />
-                            {client.email}
-                          </div>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {client.lastVisit ? (
-                        <div className="flex items-center gap-2">
-                          <Calendar className="h-4 w-4 text-muted-foreground" />
-                          {client.lastVisit.toLocaleDateString('pt-BR')}
-                        </div>
-                      ) : (
-                        <span className="text-muted-foreground">-</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="secondary">
-                        {client.totalAppointments} agendamentos
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="opacity-0 group-hover:opacity-100">
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => openEditDialog(client)}>
-                            <Edit className="mr-2 h-4 w-4" />
-                            Editar
-                          </DropdownMenuItem>
-                          <DropdownMenuItem 
-                            className="text-destructive"
-                            onClick={() => openDeleteDialog(client.id)}
-                          >
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            Excluir
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                {filteredClients.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                      Nenhum cliente encontrado
                     </TableCell>
                   </TableRow>
-                ))}
+                ) : (
+                  filteredClients.map((client) => (
+                    <TableRow key={client.id} className="group">
+                      <TableCell>
+                        <div className="flex items-center gap-3">
+                          <Avatar className="h-10 w-10">
+                            <AvatarFallback className="bg-primary/10 text-primary font-semibold">
+                              {client.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <p className="font-medium">{client.name}</p>
+                            <p className="text-sm text-muted-foreground">
+                              Cliente desde {new Date(client.created_at || '').toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' })}
+                            </p>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2 text-sm">
+                            <Phone className="h-3.5 w-3.5 text-muted-foreground" />
+                            {client.phone || '-'}
+                          </div>
+                          {client.email && (
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                              <Mail className="h-3.5 w-3.5" />
+                              {client.email}
+                            </div>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        {client.last_visit ? (
+                          <div className="flex items-center gap-2">
+                            <Calendar className="h-4 w-4 text-muted-foreground" />
+                            {new Date(client.last_visit).toLocaleDateString('pt-BR')}
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="secondary">
+                          {client.total_visits || 0} agendamentos
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="opacity-0 group-hover:opacity-100">
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => openEditDialog(client)}>
+                              <Edit className="mr-2 h-4 w-4" />
+                              Editar
+                            </DropdownMenuItem>
+                            <DropdownMenuItem 
+                              className="text-destructive"
+                              onClick={() => openDeleteDialog(client.id)}
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Excluir
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
               </TableBody>
             </Table>
           </CardContent>
@@ -358,7 +370,8 @@ const Clientes = () => {
               <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
                 Cancelar
               </Button>
-              <Button onClick={handleSave}>
+              <Button onClick={handleSave} disabled={addClient.isPending || updateClient.isPending}>
+                {(addClient.isPending || updateClient.isPending) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {editingClient ? 'Salvar Alterações' : 'Cadastrar Cliente'}
               </Button>
             </DialogFooter>
