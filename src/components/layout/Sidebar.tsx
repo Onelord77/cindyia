@@ -14,6 +14,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Sparkles,
+  Plug,
+  Shield,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -33,11 +35,13 @@ const menuItems: SidebarItem[] = [
   { label: 'Serviços', icon: Sparkles, href: '/servicos' },
   { label: 'Financeiro', icon: DollarSign, href: '/financeiro' },
   { label: 'Relatórios', icon: BarChart3, href: '/relatorios' },
+  { label: 'Integrações', icon: Plug, href: '/integracoes' },
   { label: 'Configurações', icon: Settings, href: '/configuracoes' },
 ];
 
 const superAdminItems: SidebarItem[] = [
   { label: 'Empresas', icon: Building2, href: '/admin/empresas', superAdminOnly: true },
+  { label: 'Config. Admin', icon: Shield, href: '/admin/configuracoes', superAdminOnly: true },
 ];
 
 interface SidebarProps {

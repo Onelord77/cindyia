@@ -12,7 +12,9 @@ import Servicos from "./pages/Servicos";
 import Financeiro from "./pages/Financeiro";
 import Relatorios from "./pages/Relatorios";
 import Configuracoes from "./pages/Configuracoes";
+import Integracoes from "./pages/Integracoes";
 import SuperAdminEmpresas from "./pages/admin/Empresas";
+import AdminConfiguracoes from "./pages/admin/Configuracoes";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -32,8 +34,10 @@ const App = () => (
           <Route path="/servicos" element={<Servicos />} />
           <Route path="/financeiro" element={<Financeiro />} />
           <Route path="/relatorios" element={<Relatorios />} />
+          <Route path="/integracoes" element={<Integracoes />} />
           <Route path="/configuracoes" element={<Configuracoes />} />
           <Route path="/admin/empresas" element={<SuperAdminEmpresas />} />
+          <Route path="/admin/configuracoes" element={<AdminConfiguracoes />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

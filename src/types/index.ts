@@ -7,7 +7,13 @@ export interface Tenant {
   plan: 'basic' | 'pro' | 'enterprise';
   createdAt: Date;
   employeeCount: number;
+  maxEmployees: number;
   appointmentCount: number;
+  email?: string;
+  phone?: string;
+  address?: string;
+  cnpj?: string;
+  revenue?: number;
 }
 
 export interface Employee {
