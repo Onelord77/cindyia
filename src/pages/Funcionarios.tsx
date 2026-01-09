@@ -61,8 +61,8 @@ const Funcionarios = () => {
   };
 
   const handleSave = async () => {
-    if (!formData.name || !formData.email) {
-      toast.error('Nome e e-mail são obrigatórios');
+    if (!formData.name) {
+      toast.error('Nome é obrigatório');
       return;
     }
 
@@ -77,7 +77,11 @@ const Funcionarios = () => {
         specialties: formData.specialties,
       });
     } else if (createWithAuth && activeTenantId) {
-      // Create user with authentication
+      // Create user with authentication - requires email for login
+      if (!formData.email) {
+        toast.error('E-mail é obrigatório para criar acesso ao sistema');
+        return;
+      }
       if (!formData.password || formData.password.length < 6) {
         toast.error('Senha deve ter no mínimo 6 caracteres');
         return;
@@ -374,12 +378,13 @@ const Funcionarios = () => {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>E-mail *</Label>
+                  <Label>E-mail {createWithAuth && '*'}</Label>
                   <Input 
                     type="email" 
                     value={formData.email} 
                     onChange={(e) => setFormData(p => ({ ...p, email: e.target.value }))}
                     className="min-h-[44px]"
+                    placeholder={createWithAuth ? 'Obrigatório para login' : 'Opcional'}
                   />
                 </div>
               </div>
