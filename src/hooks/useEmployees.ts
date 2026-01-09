@@ -8,14 +8,18 @@ type Employee = Database['public']['Tables']['employees']['Row'];
 type EmployeeInsert = Database['public']['Tables']['employees']['Insert'];
 type EmployeeUpdate = Database['public']['Tables']['employees']['Update'];
 
-export function useEmployees() {
-  const { profile } = useAuth();
+export function useEmployees(overrideTenantId?: string) {
+  const { profile, isSuperAdmin } = useAuth();
   const queryClient = useQueryClient();
-  const tenantId = profile?.tenant_id;
+  
+  // Super admins can specify a tenant, admins use their own tenant
+  const tenantId = overrideTenantId || profile?.tenant_id;
 
   const { data: employees = [], isLoading, error } = useQuery({
     queryKey: ['employees', tenantId],
     queryFn: async () => {
+      // If super admin without tenant selected, return empty
+      if (isSuperAdmin && !tenantId) return [];
       if (!tenantId) return [];
       
       const { data, error } = await supabase
@@ -27,7 +31,7 @@ export function useEmployees() {
       if (error) throw error;
       return data;
     },
-    enabled: !!tenantId,
+    enabled: !!tenantId || isSuperAdmin,
   });
 
   const addEmployee = useMutation({

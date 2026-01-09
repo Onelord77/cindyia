@@ -22,10 +22,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   Search, Plus, Building2, MoreVertical, Eye, Edit, Power, Trash2, 
-  Users, Calendar, Filter, DollarSign, Phone, Mail, Loader2 
+  Users, Calendar, Filter, DollarSign, Phone, Mail, Loader2, UserPlus, Shield 
 } from 'lucide-react';
 import { cn, formatCurrency, formatPhone } from '@/lib/utils';
 import { useTenants } from '@/hooks/useTenants';
+import { useUserManagement, useTenantAdmins } from '@/hooks/useUserManagement';
 import { toast } from 'sonner';
 
 const planConfig = {
@@ -36,15 +37,22 @@ const planConfig = {
 
 const SuperAdminEmpresas = () => {
   const { tenants, isLoading, addTenant, updateTenant, deleteTenant } = useTenants();
+  const { createUser, deleteUser } = useUserManagement();
   
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isAdminDialogOpen, setIsAdminDialogOpen] = useState(false);
+  const [isCreateAdminDialogOpen, setIsCreateAdminDialogOpen] = useState(false);
   const [editingTenant, setEditingTenant] = useState<typeof tenants[0] | null>(null);
   const [viewingTenant, setViewingTenant] = useState<typeof tenants[0] | null>(null);
   const [deletingTenantId, setDeletingTenantId] = useState<string | null>(null);
+  const [managingTenant, setManagingTenant] = useState<typeof tenants[0] | null>(null);
+  const [deletingAdminId, setDeletingAdminId] = useState<string | null>(null);
+
+  const { data: tenantAdmins = [], isLoading: isLoadingAdmins } = useTenantAdmins(managingTenant?.id || null);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -53,6 +61,13 @@ const SuperAdminEmpresas = () => {
     address: '',
     cnpj: '',
     maxEmployees: 3,
+  });
+
+  const [adminFormData, setAdminFormData] = useState({
+    fullName: '',
+    email: '',
+    password: '',
+    phone: '',
   });
 
   const filteredTenants = tenants.filter((tenant) => {
@@ -93,6 +108,46 @@ const SuperAdminEmpresas = () => {
   const openDeleteDialog = (id: string) => { 
     setDeletingTenantId(id); 
     setIsDeleteDialogOpen(true); 
+  };
+
+  const openAdminDialog = (tenant: typeof tenants[0]) => {
+    setManagingTenant(tenant);
+    setIsAdminDialogOpen(true);
+  };
+
+  const resetAdminForm = () => {
+    setAdminFormData({ fullName: '', email: '', password: '', phone: '' });
+  };
+
+  const handleCreateAdmin = async () => {
+    if (!adminFormData.fullName || !adminFormData.email || !adminFormData.password) {
+      toast.error('Nome, e-mail e senha são obrigatórios');
+      return;
+    }
+    if (adminFormData.password.length < 6) {
+      toast.error('Senha deve ter no mínimo 6 caracteres');
+      return;
+    }
+    if (!managingTenant) return;
+
+    await createUser.mutateAsync({
+      email: adminFormData.email,
+      password: adminFormData.password,
+      fullName: adminFormData.fullName,
+      tenantId: managingTenant.id,
+      role: 'admin',
+      phone: adminFormData.phone || undefined,
+    });
+    
+    setIsCreateAdminDialogOpen(false);
+    resetAdminForm();
+  };
+
+  const handleDeleteAdmin = async () => {
+    if (deletingAdminId) {
+      await deleteUser.mutateAsync({ userId: deletingAdminId });
+      setDeletingAdminId(null);
+    }
   };
 
   const handleSave = async () => {
@@ -325,6 +380,9 @@ const SuperAdminEmpresas = () => {
                             <DropdownMenuItem onClick={() => openViewDialog(tenant)}>
                               <Eye className="mr-2 h-4 w-4" />Visualizar
                             </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => openAdminDialog(tenant)}>
+                              <Shield className="mr-2 h-4 w-4" />Gerenciar Admins
+                            </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => openEditDialog(tenant)}>
                               <Edit className="mr-2 h-4 w-4" />Editar
                             </DropdownMenuItem>
@@ -520,6 +578,170 @@ const SuperAdminEmpresas = () => {
               <AlertDialogCancel className="min-h-[44px]">Cancelar</AlertDialogCancel>
               <AlertDialogAction 
                 onClick={handleDelete} 
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90 min-h-[44px]"
+              >
+                Excluir
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Admin Management Dialog */}
+        <Dialog open={isAdminDialogOpen} onOpenChange={setIsAdminDialogOpen}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Gerenciar Administradores</DialogTitle>
+              <DialogDescription>
+                Administradores de {managingTenant?.name}
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="space-y-4">
+              <div className="flex justify-end">
+                <Button 
+                  onClick={() => { resetAdminForm(); setIsCreateAdminDialogOpen(true); }}
+                  className="gap-2"
+                >
+                  <UserPlus className="h-4 w-4" />
+                  Novo Administrador
+                </Button>
+              </div>
+
+              {isLoadingAdmins ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                </div>
+              ) : tenantAdmins.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  Nenhum administrador cadastrado para esta empresa
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Nome</TableHead>
+                      <TableHead>Contato</TableHead>
+                      <TableHead>Criado em</TableHead>
+                      <TableHead className="text-right">Ações</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {tenantAdmins.map((admin) => (
+                      <TableRow key={admin.id}>
+                        <TableCell className="font-medium">{admin.full_name}</TableCell>
+                        <TableCell>
+                          <div className="space-y-1">
+                            {admin.email && (
+                              <p className="text-xs flex items-center gap-1">
+                                <Mail className="h-3 w-3" /> {admin.email}
+                              </p>
+                            )}
+                            {admin.phone && (
+                              <p className="text-xs flex items-center gap-1">
+                                <Phone className="h-3 w-3" /> {formatPhone(admin.phone)}
+                              </p>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {admin.created_at ? new Date(admin.created_at).toLocaleDateString('pt-BR') : '-'}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className="text-destructive hover:text-destructive"
+                            onClick={() => setDeletingAdminId(admin.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Create Admin Dialog */}
+        <Dialog open={isCreateAdminDialogOpen} onOpenChange={setIsCreateAdminDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Novo Administrador</DialogTitle>
+              <DialogDescription>
+                Criar um novo administrador para {managingTenant?.name}
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="grid gap-4 py-4">
+              <div className="space-y-2">
+                <Label>Nome Completo *</Label>
+                <Input 
+                  value={adminFormData.fullName} 
+                  onChange={(e) => setAdminFormData(p => ({ ...p, fullName: e.target.value }))} 
+                  className="min-h-[44px]"
+                  placeholder="Nome do administrador"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>E-mail *</Label>
+                <Input 
+                  type="email"
+                  value={adminFormData.email} 
+                  onChange={(e) => setAdminFormData(p => ({ ...p, email: e.target.value }))} 
+                  className="min-h-[44px]"
+                  placeholder="email@empresa.com"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Senha *</Label>
+                <Input 
+                  type="password"
+                  value={adminFormData.password} 
+                  onChange={(e) => setAdminFormData(p => ({ ...p, password: e.target.value }))} 
+                  className="min-h-[44px]"
+                  placeholder="Mínimo 6 caracteres"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Telefone</Label>
+                <Input 
+                  type="tel"
+                  value={adminFormData.phone} 
+                  onChange={(e) => setAdminFormData(p => ({ ...p, phone: e.target.value }))} 
+                  className="min-h-[44px]"
+                  placeholder="(00) 00000-0000"
+                />
+              </div>
+            </div>
+            
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsCreateAdminDialogOpen(false)} className="min-h-[44px]">
+                Cancelar
+              </Button>
+              <Button onClick={handleCreateAdmin} disabled={createUser.isPending} className="min-h-[44px]">
+                {createUser.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Criar Administrador
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Delete Admin Confirmation */}
+        <AlertDialog open={!!deletingAdminId} onOpenChange={(open) => !open && setDeletingAdminId(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Excluir administrador?</AlertDialogTitle>
+              <AlertDialogDescription>
+                Esta ação não pode ser desfeita. O administrador perderá acesso ao sistema.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel className="min-h-[44px]">Cancelar</AlertDialogCancel>
+              <AlertDialogAction 
+                onClick={handleDeleteAdmin} 
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90 min-h-[44px]"
               >
                 Excluir
