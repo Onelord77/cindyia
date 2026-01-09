@@ -18,7 +18,11 @@ export const mockTenants: Tenant[] = [
     plan: 'pro',
     createdAt: new Date('2024-01-15'),
     employeeCount: 5,
+    maxEmployees: 10,
     appointmentCount: 320,
+    email: 'contato@studiobeleza.com',
+    phone: '11999990001',
+    revenue: 45600,
   },
   {
     id: '2',
@@ -27,7 +31,11 @@ export const mockTenants: Tenant[] = [
     plan: 'enterprise',
     createdAt: new Date('2024-02-20'),
     employeeCount: 8,
+    maxEmployees: 50,
     appointmentCount: 512,
+    email: 'contato@espacoglamour.com',
+    phone: '11999990002',
+    revenue: 89200,
   },
   {
     id: '3',
@@ -36,7 +44,11 @@ export const mockTenants: Tenant[] = [
     plan: 'basic',
     createdAt: new Date('2024-03-10'),
     employeeCount: 2,
+    maxEmployees: 3,
     appointmentCount: 78,
+    email: 'contato@bellahair.com',
+    phone: '11999990003',
+    revenue: 12300,
   },
 ];
 

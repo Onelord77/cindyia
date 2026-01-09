@@ -14,7 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Building2, Clock, Bell, Shield, Webhook, MessageCircle, Save } from 'lucide-react';
+import { Building2, Clock, Bell, Save } from 'lucide-react';
 
 const Configuracoes = () => {
   return (
@@ -27,7 +27,7 @@ const Configuracoes = () => {
         </div>
 
         <Tabs defaultValue="company" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4 lg:w-auto lg:grid-cols-none lg:flex">
+          <TabsList className="grid w-full grid-cols-3 lg:w-auto lg:grid-cols-none lg:flex">
             <TabsTrigger value="company" className="gap-2">
               <Building2 className="h-4 w-4" />
               <span className="hidden sm:inline">Empresa</span>
@@ -39,10 +39,6 @@ const Configuracoes = () => {
             <TabsTrigger value="notifications" className="gap-2">
               <Bell className="h-4 w-4" />
               <span className="hidden sm:inline">Notificações</span>
-            </TabsTrigger>
-            <TabsTrigger value="integrations" className="gap-2">
-              <Webhook className="h-4 w-4" />
-              <span className="hidden sm:inline">Integrações</span>
             </TabsTrigger>
           </TabsList>
 
@@ -226,73 +222,6 @@ const Configuracoes = () => {
             </Card>
           </TabsContent>
 
-          {/* Integrations Settings */}
-          <TabsContent value="integrations">
-            <div className="space-y-6">
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center gap-3">
-                    <div className="rounded-lg bg-success/10 p-2">
-                      <MessageCircle className="h-5 w-5 text-success" />
-                    </div>
-                    <div>
-                      <CardTitle>WhatsApp</CardTitle>
-                      <CardDescription>Integração com WhatsApp via n8n</CardDescription>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-center justify-between rounded-lg border p-4">
-                    <div className="space-y-0.5">
-                      <p className="font-medium">Status da Conexão</p>
-                      <p className="text-sm text-success">Conectado e funcionando</p>
-                    </div>
-                    <div className="flex h-3 w-3 rounded-full bg-success animate-pulse" />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="n8nWebhook">Webhook n8n</Label>
-                    <Input
-                      id="n8nWebhook"
-                      placeholder="https://seu-n8n.com/webhook/..."
-                      defaultValue="https://n8n.exemplo.com/webhook/whatsapp"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      URL do webhook configurado no n8n para receber mensagens
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center gap-3">
-                    <div className="rounded-lg bg-primary/10 p-2">
-                      <Webhook className="h-5 w-5 text-primary" />
-                    </div>
-                    <div>
-                      <CardTitle>API de Agendamentos</CardTitle>
-                      <CardDescription>Endpoints para integrações externas</CardDescription>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <Label>Endpoint de Criação</Label>
-                    <code className="block rounded bg-muted p-3 text-sm">
-                      POST /api/appointments
-                    </code>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Endpoint de Consulta</Label>
-                    <code className="block rounded bg-muted p-3 text-sm">
-                      GET /api/appointments/:date
-                    </code>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
         </Tabs>
       </div>
     </MainLayout>
