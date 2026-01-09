@@ -18,23 +18,27 @@ import {
   ResponsiveContainer,
   Legend,
 } from 'recharts';
-import { Download, TrendingUp, Users, Calendar, DollarSign, X } from 'lucide-react';
-import { useAppStore } from '@/hooks/useAppStore';
+import { Download, TrendingUp, Users, Calendar, DollarSign, X, Loader2 } from 'lucide-react';
+import { useAppointments } from '@/hooks/useAppointments';
+import { useFinancialEntries } from '@/hooks/useFinancialEntries';
 import { DateRangePicker } from '@/components/ui/date-range-picker';
 import { isWithinInterval, startOfDay, endOfDay, format, subDays } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
 
 const Relatorios = () => {
-  const { appointments, financialEntries } = useAppStore();
+  const { appointments, isLoading: appointmentsLoading } = useAppointments();
+  const { financialEntries, isLoading: entriesLoading } = useFinancialEntries();
+  
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
     from: subDays(new Date(), 30),
     to: new Date(),
   });
 
+  const isLoading = appointmentsLoading || entriesLoading;
+
   const filteredData = useMemo(() => {
     const filteredAppointments = appointments.filter(appointment => {
       if (dateRange?.from && dateRange?.to) {
-        const appointmentDate = new Date(appointment.date);
+        const appointmentDate = new Date(appointment.scheduled_at);
         return isWithinInterval(appointmentDate, {
           start: startOfDay(dateRange.from),
           end: endOfDay(dateRange.to),
@@ -57,7 +61,7 @@ const Relatorios = () => {
     // Calculate KPIs
     const totalRevenue = filteredEntries
       .filter(e => e.type === 'income')
-      .reduce((acc, e) => acc + e.amount, 0);
+      .reduce((acc, e) => acc + Number(e.amount), 0);
 
     const totalAppointments = filteredAppointments.length;
     const completedAppointments = filteredAppointments.filter(a => a.status === 'completed').length;
@@ -73,9 +77,9 @@ const Relatorios = () => {
         revenueByDay[dayKey] = { receita: 0, despesa: 0 };
       }
       if (entry.type === 'income') {
-        revenueByDay[dayKey].receita += entry.amount;
+        revenueByDay[dayKey].receita += Number(entry.amount);
       } else {
-        revenueByDay[dayKey].despesa += entry.amount;
+        revenueByDay[dayKey].despesa += Number(entry.amount);
       }
     });
 
@@ -86,7 +90,7 @@ const Relatorios = () => {
     // Group by service
     const serviceCount: Record<string, number> = {};
     filteredAppointments.forEach(appointment => {
-      const serviceName = appointment.service?.name || 'Outros';
+      const serviceName = appointment.services?.name || 'Outros';
       serviceCount[serviceName] = (serviceCount[serviceName] || 0) + 1;
     });
 
@@ -112,7 +116,7 @@ const Relatorios = () => {
     const weekdayNames = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
     
     filteredAppointments.forEach(appointment => {
-      const day = new Date(appointment.date).getDay();
+      const day = new Date(appointment.scheduled_at).getDay();
       weekdayCount[day]++;
     });
 
@@ -135,6 +139,16 @@ const Relatorios = () => {
   const clearDateFilter = () => {
     setDateRange(undefined);
   };
+
+  if (isLoading) {
+    return (
+      <MainLayout>
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      </MainLayout>
+    );
+  }
 
   return (
     <MainLayout>

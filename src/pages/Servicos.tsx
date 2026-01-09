@@ -23,7 +23,7 @@ import {
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Plus, Search, Edit, Trash2, Sparkles, Clock, DollarSign, MoreVertical } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Sparkles, Clock, DollarSign, MoreVertical, Loader2 } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -40,19 +40,18 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { mockServices as initialServices } from '@/lib/mock-data';
-import { Service } from '@/types';
+import { useServices } from '@/hooks/useServices';
 import { toast } from 'sonner';
 
 const Servicos = () => {
+  const { services, isLoading, addService, updateService, deleteService } = useServices();
+  
   const [searchTerm, setSearchTerm] = useState('');
-  const [services, setServices] = useState<Service[]>(initialServices);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [editingService, setEditingService] = useState<Service | null>(null);
+  const [editingService, setEditingService] = useState<typeof services[0] | null>(null);
   const [deletingServiceId, setDeletingServiceId] = useState<string | null>(null);
   
-  // Form state
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -65,7 +64,7 @@ const Servicos = () => {
   );
 
   const avgPrice = services.length > 0 
-    ? services.reduce((acc, s) => acc + s.price, 0) / services.length 
+    ? services.reduce((acc, s) => acc + Number(s.price), 0) / services.length 
     : 0;
   
   const avgDuration = services.length > 0 
@@ -82,67 +81,55 @@ const Servicos = () => {
     setIsDialogOpen(true);
   };
 
-  const openEditDialog = (service: Service) => {
+  const openEditDialog = (service: typeof services[0]) => {
     setEditingService(service);
     setFormData({
       name: service.name,
       description: service.description || '',
       duration: service.duration.toString(),
-      price: service.price.toString(),
+      price: String(service.price),
     });
     setIsDialogOpen(true);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!formData.name || !formData.duration || !formData.price) {
       toast.error('Preencha todos os campos obrigatórios');
       return;
     }
 
     if (editingService) {
-      // Update existing
-      setServices(prev => prev.map(s => 
-        s.id === editingService.id 
-          ? {
-              ...s,
-              name: formData.name,
-              description: formData.description || undefined,
-              duration: parseInt(formData.duration),
-              price: parseFloat(formData.price),
-            }
-          : s
-      ));
-      toast.success('Serviço atualizado com sucesso!');
-    } else {
-      // Create new
-      const newService: Service = {
-        id: Date.now().toString(),
-        tenantId: '1',
+      await updateService.mutateAsync({
+        id: editingService.id,
         name: formData.name,
-        description: formData.description || undefined,
+        description: formData.description || null,
         duration: parseInt(formData.duration),
         price: parseFloat(formData.price),
-        isActive: true,
-      };
-      setServices(prev => [...prev, newService]);
-      toast.success('Serviço criado com sucesso!');
+      });
+    } else {
+      await addService.mutateAsync({
+        name: formData.name,
+        description: formData.description || null,
+        duration: parseInt(formData.duration),
+        price: parseFloat(formData.price),
+      });
     }
 
     setIsDialogOpen(false);
     resetForm();
   };
 
-  const handleToggleActive = (serviceId: string) => {
-    setServices(prev => prev.map(s => 
-      s.id === serviceId ? { ...s, isActive: !s.isActive } : s
-    ));
+  const handleToggleActive = async (service: typeof services[0]) => {
+    await updateService.mutateAsync({
+      id: service.id,
+      is_active: !service.is_active,
+    });
     toast.success('Status do serviço atualizado');
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (deletingServiceId) {
-      setServices(prev => prev.filter(s => s.id !== deletingServiceId));
-      toast.success('Serviço excluído com sucesso!');
+      await deleteService.mutateAsync(deletingServiceId);
       setDeletingServiceId(null);
       setIsDeleteDialogOpen(false);
     }
@@ -152,6 +139,16 @@ const Servicos = () => {
     setDeletingServiceId(serviceId);
     setIsDeleteDialogOpen(true);
   };
+
+  if (isLoading) {
+    return (
+      <MainLayout>
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      </MainLayout>
+    );
+  }
 
   return (
     <MainLayout>
@@ -235,65 +232,73 @@ const Servicos = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredServices.map((service) => (
-                  <TableRow key={service.id} className="group">
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <div className="rounded-lg bg-primary/10 p-2">
-                          <Sparkles className="h-4 w-4 text-primary" />
-                        </div>
-                        <div>
-                          <p className="font-medium">{service.name}</p>
-                          {service.description && (
-                            <p className="text-sm text-muted-foreground">{service.description}</p>
-                          )}
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1">
-                        <Clock className="h-4 w-4 text-muted-foreground" />
-                        {service.duration} min
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <span className="font-semibold">R$ {service.price.toFixed(2)}</span>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Switch 
-                          checked={service.isActive} 
-                          onCheckedChange={() => handleToggleActive(service.id)}
-                        />
-                        <Badge variant={service.isActive ? 'default' : 'secondary'}>
-                          {service.isActive ? 'Ativo' : 'Inativo'}
-                        </Badge>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="opacity-0 group-hover:opacity-100">
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => openEditDialog(service)}>
-                            <Edit className="mr-2 h-4 w-4" />
-                            Editar
-                          </DropdownMenuItem>
-                          <DropdownMenuItem 
-                            className="text-destructive"
-                            onClick={() => openDeleteDialog(service.id)}
-                          >
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            Excluir
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                {filteredServices.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                      Nenhum serviço encontrado
                     </TableCell>
                   </TableRow>
-                ))}
+                ) : (
+                  filteredServices.map((service) => (
+                    <TableRow key={service.id} className="group">
+                      <TableCell>
+                        <div className="flex items-center gap-3">
+                          <div className="rounded-lg bg-primary/10 p-2">
+                            <Sparkles className="h-4 w-4 text-primary" />
+                          </div>
+                          <div>
+                            <p className="font-medium">{service.name}</p>
+                            {service.description && (
+                              <p className="text-sm text-muted-foreground">{service.description}</p>
+                            )}
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1">
+                          <Clock className="h-4 w-4 text-muted-foreground" />
+                          {service.duration} min
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <span className="font-semibold">R$ {Number(service.price).toFixed(2)}</span>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <Switch 
+                            checked={service.is_active || false} 
+                            onCheckedChange={() => handleToggleActive(service)}
+                          />
+                          <Badge variant={service.is_active ? 'default' : 'secondary'}>
+                            {service.is_active ? 'Ativo' : 'Inativo'}
+                          </Badge>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="opacity-0 group-hover:opacity-100">
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => openEditDialog(service)}>
+                              <Edit className="mr-2 h-4 w-4" />
+                              Editar
+                            </DropdownMenuItem>
+                            <DropdownMenuItem 
+                              className="text-destructive"
+                              onClick={() => openDeleteDialog(service.id)}
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Excluir
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
               </TableBody>
             </Table>
           </CardContent>
@@ -355,7 +360,8 @@ const Servicos = () => {
               <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
                 Cancelar
               </Button>
-              <Button onClick={handleSave}>
+              <Button onClick={handleSave} disabled={addService.isPending || updateService.isPending}>
+                {(addService.isPending || updateService.isPending) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {editingService ? 'Salvar Alterações' : 'Criar Serviço'}
               </Button>
             </DialogFooter>

@@ -3,7 +3,6 @@ import { DateRange } from 'react-day-picker';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
@@ -23,6 +22,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import {
   Select,
@@ -58,11 +58,12 @@ import {
   Edit,
   Trash2,
   X,
+  Loader2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { FinancialEntry } from '@/types';
 import { toast } from 'sonner';
-import { useAppStore } from '@/hooks/useAppStore';
+import { useFinancialEntries } from '@/hooks/useFinancialEntries';
+import { useAppointments } from '@/hooks/useAppointments';
 import { DateRangePicker } from '@/components/ui/date-range-picker';
 import { isWithinInterval, startOfDay, endOfDay } from 'date-fns';
 
@@ -70,15 +71,16 @@ const incomeCategories = ['Serviços', 'Produtos', 'Outros'];
 const expenseCategories = ['Aluguel', 'Materiais', 'Salários', 'Contas', 'Outros'];
 
 const Financeiro = () => {
-  const { financialEntries: entries, addFinancialEntry, updateFinancialEntry, deleteFinancialEntry, appointments } = useAppStore();
+  const { financialEntries: entries, isLoading, addFinancialEntry: addEntry, updateFinancialEntry: updateEntry, deleteFinancialEntry: deleteEntry } = useFinancialEntries();
+  const { appointments } = useAppointments();
+  
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [editingEntry, setEditingEntry] = useState<FinancialEntry | null>(null);
+  const [editingEntry, setEditingEntry] = useState<typeof entries[0] | null>(null);
   const [deletingEntryId, setDeletingEntryId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('all');
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
 
-  // Form state
   const [formData, setFormData] = useState({
     type: 'income' as 'income' | 'expense',
     category: '',
@@ -91,7 +93,6 @@ const Financeiro = () => {
     return entries.filter(entry => {
       const matchesType = activeTab === 'all' || entry.type === activeTab;
       
-      // Date filter
       if (dateRange?.from && dateRange?.to) {
         const entryDate = new Date(entry.date);
         const isInRange = isWithinInterval(entryDate, {
@@ -107,15 +108,15 @@ const Financeiro = () => {
 
   const totalIncome = filteredEntries
     .filter((e) => e.type === 'income')
-    .reduce((acc, e) => acc + e.amount, 0);
+    .reduce((acc, e) => acc + Number(e.amount), 0);
 
   const totalExpense = filteredEntries
     .filter((e) => e.type === 'expense')
-    .reduce((acc, e) => acc + e.amount, 0);
+    .reduce((acc, e) => acc + Number(e.amount), 0);
 
   const pendingPayments = appointments
-    .filter((a) => a.paymentStatus === 'pending' && a.status !== 'cancelled')
-    .reduce((acc, a) => acc + (a.service?.price || 0), 0);
+    .filter((a) => a.payment_status === 'pending' && a.status !== 'cancelled')
+    .reduce((acc, a) => acc + Number(a.price || 0), 0);
 
   const resetForm = () => {
     setFormData({
@@ -134,56 +135,50 @@ const Financeiro = () => {
     setIsDialogOpen(true);
   };
 
-  const openEditDialog = (entry: FinancialEntry) => {
+  const openEditDialog = (entry: typeof entries[0]) => {
     setEditingEntry(entry);
     setFormData({
       type: entry.type,
       category: entry.category,
-      description: entry.description,
-      amount: entry.amount.toString(),
+      description: entry.description || '',
+      amount: String(entry.amount),
       date: new Date(entry.date).toISOString().split('T')[0],
     });
     setIsDialogOpen(true);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!formData.category || !formData.description || !formData.amount || !formData.date) {
       toast.error('Preencha todos os campos');
       return;
     }
 
     if (editingEntry) {
-      updateFinancialEntry(editingEntry.id, {
+      await updateEntry.mutateAsync({
+        id: editingEntry.id,
         type: formData.type,
         category: formData.category,
         description: formData.description,
         amount: parseFloat(formData.amount),
-        date: new Date(formData.date),
+        date: new Date(formData.date).toISOString(),
       });
-      toast.success('Lançamento atualizado com sucesso!');
     } else {
-      const newEntry: FinancialEntry = {
-        id: Date.now().toString(),
-        tenantId: '1',
+      await addEntry.mutateAsync({
         type: formData.type,
         category: formData.category,
         description: formData.description,
         amount: parseFloat(formData.amount),
-        date: new Date(formData.date),
-        createdAt: new Date(),
-      };
-      addFinancialEntry(newEntry);
-      toast.success(`${formData.type === 'income' ? 'Receita' : 'Despesa'} registrada com sucesso!`);
+        date: new Date(formData.date).toISOString(),
+      });
     }
 
     setIsDialogOpen(false);
     resetForm();
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (deletingEntryId) {
-      deleteFinancialEntry(deletingEntryId);
-      toast.success('Lançamento excluído com sucesso!');
+      await deleteEntry.mutateAsync(deletingEntryId);
       setDeletingEntryId(null);
       setIsDeleteDialogOpen(false);
     }
@@ -199,6 +194,16 @@ const Financeiro = () => {
   };
 
   const categories = formData.type === 'income' ? incomeCategories : expenseCategories;
+
+  if (isLoading) {
+    return (
+      <MainLayout>
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      </MainLayout>
+    );
+  }
 
   return (
     <MainLayout>
@@ -360,7 +365,7 @@ const Financeiro = () => {
                                 entry.type === 'income' ? 'text-success' : 'text-destructive'
                               )}
                             >
-                              {entry.type === 'income' ? '+' : '-'} R$ {entry.amount.toFixed(2)}
+                              {entry.type === 'income' ? '+' : '-'} R$ {Number(entry.amount).toFixed(2)}
                             </span>
                           </TableCell>
                           <TableCell className="text-right">
@@ -446,22 +451,22 @@ const Financeiro = () => {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="description">Descrição *</Label>
-                <Textarea 
-                  id="description" 
-                  placeholder="Descrição da movimentação..."
+                <Textarea
+                  id="description"
+                  placeholder="Descrição do lançamento..."
                   value={formData.description}
                   onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
                   className="min-h-[80px]"
                 />
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="amount">Valor (R$) *</Label>
-                  <Input 
-                    id="amount" 
-                    type="number" 
-                    step="0.01" 
-                    placeholder="0.00"
+                  <Label htmlFor="amount">Valor *</Label>
+                  <Input
+                    id="amount"
+                    type="number"
+                    step="0.01"
+                    placeholder="0,00"
                     value={formData.amount}
                     onChange={(e) => setFormData(prev => ({ ...prev, amount: e.target.value }))}
                     className="min-h-[44px]"
@@ -469,8 +474,8 @@ const Financeiro = () => {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="date">Data *</Label>
-                  <Input 
-                    id="date" 
+                  <Input
+                    id="date"
                     type="date"
                     value={formData.date}
                     onChange={(e) => setFormData(prev => ({ ...prev, date: e.target.value }))}
@@ -479,12 +484,13 @@ const Financeiro = () => {
                 </div>
               </div>
             </div>
-            <DialogFooter className="flex-col sm:flex-row gap-2">
+            <DialogFooter>
               <Button variant="outline" onClick={() => setIsDialogOpen(false)} className="min-h-[44px]">
                 Cancelar
               </Button>
-              <Button onClick={handleSave} className="min-h-[44px]">
-                {editingEntry ? 'Salvar Alterações' : 'Registrar'}
+              <Button onClick={handleSave} disabled={addEntry.isPending || updateEntry.isPending} className="min-h-[44px]">
+                {(addEntry.isPending || updateEntry.isPending) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {editingEntry ? 'Salvar Alterações' : 'Criar Lançamento'}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -499,9 +505,12 @@ const Financeiro = () => {
                 Esta ação não pode ser desfeita. O lançamento será removido permanentemente.
               </AlertDialogDescription>
             </AlertDialogHeader>
-            <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+            <AlertDialogFooter>
               <AlertDialogCancel className="min-h-[44px]">Cancelar</AlertDialogCancel>
-              <AlertDialogAction onClick={handleDelete} className="min-h-[44px] bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              <AlertDialogAction 
+                onClick={handleDelete} 
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90 min-h-[44px]"
+              >
                 Excluir
               </AlertDialogAction>
             </AlertDialogFooter>
