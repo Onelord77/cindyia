@@ -125,7 +125,7 @@ const Agendamentos = () => {
   };
 
   const handleStatusChange = async (id: string, status: AppointmentStatus) => {
-    const payment_status: PaymentStatus | undefined = status === 'cancelled' ? 'cancelled' : status === 'completed' ? 'paid' : undefined;
+    const payment_status: PaymentStatus | undefined = status === 'completed' ? 'paid' : undefined;
     await updateStatus.mutateAsync({ id, status, payment_status });
     toast.success(`Status atualizado para ${statusConfig[status]?.label}`);
   };
