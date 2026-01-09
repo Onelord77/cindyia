@@ -120,8 +120,8 @@ const SuperAdminEmpresas = () => {
   };
 
   const handleCreateAdmin = async () => {
-    if (!adminFormData.fullName || !adminFormData.email || !adminFormData.password) {
-      toast.error('Nome, e-mail e senha são obrigatórios');
+    if (!adminFormData.fullName || !adminFormData.password) {
+      toast.error('Nome e senha são obrigatórios');
       return;
     }
     if (adminFormData.password.length < 6) {
@@ -686,7 +686,7 @@ const SuperAdminEmpresas = () => {
                 />
               </div>
               <div className="space-y-2">
-                <Label>E-mail *</Label>
+                <Label>E-mail (opcional)</Label>
                 <Input 
                   type="email"
                   value={adminFormData.email} 

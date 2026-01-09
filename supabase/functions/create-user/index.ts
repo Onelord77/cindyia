@@ -67,14 +67,21 @@ Deno.serve(async (req) => {
       .single();
 
     const body: CreateUserRequest = await req.json();
-    const { email, password, fullName, tenantId, role, phone } = body;
+    let { email, password, fullName, tenantId, role, phone } = body;
 
     // Validate required fields
-    if (!email || !password || !fullName || !tenantId || !role) {
+    if (!password || !fullName || !tenantId || !role) {
       return new Response(
-        JSON.stringify({ error: 'Campos obrigatórios: email, password, fullName, tenantId, role' }),
+        JSON.stringify({ error: 'Campos obrigatórios: password, fullName, tenantId, role' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
+    }
+
+    // Generate email if not provided (using a placeholder format)
+    if (!email) {
+      const timestamp = Date.now();
+      const sanitizedName = fullName.toLowerCase().replace(/\s+/g, '.').replace(/[^a-z0-9.]/g, '');
+      email = `${sanitizedName}.${timestamp}@interno.local`;
     }
 
     // Permission checks
