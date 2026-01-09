@@ -1,0 +1,207 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* AgendAI - Design System para Salões de Beleza
+   Paleta: Rosa elegante com dourado sofisticado
+   Público alvo: Salões de beleza femininos
+*/
+
+@layer base {
+  :root {
+    /* Background suave rosa claro */
+    --background: 340 30% 98%;
+    --foreground: 340 25% 10%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 340 25% 10%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 340 25% 10%;
+
+    /* Primary: Rosa elegante */
+    --primary: 340 65% 55%;
+    --primary-foreground: 0 0% 100%;
+
+    /* Secondary: Dourado suave */
+    --secondary: 35 40% 94%;
+    --secondary-foreground: 35 45% 25%;
+
+    --muted: 340 15% 94%;
+    --muted-foreground: 340 10% 45%;
+
+    /* Accent: Dourado */
+    --accent: 35 70% 50%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 340 20% 90%;
+    --input: 340 20% 90%;
+    --ring: 340 65% 55%;
+
+    --radius: 0.75rem;
+
+    /* Status Colors */
+    --success: 152 60% 45%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+    --info: 200 90% 50%;
+    --info-foreground: 0 0% 100%;
+
+    /* Custom Semantic Colors */
+    --pending: 38 92% 50%;
+    --confirmed: 340 65% 55%;
+    --completed: 152 60% 45%;
+    --cancelled: 0 84% 60%;
+
+    /* Sidebar - Elegante escuro */
+    --sidebar-background: 340 25% 12%;
+    --sidebar-foreground: 340 10% 90%;
+    --sidebar-primary: 340 65% 60%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 340 25% 18%;
+    --sidebar-accent-foreground: 340 10% 95%;
+    --sidebar-border: 340 20% 20%;
+    --sidebar-ring: 340 65% 60%;
+
+    /* Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(340 65% 55%), hsl(340 70% 45%));
+    --gradient-hero: linear-gradient(135deg, hsl(340 25% 12%), hsl(340 25% 18%));
+    --gradient-card: linear-gradient(180deg, hsl(0 0% 100%), hsl(340 30% 98%));
+    --gradient-success: linear-gradient(135deg, hsl(152 60% 45%), hsl(165 60% 50%));
+    --gradient-gold: linear-gradient(135deg, hsl(35 70% 50%), hsl(40 75% 55%));
+
+    /* Shadows */
+    --shadow-sm: 0 1px 2px 0 hsl(340 25% 10% / 0.05);
+    --shadow-md: 0 4px 6px -1px hsl(340 25% 10% / 0.1), 0 2px 4px -2px hsl(340 25% 10% / 0.1);
+    --shadow-lg: 0 10px 15px -3px hsl(340 25% 10% / 0.1), 0 4px 6px -4px hsl(340 25% 10% / 0.1);
+    --shadow-glow: 0 0 20px hsl(340 65% 55% / 0.3);
+  }
+
+  .dark {
+    --background: 340 25% 8%;
+    --foreground: 340 20% 98%;
+
+    --card: 340 25% 12%;
+    --card-foreground: 340 20% 98%;
+
+    --popover: 340 25% 12%;
+    --popover-foreground: 340 20% 98%;
+
+    --primary: 340 65% 60%;
+    --primary-foreground: 340 25% 10%;
+
+    --secondary: 340 25% 16%;
+    --secondary-foreground: 340 20% 90%;
+
+    --muted: 340 25% 18%;
+    --muted-foreground: 340 15% 55%;
+
+    --accent: 35 70% 55%;
+    --accent-foreground: 340 25% 10%;
+
+    --destructive: 0 72% 50%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 340 20% 20%;
+    --input: 340 20% 20%;
+    --ring: 340 65% 60%;
+
+    --sidebar-background: 340 30% 6%;
+    --sidebar-foreground: 340 10% 85%;
+    --sidebar-primary: 340 65% 65%;
+    --sidebar-primary-foreground: 340 25% 10%;
+    --sidebar-accent: 340 25% 12%;
+    --sidebar-accent-foreground: 340 10% 90%;
+    --sidebar-border: 340 20% 12%;
+    --sidebar-ring: 340 65% 65%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Playfair Display', serif;
+    @apply font-semibold tracking-tight;
+  }
+}
+
+@layer components {
+  .glass-card {
+    @apply bg-card/80 backdrop-blur-xl border border-border/50 shadow-lg;
+  }
+
+  .gradient-primary {
+    background: var(--gradient-primary);
+  }
+
+  .gradient-hero {
+    background: var(--gradient-hero);
+  }
+
+  .gradient-gold {
+    background: var(--gradient-gold);
+  }
+
+  .shadow-glow {
+    box-shadow: var(--shadow-glow);
+  }
+
+  .status-pending {
+    @apply bg-warning/10 text-warning border-warning/20;
+  }
+
+  .status-confirmed {
+    @apply bg-primary/10 text-primary border-primary/20;
+  }
+
+  .status-completed {
+    @apply bg-success/10 text-success border-success/20;
+  }
+
+  .status-cancelled {
+    @apply bg-destructive/10 text-destructive border-destructive/20;
+  }
+}
+
+@layer utilities {
+  .animate-fade-in {
+    animation: fadeIn 0.3s ease-out;
+  }
+
+  .animate-slide-up {
+    animation: slideUp 0.4s ease-out;
+  }
+
+  .animate-scale-in {
+    animation: scaleIn 0.2s ease-out;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  @keyframes slideUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes scaleIn {
+    from { opacity: 0; transform: scale(0.95); }
+    to { opacity: 1; transform: scale(1); }
+  }
+}
