@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
+import { DateRange } from 'react-day-picker';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -56,22 +57,26 @@ import {
   MoreVertical,
   Edit,
   Trash2,
+  X,
 } from 'lucide-react';
-import { mockFinancialEntries as initialEntries, mockAppointments } from '@/lib/mock-data';
 import { cn } from '@/lib/utils';
 import { FinancialEntry } from '@/types';
 import { toast } from 'sonner';
+import { useAppStore } from '@/hooks/useAppStore';
+import { DateRangePicker } from '@/components/ui/date-range-picker';
+import { isWithinInterval, startOfDay, endOfDay } from 'date-fns';
 
 const incomeCategories = ['Serviços', 'Produtos', 'Outros'];
 const expenseCategories = ['Aluguel', 'Materiais', 'Salários', 'Contas', 'Outros'];
 
 const Financeiro = () => {
-  const [entries, setEntries] = useState<FinancialEntry[]>(initialEntries);
+  const { financialEntries: entries, addFinancialEntry, updateFinancialEntry, deleteFinancialEntry, appointments } = useAppStore();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState<FinancialEntry | null>(null);
   const [deletingEntryId, setDeletingEntryId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('all');
+  const [dateRange, setDateRange] = useState<DateRange | undefined>();
 
   // Form state
   const [formData, setFormData] = useState({
@@ -82,22 +87,35 @@ const Financeiro = () => {
     date: new Date().toISOString().split('T')[0],
   });
 
-  const totalIncome = entries
+  const filteredEntries = useMemo(() => {
+    return entries.filter(entry => {
+      const matchesType = activeTab === 'all' || entry.type === activeTab;
+      
+      // Date filter
+      if (dateRange?.from && dateRange?.to) {
+        const entryDate = new Date(entry.date);
+        const isInRange = isWithinInterval(entryDate, {
+          start: startOfDay(dateRange.from),
+          end: endOfDay(dateRange.to),
+        });
+        return matchesType && isInRange;
+      }
+      
+      return matchesType;
+    });
+  }, [entries, activeTab, dateRange]);
+
+  const totalIncome = filteredEntries
     .filter((e) => e.type === 'income')
     .reduce((acc, e) => acc + e.amount, 0);
 
-  const totalExpense = entries
+  const totalExpense = filteredEntries
     .filter((e) => e.type === 'expense')
     .reduce((acc, e) => acc + e.amount, 0);
 
-  const pendingPayments = mockAppointments
+  const pendingPayments = appointments
     .filter((a) => a.paymentStatus === 'pending' && a.status !== 'cancelled')
     .reduce((acc, a) => acc + (a.service?.price || 0), 0);
-
-  const filteredEntries = entries.filter(entry => {
-    if (activeTab === 'all') return true;
-    return entry.type === activeTab;
-  });
 
   const resetForm = () => {
     setFormData({
@@ -123,7 +141,7 @@ const Financeiro = () => {
       category: entry.category,
       description: entry.description,
       amount: entry.amount.toString(),
-      date: entry.date.toISOString().split('T')[0],
+      date: new Date(entry.date).toISOString().split('T')[0],
     });
     setIsDialogOpen(true);
   };
@@ -135,18 +153,13 @@ const Financeiro = () => {
     }
 
     if (editingEntry) {
-      setEntries(prev => prev.map(e => 
-        e.id === editingEntry.id 
-          ? {
-              ...e,
-              type: formData.type,
-              category: formData.category,
-              description: formData.description,
-              amount: parseFloat(formData.amount),
-              date: new Date(formData.date),
-            }
-          : e
-      ));
+      updateFinancialEntry(editingEntry.id, {
+        type: formData.type,
+        category: formData.category,
+        description: formData.description,
+        amount: parseFloat(formData.amount),
+        date: new Date(formData.date),
+      });
       toast.success('Lançamento atualizado com sucesso!');
     } else {
       const newEntry: FinancialEntry = {
@@ -159,7 +172,7 @@ const Financeiro = () => {
         date: new Date(formData.date),
         createdAt: new Date(),
       };
-      setEntries(prev => [newEntry, ...prev]);
+      addFinancialEntry(newEntry);
       toast.success(`${formData.type === 'income' ? 'Receita' : 'Despesa'} registrada com sucesso!`);
     }
 
@@ -169,7 +182,7 @@ const Financeiro = () => {
 
   const handleDelete = () => {
     if (deletingEntryId) {
-      setEntries(prev => prev.filter(e => e.id !== deletingEntryId));
+      deleteFinancialEntry(deletingEntryId);
       toast.success('Lançamento excluído com sucesso!');
       setDeletingEntryId(null);
       setIsDeleteDialogOpen(false);
@@ -181,24 +194,28 @@ const Financeiro = () => {
     setIsDeleteDialogOpen(true);
   };
 
+  const clearDateFilter = () => {
+    setDateRange(undefined);
+  };
+
   const categories = formData.type === 'income' ? incomeCategories : expenseCategories;
 
   return (
     <MainLayout>
-      <div className="space-y-6">
+      <div className="space-y-4 sm:space-y-6">
         {/* Header */}
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-4">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">Financeiro</h1>
-            <p className="text-muted-foreground">Controle suas receitas e despesas</p>
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Financeiro</h1>
+            <p className="text-sm text-muted-foreground">Controle suas receitas e despesas</p>
           </div>
 
-          <div className="flex gap-2">
-            <Button variant="outline" className="gap-2" onClick={() => openNewDialog('expense')}>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <Button variant="outline" className="gap-2 min-h-[44px]" onClick={() => openNewDialog('expense')}>
               <ArrowDownCircle className="h-4 w-4 text-destructive" />
               Nova Despesa
             </Button>
-            <Button className="gap-2" onClick={() => openNewDialog('income')}>
+            <Button className="gap-2 min-h-[44px]" onClick={() => openNewDialog('income')}>
               <ArrowUpCircle className="h-4 w-4" />
               Nova Receita
             </Button>
@@ -206,59 +223,59 @@ const Financeiro = () => {
         </div>
 
         {/* Stats */}
-        <div className="grid gap-4 sm:grid-cols-4">
+        <div className="grid gap-3 grid-cols-2 sm:grid-cols-4">
           <Card className="border-l-4 border-l-success">
-            <CardContent className="p-6">
+            <CardContent className="p-4 sm:p-6">
               <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">Receitas</p>
-                  <p className="text-2xl font-bold text-success">
+                <div className="min-w-0">
+                  <p className="text-xs sm:text-sm text-muted-foreground">Receitas</p>
+                  <p className="text-lg sm:text-2xl font-bold text-success truncate">
                     R$ {totalIncome.toLocaleString('pt-BR')}
                   </p>
                 </div>
-                <TrendingUp className="h-8 w-8 text-success/30" />
+                <TrendingUp className="h-6 w-6 sm:h-8 sm:w-8 text-success/30 flex-shrink-0" />
               </div>
             </CardContent>
           </Card>
           <Card className="border-l-4 border-l-destructive">
-            <CardContent className="p-6">
+            <CardContent className="p-4 sm:p-6">
               <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">Despesas</p>
-                  <p className="text-2xl font-bold text-destructive">
+                <div className="min-w-0">
+                  <p className="text-xs sm:text-sm text-muted-foreground">Despesas</p>
+                  <p className="text-lg sm:text-2xl font-bold text-destructive truncate">
                     R$ {totalExpense.toLocaleString('pt-BR')}
                   </p>
                 </div>
-                <TrendingDown className="h-8 w-8 text-destructive/30" />
+                <TrendingDown className="h-6 w-6 sm:h-8 sm:w-8 text-destructive/30 flex-shrink-0" />
               </div>
             </CardContent>
           </Card>
           <Card className="border-l-4 border-l-primary">
-            <CardContent className="p-6">
+            <CardContent className="p-4 sm:p-6">
               <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">Saldo</p>
+                <div className="min-w-0">
+                  <p className="text-xs sm:text-sm text-muted-foreground">Saldo</p>
                   <p className={cn(
-                    'text-2xl font-bold',
+                    'text-lg sm:text-2xl font-bold truncate',
                     totalIncome - totalExpense >= 0 ? 'text-success' : 'text-destructive'
                   )}>
                     R$ {(totalIncome - totalExpense).toLocaleString('pt-BR')}
                   </p>
                 </div>
-                <DollarSign className="h-8 w-8 text-primary/30" />
+                <DollarSign className="h-6 w-6 sm:h-8 sm:w-8 text-primary/30 flex-shrink-0" />
               </div>
             </CardContent>
           </Card>
           <Card className="border-l-4 border-l-warning">
-            <CardContent className="p-6">
+            <CardContent className="p-4 sm:p-6">
               <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">A Receber</p>
-                  <p className="text-2xl font-bold text-warning">
+                <div className="min-w-0">
+                  <p className="text-xs sm:text-sm text-muted-foreground">A Receber</p>
+                  <p className="text-lg sm:text-2xl font-bold text-warning truncate">
                     R$ {pendingPayments.toLocaleString('pt-BR')}
                   </p>
                 </div>
-                <Calendar className="h-8 w-8 text-warning/30" />
+                <Calendar className="h-6 w-6 sm:h-8 sm:w-8 text-warning/30 flex-shrink-0" />
               </div>
             </CardContent>
           </Card>
@@ -266,94 +283,111 @@ const Financeiro = () => {
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-          <div className="flex items-center justify-between">
-            <TabsList>
-              <TabsTrigger value="all">Todos</TabsTrigger>
-              <TabsTrigger value="income">Receitas</TabsTrigger>
-              <TabsTrigger value="expense">Despesas</TabsTrigger>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <TabsList className="w-full sm:w-auto">
+              <TabsTrigger value="all" className="flex-1 sm:flex-none min-h-[40px]">Todos</TabsTrigger>
+              <TabsTrigger value="income" className="flex-1 sm:flex-none min-h-[40px]">Receitas</TabsTrigger>
+              <TabsTrigger value="expense" className="flex-1 sm:flex-none min-h-[40px]">Despesas</TabsTrigger>
             </TabsList>
 
             <div className="flex items-center gap-2">
-              <Input type="month" className="w-auto" />
+              <DateRangePicker
+                dateRange={dateRange}
+                onDateRangeChange={setDateRange}
+                placeholder="Filtrar por período"
+              />
+              {dateRange && (
+                <Button variant="ghost" size="icon" onClick={clearDateFilter} className="min-h-[44px] min-w-[44px]">
+                  <X className="h-4 w-4" />
+                </Button>
+              )}
             </div>
           </div>
 
           <TabsContent value={activeTab} className="space-y-4">
             <Card>
-              <CardContent className="p-0">
+              <CardContent className="p-0 overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Data</TableHead>
-                      <TableHead>Tipo</TableHead>
-                      <TableHead>Categoria</TableHead>
-                      <TableHead>Descrição</TableHead>
-                      <TableHead className="text-right">Valor</TableHead>
-                      <TableHead className="text-right">Ações</TableHead>
+                      <TableHead className="min-w-[100px]">Data</TableHead>
+                      <TableHead className="min-w-[100px]">Tipo</TableHead>
+                      <TableHead className="min-w-[100px]">Categoria</TableHead>
+                      <TableHead className="min-w-[150px]">Descrição</TableHead>
+                      <TableHead className="text-right min-w-[100px]">Valor</TableHead>
+                      <TableHead className="text-right min-w-[80px]">Ações</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredEntries.map((entry) => (
-                      <TableRow key={entry.id} className="group">
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <Calendar className="h-4 w-4 text-muted-foreground" />
-                            {entry.date.toLocaleDateString('pt-BR')}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            variant="outline"
-                            className={cn(
-                              entry.type === 'income'
-                                ? 'border-success/30 bg-success/10 text-success'
-                                : 'border-destructive/30 bg-destructive/10 text-destructive'
-                            )}
-                          >
-                            {entry.type === 'income' ? (
-                              <ArrowUpCircle className="mr-1 h-3 w-3" />
-                            ) : (
-                              <ArrowDownCircle className="mr-1 h-3 w-3" />
-                            )}
-                            {entry.type === 'income' ? 'Receita' : 'Despesa'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>{entry.category}</TableCell>
-                        <TableCell>{entry.description}</TableCell>
-                        <TableCell className="text-right">
-                          <span
-                            className={cn(
-                              'font-semibold',
-                              entry.type === 'income' ? 'text-success' : 'text-destructive'
-                            )}
-                          >
-                            {entry.type === 'income' ? '+' : '-'} R$ {entry.amount.toFixed(2)}
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon" className="opacity-0 group-hover:opacity-100">
-                                <MoreVertical className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => openEditDialog(entry)}>
-                                <Edit className="mr-2 h-4 w-4" />
-                                Editar
-                              </DropdownMenuItem>
-                              <DropdownMenuItem 
-                                className="text-destructive"
-                                onClick={() => openDeleteDialog(entry.id)}
-                              >
-                                <Trash2 className="mr-2 h-4 w-4" />
-                                Excluir
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+                    {filteredEntries.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                          Nenhum lançamento encontrado
                         </TableCell>
                       </TableRow>
-                    ))}
+                    ) : (
+                      filteredEntries.map((entry) => (
+                        <TableRow key={entry.id} className="group">
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <Calendar className="h-4 w-4 text-muted-foreground hidden sm:block" />
+                              {new Date(entry.date).toLocaleDateString('pt-BR')}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge
+                              variant="outline"
+                              className={cn(
+                                entry.type === 'income'
+                                  ? 'border-success/30 bg-success/10 text-success'
+                                  : 'border-destructive/30 bg-destructive/10 text-destructive'
+                              )}
+                            >
+                              {entry.type === 'income' ? (
+                                <ArrowUpCircle className="mr-1 h-3 w-3" />
+                              ) : (
+                                <ArrowDownCircle className="mr-1 h-3 w-3" />
+                              )}
+                              <span className="hidden sm:inline">{entry.type === 'income' ? 'Receita' : 'Despesa'}</span>
+                            </Badge>
+                          </TableCell>
+                          <TableCell>{entry.category}</TableCell>
+                          <TableCell className="max-w-[200px] truncate">{entry.description}</TableCell>
+                          <TableCell className="text-right">
+                            <span
+                              className={cn(
+                                'font-semibold',
+                                entry.type === 'income' ? 'text-success' : 'text-destructive'
+                              )}
+                            >
+                              {entry.type === 'income' ? '+' : '-'} R$ {entry.amount.toFixed(2)}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-10 w-10 sm:opacity-0 sm:group-hover:opacity-100">
+                                  <MoreVertical className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => openEditDialog(entry)}>
+                                  <Edit className="mr-2 h-4 w-4" />
+                                  Editar
+                                </DropdownMenuItem>
+                                <DropdownMenuItem 
+                                  className="text-destructive"
+                                  onClick={() => openDeleteDialog(entry.id)}
+                                >
+                                  <Trash2 className="mr-2 h-4 w-4" />
+                                  Excluir
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
                   </TableBody>
                 </Table>
               </CardContent>
@@ -363,7 +397,7 @@ const Financeiro = () => {
 
         {/* Create/Edit Dialog */}
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogContent className="sm:max-w-[500px]">
+          <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
                 {editingEntry 
@@ -384,7 +418,7 @@ const Financeiro = () => {
                     value={formData.type} 
                     onValueChange={(value: 'income' | 'expense') => setFormData(prev => ({ ...prev, type: value, category: '' }))}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="min-h-[44px]">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -400,7 +434,7 @@ const Financeiro = () => {
                   value={formData.category} 
                   onValueChange={(value) => setFormData(prev => ({ ...prev, category: value }))}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="min-h-[44px]">
                     <SelectValue placeholder="Selecione a categoria" />
                   </SelectTrigger>
                   <SelectContent>
@@ -417,9 +451,10 @@ const Financeiro = () => {
                   placeholder="Descrição da movimentação..."
                   value={formData.description}
                   onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                  className="min-h-[80px]"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="amount">Valor (R$) *</Label>
                   <Input 
@@ -429,6 +464,7 @@ const Financeiro = () => {
                     placeholder="0.00"
                     value={formData.amount}
                     onChange={(e) => setFormData(prev => ({ ...prev, amount: e.target.value }))}
+                    className="min-h-[44px]"
                   />
                 </div>
                 <div className="space-y-2">
@@ -438,15 +474,16 @@ const Financeiro = () => {
                     type="date"
                     value={formData.date}
                     onChange={(e) => setFormData(prev => ({ ...prev, date: e.target.value }))}
+                    className="min-h-[44px]"
                   />
                 </div>
               </div>
             </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+            <DialogFooter className="flex-col sm:flex-row gap-2">
+              <Button variant="outline" onClick={() => setIsDialogOpen(false)} className="min-h-[44px]">
                 Cancelar
               </Button>
-              <Button onClick={handleSave}>
+              <Button onClick={handleSave} className="min-h-[44px]">
                 {editingEntry ? 'Salvar Alterações' : 'Registrar'}
               </Button>
             </DialogFooter>
@@ -462,9 +499,9 @@ const Financeiro = () => {
                 Esta ação não pode ser desfeita. O lançamento será removido permanentemente.
               </AlertDialogDescription>
             </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancelar</AlertDialogCancel>
-              <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+            <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+              <AlertDialogCancel className="min-h-[44px]">Cancelar</AlertDialogCancel>
+              <AlertDialogAction onClick={handleDelete} className="min-h-[44px] bg-destructive text-destructive-foreground hover:bg-destructive/90">
                 Excluir
               </AlertDialogAction>
             </AlertDialogFooter>
