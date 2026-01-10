@@ -43,6 +43,17 @@ export function useEvolutionApi() {
     instanceName?: string,
     webhookUrl?: string
   ) => {
+    // Validate instanceName for actions that require it
+    const actionsRequiringInstance: EvolutionAction[] = [
+      'create-instance', 'get-qrcode', 'connect', 'disconnect', 'delete-instance', 'get-status'
+    ];
+    
+    if (actionsRequiringInstance.includes(action) && (!instanceName || instanceName.trim() === '')) {
+      console.error('Evolution API: instanceName is required for action:', action);
+      toast.error('Nome da instância é obrigatório');
+      return null;
+    }
+
     setIsLoading(true);
     
     try {
@@ -53,14 +64,30 @@ export function useEvolutionApi() {
         return null;
       }
 
+      // Ensure instanceName is trimmed and properly sent
+      const requestBody = {
+        action,
+        instanceName: instanceName?.trim() || undefined,
+        webhookUrl: webhookUrl?.trim() || undefined,
+      };
+
+      console.log('Evolution API request:', { action, instanceName: requestBody.instanceName });
+
       const response = await supabase.functions.invoke('evolution-api', {
-        body: { action, instanceName, webhookUrl },
+        body: requestBody,
       });
 
       if (response.error) {
+        console.error('Evolution API response error:', response.error);
         throw new Error(response.error.message);
       }
 
+      // Check if the response indicates an error from Evolution API
+      if (response.data && !response.data.success && response.data.error) {
+        throw new Error(response.data.error);
+      }
+
+      console.log('Evolution API response:', response.data);
       return response.data;
     } catch (error) {
       console.error('Evolution API error:', error);
@@ -95,7 +122,13 @@ export function useEvolutionApi() {
   };
 
   const getQRCode = async (instanceName: string) => {
-    const result = await callEvolutionApi('get-qrcode', instanceName);
+    if (!instanceName || instanceName.trim() === '') {
+      console.error('getQRCode: instanceName is empty');
+      toast.error('Nome da instância não informado');
+      return null;
+    }
+
+    const result = await callEvolutionApi('get-qrcode', instanceName.trim());
     if (result?.success) {
       const qrData = result.data as QRCodeResponse;
       if (qrData?.base64) {
@@ -120,7 +153,13 @@ export function useEvolutionApi() {
   };
 
   const connectInstance = async (instanceName: string) => {
-    const result = await callEvolutionApi('connect', instanceName);
+    if (!instanceName || instanceName.trim() === '') {
+      console.error('connectInstance: instanceName is empty');
+      toast.error('Nome da instância não informado');
+      return null;
+    }
+
+    const result = await callEvolutionApi('connect', instanceName.trim());
     if (result?.success) {
       // Check if we got a QR code
       if (result.data?.base64) {

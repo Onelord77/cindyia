@@ -56,8 +56,29 @@ serve(async (req) => {
     }
 
     // Parse request body
-    const body: EvolutionRequest = await req.json()
-    const { action, instanceName, webhookUrl } = body
+    let body: EvolutionRequest;
+    try {
+      body = await req.json();
+    } catch {
+      return new Response(
+        JSON.stringify({ error: 'Invalid JSON body' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+    
+    const { action, webhookUrl } = body;
+    // Ensure instanceName is trimmed and validated
+    const instanceName = body.instanceName?.trim() || '';
+
+    console.log('Evolution API request:', { action, instanceName: instanceName || '(empty)', hasWebhook: !!webhookUrl });
+
+    // Validate action
+    if (!action) {
+      return new Response(
+        JSON.stringify({ error: 'Action is required' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
 
     // Base URL cleanup (remove trailing slash if present)
     const baseUrl = evolutionApiUrl.replace(/\/$/, '')
@@ -83,8 +104,9 @@ serve(async (req) => {
 
       case 'create-instance': {
         if (!instanceName) {
+          console.error('create-instance: instanceName is empty');
           return new Response(
-            JSON.stringify({ error: 'Instance name is required' }),
+            JSON.stringify({ error: 'Instance name is required', code: 'INSTANCE_NAME_REQUIRED' }),
             { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           )
         }
@@ -128,24 +150,28 @@ serve(async (req) => {
 
       case 'get-qrcode': {
         if (!instanceName) {
+          console.error('get-qrcode: instanceName is empty');
           return new Response(
-            JSON.stringify({ error: 'Instance name is required' }),
+            JSON.stringify({ error: 'Instance name is required', code: 'INSTANCE_NAME_REQUIRED' }),
             { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           )
         }
 
+        console.log('get-qrcode: Fetching QR for instance:', instanceName);
         response = await fetch(`${baseUrl}/instance/connect/${instanceName}`, {
           method: 'GET',
           headers: evolutionHeaders,
         })
         result = await response.json()
+        console.log('get-qrcode: Response status:', response.status, 'hasQR:', !!(result as Record<string, unknown>)?.base64);
         break
       }
 
       case 'get-status': {
         if (!instanceName) {
+          console.error('get-status: instanceName is empty');
           return new Response(
-            JSON.stringify({ error: 'Instance name is required' }),
+            JSON.stringify({ error: 'Instance name is required', code: 'INSTANCE_NAME_REQUIRED' }),
             { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           )
         }
@@ -160,24 +186,28 @@ serve(async (req) => {
 
       case 'connect': {
         if (!instanceName) {
+          console.error('connect: instanceName is empty');
           return new Response(
-            JSON.stringify({ error: 'Instance name is required' }),
+            JSON.stringify({ error: 'Instance name is required', code: 'INSTANCE_NAME_REQUIRED' }),
             { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           )
         }
 
+        console.log('connect: Connecting instance:', instanceName);
         response = await fetch(`${baseUrl}/instance/connect/${instanceName}`, {
           method: 'GET',
           headers: evolutionHeaders,
         })
         result = await response.json()
+        console.log('connect: Response status:', response.status, 'hasQR:', !!(result as Record<string, unknown>)?.base64);
         break
       }
 
       case 'disconnect': {
         if (!instanceName) {
+          console.error('disconnect: instanceName is empty');
           return new Response(
-            JSON.stringify({ error: 'Instance name is required' }),
+            JSON.stringify({ error: 'Instance name is required', code: 'INSTANCE_NAME_REQUIRED' }),
             { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           )
         }
@@ -192,8 +222,9 @@ serve(async (req) => {
 
       case 'delete-instance': {
         if (!instanceName) {
+          console.error('delete-instance: instanceName is empty');
           return new Response(
-            JSON.stringify({ error: 'Instance name is required' }),
+            JSON.stringify({ error: 'Instance name is required', code: 'INSTANCE_NAME_REQUIRED' }),
             { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           )
         }
