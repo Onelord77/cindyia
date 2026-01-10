@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,6 +21,7 @@ import {
   Wifi,
   WifiOff,
   Shield,
+  ExternalLink,
 } from 'lucide-react';
 import { WhatsAppWebhookSettings } from './WhatsAppWebhookSettings';
 
@@ -45,6 +46,9 @@ export function WhatsAppIntegration() {
     disconnectInstance,
     deleteInstance,
     clearQRCode,
+    openQRCodeInNewTab,
+    startStatusPolling,
+    stopStatusPolling,
   } = useEvolutionApi();
 
   useEffect(() => {
@@ -61,18 +65,38 @@ export function WhatsAppIntegration() {
     }
   };
 
-  const handleConnect = async (instanceName: string) => {
+  // Handle connecting instance and opening QR dialog
+  const handleConnect = useCallback(async (instanceName: string) => {
     setSelectedInstance(instanceName);
     clearQRCode();
     setIsQRDialogOpen(true);
+    
+    // Connect and get fresh QR code
     await connectInstance(instanceName);
-  };
+    
+    // Start polling for connection status
+    startStatusPolling(instanceName, () => {
+      // On connected, close dialog and refresh instances
+      setIsQRDialogOpen(false);
+      fetchInstances();
+    });
+  }, [clearQRCode, connectInstance, startStatusPolling, fetchInstances]);
 
-  const handleRefreshQR = async () => {
+  // Handle refreshing QR code - always get fresh one
+  const handleRefreshQR = useCallback(async () => {
     if (selectedInstance) {
-      await getQRCode(selectedInstance);
+      // Force refresh - no cache
+      await getQRCode(selectedInstance, true);
     }
-  };
+  }, [selectedInstance, getQRCode]);
+
+  // Clean up polling when dialog closes
+  const handleQRDialogChange = useCallback((open: boolean) => {
+    setIsQRDialogOpen(open);
+    if (!open) {
+      stopStatusPolling();
+    }
+  }, [stopStatusPolling]);
 
   const handleCheckStatus = async (instanceName: string) => {
     await getConnectionStatus(instanceName);
@@ -317,7 +341,7 @@ export function WhatsAppIntegration() {
         </CardContent>
 
         {/* QR Code Dialog */}
-        <Dialog open={isQRDialogOpen} onOpenChange={setIsQRDialogOpen}>
+        <Dialog open={isQRDialogOpen} onOpenChange={handleQRDialogChange}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
               <DialogTitle>Conectar WhatsApp</DialogTitle>
@@ -333,20 +357,36 @@ export function WhatsAppIntegration() {
                 </div>
               ) : qrCode ? (
                 <>
-                  <div className="p-4 bg-white rounded-lg">
+                  {/* QR Code container with proper styling for readability */}
+                  <div 
+                    className="p-6 bg-white rounded-xl shadow-sm border"
+                    style={{ minWidth: '320px', minHeight: '320px' }}
+                  >
                     <img 
-                      src={qrCode.startsWith('data:') ? qrCode : `data:image/png;base64,${qrCode}`}
+                      src={qrCode}
                       alt="QR Code WhatsApp"
-                      className="w-64 h-64"
+                      className="w-72 h-72 block"
+                      style={{ 
+                        imageRendering: 'pixelated',
+                        filter: 'contrast(1.1)',
+                      }}
                     />
                   </div>
-                  <p className="text-sm text-muted-foreground text-center">
-                    Abra o WhatsApp no seu celular, vá em Dispositivos Conectados e escaneie o código
+                  <p className="text-sm text-muted-foreground text-center max-w-xs">
+                    Abra o WhatsApp no seu celular, vá em <strong>Dispositivos Conectados</strong> e escaneie o código
                   </p>
-                  <Button variant="outline" onClick={handleRefreshQR} disabled={isLoading}>
-                    <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-                    Gerar Novo QR Code
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button variant="outline" onClick={handleRefreshQR} disabled={isLoading}>
+                      <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+                      Atualizar QR
+                    </Button>
+                    <Button variant="ghost" onClick={openQRCodeInNewTab} title="Abrir em nova aba">
+                      <ExternalLink className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground text-center">
+                    A conexão será detectada automaticamente
+                  </p>
                 </>
               ) : (
                 <div className="flex flex-col items-center gap-3">

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
@@ -32,11 +32,29 @@ interface QRCodeResponse {
   count?: number;
 }
 
+// Normalize QR code to ensure correct format with data URI
+const normalizeQRCode = (qrData: string | undefined): string | null => {
+  if (!qrData) return null;
+  
+  // If already has data URI prefix, return as-is
+  if (qrData.startsWith('data:image/')) {
+    return qrData;
+  }
+  
+  // Remove any whitespace or newlines that might corrupt the base64
+  const cleanBase64 = qrData.replace(/\s/g, '');
+  
+  // Add data URI prefix for PNG
+  return `data:image/png;base64,${cleanBase64}`;
+};
+
 export function useEvolutionApi() {
   const [isLoading, setIsLoading] = useState(false);
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [connectionState, setConnectionState] = useState<ConnectionState | null>(null);
   const [instances, setInstances] = useState<EvolutionInstance[]>([]);
+  const statusPollingRef = useRef<NodeJS.Timeout | null>(null);
+  const currentPollingInstanceRef = useRef<string | null>(null);
 
   const callEvolutionApi = async (
     action: EvolutionAction, 
@@ -149,23 +167,34 @@ export function useEvolutionApi() {
     return null;
   };
 
-  const getQRCode = async (instanceName: string) => {
+  // Always fetch fresh QR code - no cache
+  const getQRCode = async (instanceName: string, forceRefresh = true) => {
     if (!instanceName || instanceName.trim() === '') {
       console.error('getQRCode: instanceName is empty');
       toast.error('Nome da instância não informado');
       return null;
     }
 
-    const result = await callEvolutionApi('get-qrcode', instanceName.trim());
+    const trimmedName = instanceName.trim();
+    
+    // Clear existing QR code to force fresh fetch
+    if (forceRefresh) {
+      setQrCode(null);
+    }
+
+    console.log('getQRCode: Fetching fresh QR for instance:', trimmedName, 'timestamp:', Date.now());
+    
+    const result = await callEvolutionApi('get-qrcode', trimmedName);
     if (result?.success) {
       const qrData = result.data as QRCodeResponse;
-      if (qrData?.base64) {
-        setQrCode(qrData.base64);
-        return qrData;
-      } else if (qrData?.code) {
-        // Sometimes the QR code comes as a different format
-        setQrCode(qrData.code);
-        return qrData;
+      const rawQR = qrData?.base64 || qrData?.code;
+      
+      if (rawQR) {
+        // Normalize and set QR code - never modify the base64 content
+        const normalizedQR = normalizeQRCode(rawQR);
+        console.log('getQRCode: QR received, length:', rawQR.length, 'normalized:', !!normalizedQR);
+        setQrCode(normalizedQR);
+        return { ...qrData, normalizedBase64: normalizedQR };
       }
     }
     return null;
@@ -192,6 +221,68 @@ export function useEvolutionApi() {
     return null;
   };
 
+  // Stop any existing status polling
+  const stopStatusPolling = useCallback(() => {
+    if (statusPollingRef.current) {
+      clearInterval(statusPollingRef.current);
+      statusPollingRef.current = null;
+    }
+    currentPollingInstanceRef.current = null;
+  }, []);
+
+  // Start polling for connection status
+  const startStatusPolling = useCallback((instanceName: string, onConnected?: () => void) => {
+    // Stop any existing polling
+    stopStatusPolling();
+    
+    currentPollingInstanceRef.current = instanceName;
+    
+    const checkStatus = async () => {
+      if (currentPollingInstanceRef.current !== instanceName) {
+        stopStatusPolling();
+        return;
+      }
+      
+      try {
+        const result = await callEvolutionApi('get-status', instanceName);
+        if (result?.success) {
+          const state = (result.data as ConnectionState)?.state;
+          
+          // Update instance status
+          setInstances(prev => prev.map(inst => 
+            inst.instanceName === instanceName 
+              ? { ...inst, status: state || inst.status }
+              : inst
+          ));
+          setConnectionState(result.data as ConnectionState);
+          
+          // If connected, stop polling and notify
+          if (state === 'open') {
+            stopStatusPolling();
+            toast.success('WhatsApp conectado com sucesso!');
+            setQrCode(null);
+            onConnected?.();
+          }
+        }
+      } catch (error) {
+        console.error('Status polling error:', error);
+      }
+    };
+    
+    // Check immediately
+    checkStatus();
+    
+    // Then poll every 3 seconds
+    statusPollingRef.current = setInterval(checkStatus, 3000);
+    
+    // Auto-stop after 2 minutes
+    setTimeout(() => {
+      if (currentPollingInstanceRef.current === instanceName) {
+        stopStatusPolling();
+      }
+    }, 120000);
+  }, [stopStatusPolling]);
+
   const connectInstance = async (instanceName: string) => {
     if (!instanceName || instanceName.trim() === '') {
       console.error('connectInstance: instanceName is empty');
@@ -199,13 +290,23 @@ export function useEvolutionApi() {
       return null;
     }
 
-    const result = await callEvolutionApi('connect', instanceName.trim());
+    const trimmedName = instanceName.trim();
+    
+    // Clear any cached QR code first
+    setQrCode(null);
+    
+    console.log('connectInstance: Connecting instance:', trimmedName, 'timestamp:', Date.now());
+
+    const result = await callEvolutionApi('connect', trimmedName);
     if (result?.success) {
       // Check if we got a QR code
-      if (result.data?.base64) {
-        setQrCode(result.data.base64);
+      const rawQR = (result.data as QRCodeResponse)?.base64;
+      if (rawQR) {
+        const normalizedQR = normalizeQRCode(rawQR);
+        console.log('connectInstance: QR received, length:', rawQR.length);
+        setQrCode(normalizedQR);
       }
-      toast.info('Conectando instância...');
+      toast.info('Escaneie o QR Code para conectar...');
       return result.data;
     }
     return null;
@@ -247,9 +348,47 @@ export function useEvolutionApi() {
     return null;
   };
 
-  const clearQRCode = () => {
+  const clearQRCode = useCallback(() => {
     setQrCode(null);
-  };
+    stopStatusPolling();
+  }, [stopStatusPolling]);
+
+  // Open QR code in new tab for easier scanning
+  const openQRCodeInNewTab = useCallback(() => {
+    if (!qrCode) return;
+    
+    // Create a new window with just the QR code image
+    const newWindow = window.open('', '_blank');
+    if (newWindow) {
+      newWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>QR Code WhatsApp</title>
+          <style>
+            body {
+              margin: 0;
+              display: flex;
+              justify-content: center;
+              align-items: center;
+              min-height: 100vh;
+              background: white;
+            }
+            img {
+              max-width: 90vw;
+              max-height: 90vh;
+              image-rendering: pixelated;
+            }
+          </style>
+        </head>
+        <body>
+          <img src="${qrCode}" alt="QR Code WhatsApp" />
+        </body>
+        </html>
+      `);
+      newWindow.document.close();
+    }
+  }, [qrCode]);
 
   return {
     isLoading,
@@ -264,5 +403,8 @@ export function useEvolutionApi() {
     disconnectInstance,
     deleteInstance,
     clearQRCode,
+    openQRCodeInNewTab,
+    startStatusPolling,
+    stopStatusPolling,
   };
 }
