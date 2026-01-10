@@ -100,7 +100,41 @@ serve(async (req) => {
           method: 'GET',
           headers: evolutionHeaders,
         })
-        result = await response.json()
+        const instances = await response.json()
+        
+        // Fetch connection state for each instance to get accurate status
+        if (Array.isArray(instances)) {
+          const instancesWithStatus = await Promise.all(
+            instances.map(async (inst: Record<string, unknown>) => {
+              const instData = (inst.instance || inst) as Record<string, unknown>;
+              const instName = instData.instanceName || instData.name || '';
+              
+              if (instName) {
+                try {
+                  const statusResponse = await fetch(`${baseUrl}/instance/connectionState/${instName}`, {
+                    method: 'GET',
+                    headers: evolutionHeaders,
+                  });
+                  const statusData = await statusResponse.json();
+                  // Merge status into instance data
+                  return {
+                    ...inst,
+                    instance: {
+                      ...instData,
+                      state: statusData?.state || statusData?.instance?.state || 'close',
+                    },
+                  };
+                } catch {
+                  return inst;
+                }
+              }
+              return inst;
+            })
+          );
+          result = instancesWithStatus;
+        } else {
+          result = instances;
+        }
         break
       }
 
