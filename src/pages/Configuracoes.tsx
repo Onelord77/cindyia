@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -16,7 +17,28 @@ import {
 } from '@/components/ui/select';
 import { Building2, Clock, Bell, Save } from 'lucide-react';
 
+const DAYS_OF_WEEK = [
+  { key: 'seg', label: 'Seg' },
+  { key: 'ter', label: 'Ter' },
+  { key: 'qua', label: 'Qua' },
+  { key: 'qui', label: 'Qui' },
+  { key: 'sex', label: 'Sex' },
+  { key: 'sab', label: 'Sáb' },
+  { key: 'dom', label: 'Dom' },
+];
+
 const Configuracoes = () => {
+  // State for working days - default Mon-Sat selected
+  const [workingDays, setWorkingDays] = useState<string[]>(['seg', 'ter', 'qua', 'qui', 'sex', 'sab']);
+
+  const toggleWorkingDay = (dayKey: string) => {
+    setWorkingDays(prev => 
+      prev.includes(dayKey) 
+        ? prev.filter(d => d !== dayKey)
+        : [...prev, dayKey]
+    );
+  };
+
   return (
     <MainLayout>
       <div className="space-y-6">
@@ -112,16 +134,21 @@ const Configuracoes = () => {
                   <div className="space-y-2">
                     <Label>Dias de Funcionamento</Label>
                     <div className="flex flex-wrap gap-2">
-                      {['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'].map((day, i) => (
-                        <Button
-                          key={day}
-                          variant={i < 6 ? 'default' : 'outline'}
-                          size="sm"
-                          className="w-12"
-                        >
-                          {day}
-                        </Button>
-                      ))}
+                      {DAYS_OF_WEEK.map((day) => {
+                        const isSelected = workingDays.includes(day.key);
+                        return (
+                          <Button
+                            key={day.key}
+                            type="button"
+                            variant={isSelected ? 'default' : 'outline'}
+                            size="sm"
+                            className="w-12"
+                            onClick={() => toggleWorkingDay(day.key)}
+                          >
+                            {day.label}
+                          </Button>
+                        );
+                      })}
                     </div>
                   </div>
                 </CardContent>

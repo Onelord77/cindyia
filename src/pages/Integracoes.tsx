@@ -6,6 +6,7 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { WhatsAppIntegration } from '@/components/integrations/WhatsAppIntegration';
+import { useAuth } from '@/hooks/useAuth';
 import { 
   Mail, 
   CreditCard, 
@@ -13,12 +14,6 @@ import {
   Check,
   ExternalLink,
 } from 'lucide-react';
-
-// Simulated super admin check - in production this would come from auth context
-const useIsSuperAdmin = () => {
-  // For now, we'll use a simple check - in production use proper auth
-  return window.location.pathname.includes('/admin') || localStorage.getItem('isSuperAdmin') === 'true';
-};
 
 const integrations = [
   {
@@ -48,7 +43,7 @@ const integrations = [
 ];
 
 const Integracoes = () => {
-  const isSuperAdmin = useIsSuperAdmin();
+  const { isSuperAdmin } = useAuth();
 
   return (
     <MainLayout>
@@ -57,115 +52,122 @@ const Integracoes = () => {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Integrações</h1>
           <p className="text-muted-foreground">
-            Conecte suas ferramentas favoritas para automatizar seu negócio
+            {isSuperAdmin 
+              ? 'Conecte suas ferramentas favoritas para automatizar seu negócio'
+              : 'Gerencie suas instâncias do WhatsApp'
+            }
           </p>
         </div>
 
-        {/* WhatsApp Integration - Full Component */}
+        {/* WhatsApp Integration - Available for Admin and Super Admin */}
         <WhatsAppIntegration />
 
-        {/* Other Integrations */}
-        <div className="grid gap-4 md:grid-cols-2">
-          {integrations.map((integration) => {
-            const Icon = integration.icon;
-            const isConnected = integration.status === 'connected';
+        {/* Other Integrations - Only for Super Admin */}
+        {isSuperAdmin && (
+          <>
+            <div className="grid gap-4 md:grid-cols-2">
+              {integrations.map((integration) => {
+                const Icon = integration.icon;
+                const isConnected = integration.status === 'connected';
 
-            return (
-              <Card key={integration.id}>
-                <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className={`rounded-lg p-2 ${integration.color}`}>
-                        <Icon className="h-5 w-5" />
+                return (
+                  <Card key={integration.id}>
+                    <CardHeader>
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className={`rounded-lg p-2 ${integration.color}`}>
+                            <Icon className="h-5 w-5" />
+                          </div>
+                          <div>
+                            <CardTitle className="text-base">{integration.name}</CardTitle>
+                            <CardDescription className="text-sm">
+                              {integration.description}
+                            </CardDescription>
+                          </div>
+                        </div>
+                        <Badge
+                          variant="outline"
+                          className={
+                            isConnected
+                              ? 'border-success/30 bg-success/10 text-success'
+                              : 'border-muted'
+                          }
+                        >
+                          {isConnected ? (
+                            <span className="flex items-center gap-1">
+                              <Check className="h-3 w-3" /> Conectado
+                            </span>
+                          ) : (
+                            'Desconectado'
+                          )}
+                        </Badge>
                       </div>
-                      <div>
-                        <CardTitle className="text-base">{integration.name}</CardTitle>
-                        <CardDescription className="text-sm">
-                          {integration.description}
-                        </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Switch id={`${integration.id}-enabled`} checked={isConnected} />
+                          <Label htmlFor={`${integration.id}-enabled`} className="text-sm">
+                            {isConnected ? 'Ativo' : 'Inativo'}
+                          </Label>
+                        </div>
+                        <Button variant="outline" size="sm" className="gap-2">
+                          Configurar
+                          <ExternalLink className="h-3 w-3" />
+                        </Button>
                       </div>
-                    </div>
-                    <Badge
-                      variant="outline"
-                      className={
-                        isConnected
-                          ? 'border-success/30 bg-success/10 text-success'
-                          : 'border-muted'
-                      }
-                    >
-                      {isConnected ? (
-                        <span className="flex items-center gap-1">
-                          <Check className="h-3 w-3" /> Conectado
-                        </span>
-                      ) : (
-                        'Desconectado'
-                      )}
-                    </Badge>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+
+            {/* Notification Settings - Only for Super Admin */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Notificações Automáticas</CardTitle>
+                <CardDescription>
+                  Configure quando e como os clientes recebem avisos
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label>Confirmação de Agendamento</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Enviar mensagem ao confirmar agendamento
+                    </p>
                   </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Switch id={`${integration.id}-enabled`} checked={isConnected} />
-                      <Label htmlFor={`${integration.id}-enabled`} className="text-sm">
-                        {isConnected ? 'Ativo' : 'Inativo'}
-                      </Label>
-                    </div>
-                    <Button variant="outline" size="sm" className="gap-2">
-                      Configurar
-                      <ExternalLink className="h-3 w-3" />
-                    </Button>
+                  <Switch defaultChecked />
+                </div>
+
+                <Separator />
+
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label>Lembrete de Agendamento</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Enviar lembrete 2h antes do horário marcado
+                    </p>
                   </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
+                  <Switch defaultChecked />
+                </div>
 
-        {/* Notification Settings */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Notificações Automáticas</CardTitle>
-            <CardDescription>
-              Configure quando e como os clientes recebem avisos
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>Confirmação de Agendamento</Label>
-                <p className="text-sm text-muted-foreground">
-                  Enviar mensagem ao confirmar agendamento
-                </p>
-              </div>
-              <Switch defaultChecked />
-            </div>
+                <Separator />
 
-            <Separator />
-
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>Lembrete de Agendamento</Label>
-                <p className="text-sm text-muted-foreground">
-                  Enviar lembrete 2h antes do horário marcado
-                </p>
-              </div>
-              <Switch defaultChecked />
-            </div>
-
-            <Separator />
-
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>Aviso de Cancelamento</Label>
-                <p className="text-sm text-muted-foreground">
-                  Notificar quando agendamento for cancelado
-                </p>
-              </div>
-              <Switch defaultChecked />
-            </div>
-          </CardContent>
-        </Card>
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label>Aviso de Cancelamento</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Notificar quando agendamento for cancelado
+                    </p>
+                  </div>
+                  <Switch defaultChecked />
+                </div>
+              </CardContent>
+            </Card>
+          </>
+        )}
       </div>
     </MainLayout>
   );

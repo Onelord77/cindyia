@@ -104,12 +104,15 @@ export function WhatsAppIntegration() {
 
   const getInstanceStatus = (instance: { instanceName: string; status?: string }) => {
     const status = instance.status?.toLowerCase();
-    if (status === 'open' || status === 'connected') {
+    // Check for connected states
+    if (status === 'open' || status === 'connected' || status === 'online') {
       return { label: 'Conectado', variant: 'success' as const, icon: Wifi };
     }
-    if (status === 'connecting') {
+    // Check for connecting states
+    if (status === 'connecting' || status === 'qrcode') {
       return { label: 'Conectando', variant: 'warning' as const, icon: RefreshCw };
     }
+    // Default to disconnected
     return { label: 'Desconectado', variant: 'destructive' as const, icon: WifiOff };
   };
 

@@ -123,10 +123,30 @@ export function useEvolutionApi() {
       const normalizedInstances: EvolutionInstance[] = result.data.map((item: Record<string, unknown>) => {
         // Handle both flat structure and nested instance structure
         const instance = (item.instance || item) as Record<string, unknown>;
+        
+        // Get status from multiple possible sources
+        // Evolution API can return: state, status, connectionStatus, or nested instance.state
+        const rawStatus = 
+          instance.state || 
+          instance.status || 
+          instance.connectionStatus ||
+          item.state ||
+          item.status ||
+          'close';
+        
+        // Normalize status value to consistent format
+        const statusStr = String(rawStatus).toLowerCase();
+        let normalizedStatus = 'close';
+        if (statusStr === 'open' || statusStr === 'connected' || statusStr === 'online') {
+          normalizedStatus = 'open';
+        } else if (statusStr === 'connecting' || statusStr === 'qrcode') {
+          normalizedStatus = 'connecting';
+        }
+        
         return {
-          instanceName: String(instance.instanceName || instance.name || ''),
+          instanceName: String(instance.instanceName || instance.name || item.instanceName || item.name || ''),
           instanceId: instance.instanceId ? String(instance.instanceId) : undefined,
-          status: String(instance.status || instance.state || 'close'),
+          status: normalizedStatus,
           owner: instance.owner ? String(instance.owner) : undefined,
           profileName: instance.profileName ? String(instance.profileName) : undefined,
           profilePictureUrl: instance.profilePictureUrl ? String(instance.profilePictureUrl) : undefined,
