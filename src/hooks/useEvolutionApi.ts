@@ -101,22 +101,50 @@ export function useEvolutionApi() {
   const fetchInstances = async () => {
     const result = await callEvolutionApi('fetch-instances');
     if (result?.success && Array.isArray(result.data)) {
-      setInstances(result.data);
-      return result.data;
+      // Normalize instances - Evolution API returns array of objects with different structures
+      const normalizedInstances: EvolutionInstance[] = result.data.map((item: Record<string, unknown>) => {
+        // Handle both flat structure and nested instance structure
+        const instance = (item.instance || item) as Record<string, unknown>;
+        return {
+          instanceName: String(instance.instanceName || instance.name || ''),
+          instanceId: instance.instanceId ? String(instance.instanceId) : undefined,
+          status: String(instance.status || instance.state || 'close'),
+          owner: instance.owner ? String(instance.owner) : undefined,
+          profileName: instance.profileName ? String(instance.profileName) : undefined,
+          profilePictureUrl: instance.profilePictureUrl ? String(instance.profilePictureUrl) : undefined,
+        };
+      }).filter((inst: EvolutionInstance) => inst.instanceName); // Filter out invalid instances
+      
+      console.log('Fetched instances:', normalizedInstances);
+      setInstances(normalizedInstances);
+      return normalizedInstances;
     }
+    setInstances([]);
     return [];
   };
 
   const createInstance = async (instanceName: string, webhookUrl?: string) => {
-    const result = await callEvolutionApi('create-instance', instanceName, webhookUrl);
+    // Validate instanceName before calling API
+    const trimmedName = instanceName?.trim();
+    if (!trimmedName) {
+      toast.error('Nome da instância é obrigatório');
+      return null;
+    }
+
+    const result = await callEvolutionApi('create-instance', trimmedName, webhookUrl);
     if (result?.success) {
       toast.success('Instância criada com sucesso!');
+      
       // If QR code is returned immediately, set it
       if (result.data?.qrcode?.base64) {
         setQrCode(result.data.qrcode.base64);
       }
+      
+      // Refresh instances list to show the new instance
       await fetchInstances();
-      return result.data;
+      
+      // Return the instance name for reference
+      return { ...result.data, instanceName: trimmedName };
     }
     return null;
   };
@@ -144,8 +172,20 @@ export function useEvolutionApi() {
   };
 
   const getConnectionStatus = async (instanceName: string) => {
-    const result = await callEvolutionApi('get-status', instanceName);
+    const trimmedName = instanceName?.trim();
+    if (!trimmedName) {
+      console.error('getConnectionStatus: instanceName is empty');
+      return null;
+    }
+
+    const result = await callEvolutionApi('get-status', trimmedName);
     if (result?.success) {
+      // Update the instance status in the list
+      setInstances(prev => prev.map(inst => 
+        inst.instanceName === trimmedName 
+          ? { ...inst, status: (result.data as ConnectionState)?.state || inst.status }
+          : inst
+      ));
       setConnectionState(result.data as ConnectionState);
       return result.data;
     }
@@ -172,7 +212,13 @@ export function useEvolutionApi() {
   };
 
   const disconnectInstance = async (instanceName: string) => {
-    const result = await callEvolutionApi('disconnect', instanceName);
+    const trimmedName = instanceName?.trim();
+    if (!trimmedName) {
+      toast.error('Nome da instância é obrigatório');
+      return null;
+    }
+
+    const result = await callEvolutionApi('disconnect', trimmedName);
     if (result?.success) {
       setQrCode(null);
       setConnectionState(null);
@@ -184,7 +230,13 @@ export function useEvolutionApi() {
   };
 
   const deleteInstance = async (instanceName: string) => {
-    const result = await callEvolutionApi('delete-instance', instanceName);
+    const trimmedName = instanceName?.trim();
+    if (!trimmedName) {
+      toast.error('Nome da instância é obrigatório');
+      return null;
+    }
+
+    const result = await callEvolutionApi('delete-instance', trimmedName);
     if (result?.success) {
       setQrCode(null);
       setConnectionState(null);
