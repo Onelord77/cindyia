@@ -22,6 +22,7 @@ import {
   WifiOff,
   Shield,
   ExternalLink,
+  Settings,
 } from 'lucide-react';
 import { WhatsAppWebhookSettings } from './WhatsAppWebhookSettings';
 
@@ -45,6 +46,7 @@ export function WhatsAppIntegration() {
     connectInstance,
     disconnectInstance,
     deleteInstance,
+    updateAllInstancesWebhook,
     clearQRCode,
     openQRCodeInNewTab,
     startStatusPolling,
@@ -327,20 +329,38 @@ export function WhatsAppIntegration() {
 
           <Separator />
 
-          {/* Refresh Button */}
-          <Button
-            variant="outline"
-            className="w-full"
-            onClick={fetchInstances}
-            disabled={isLoading}
-          >
-            {isLoading ? (
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            ) : (
-              <RefreshCw className="h-4 w-4 mr-2" />
+          {/* Actions */}
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              className="flex-1"
+              onClick={fetchInstances}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4 mr-2" />
+              )}
+              Atualizar Lista
+            </Button>
+            
+            {instances.length > 0 && isSuperAdmin && (
+              <Button
+                variant="secondary"
+                onClick={updateAllInstancesWebhook}
+                disabled={isLoading}
+                title="Atualizar webhook de todas as instâncias"
+              >
+                {isLoading ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Settings className="h-4 w-4 mr-2" />
+                )}
+                Sincronizar Webhooks
+              </Button>
             )}
-            Atualizar Lista
-          </Button>
+          </div>
         </CardContent>
 
         {/* QR Code Dialog */}
