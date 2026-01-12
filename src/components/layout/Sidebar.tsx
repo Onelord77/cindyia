@@ -130,7 +130,7 @@ export function Sidebar() {
         <div className="absolute bottom-4 left-4 right-4">
           <div className="rounded-lg bg-sidebar-accent p-3">
             <p className="text-xs text-sidebar-foreground/70">
-              Powered by <span className="font-semibold text-sidebar-primary">Cindy IA</span>
+              powered by <span className="font-semibold text-sidebar-primary">Onelord</span>
             </p>
           </div>
         </div>

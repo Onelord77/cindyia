@@ -40,7 +40,7 @@ export default function Login() {
               <Calendar className="h-8 w-8 text-primary" />
             </div>
           </div>
-          <CardTitle className="text-2xl">AgendAI</CardTitle>
+          <CardTitle className="text-2xl">CindyIa</CardTitle>
           <CardDescription>
             Faça login para acessar sua conta
           </CardDescription>
