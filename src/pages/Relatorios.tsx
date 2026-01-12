@@ -41,8 +41,13 @@ import {
   UserCheck,
   Clock,
   ArrowRight,
-  ArrowLeft
+  ArrowLeft,
+  Search,
+  Filter,
+  Check
 } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
 import { useAppointments } from '@/hooks/useAppointments';
 import { useFinancialEntries } from '@/hooks/useFinancialEntries';
 import { DateRangePicker } from '@/components/ui/date-range-picker';
@@ -58,6 +63,14 @@ import {
   ReportHorarios,
 } from '@/components/reports';
 
+// Categorias de relatórios
+const reportCategories = [
+  { id: 'all', label: 'Todos' },
+  { id: 'financeiro', label: 'Financeiro' },
+  { id: 'operacional', label: 'Operacional' },
+  { id: 'clientes', label: 'Clientes' },
+];
+
 // Definição dos relatórios disponíveis
 const availableReports = [
   {
@@ -66,6 +79,8 @@ const availableReports = [
     description: 'Análise de receitas, despesas e faturamento do período',
     icon: Wallet,
     color: 'bg-emerald-500/10 text-emerald-600',
+    borderColor: 'border-emerald-500',
+    category: 'financeiro',
   },
   {
     id: 'agendamentos',
@@ -73,6 +88,8 @@ const availableReports = [
     description: 'Visão geral dos agendamentos, cancelamentos e taxa de ocupação',
     icon: Calendar,
     color: 'bg-blue-500/10 text-blue-600',
+    borderColor: 'border-blue-500',
+    category: 'operacional',
   },
   {
     id: 'servicos',
@@ -80,6 +97,8 @@ const availableReports = [
     description: 'Serviços mais realizados e distribuição por categoria',
     icon: PieChartIcon,
     color: 'bg-purple-500/10 text-purple-600',
+    borderColor: 'border-purple-500',
+    category: 'operacional',
   },
   {
     id: 'desempenho',
@@ -87,6 +106,8 @@ const availableReports = [
     description: 'Análise de ticket médio, tendências e comparativos',
     icon: TrendingUp,
     color: 'bg-orange-500/10 text-orange-600',
+    borderColor: 'border-orange-500',
+    category: 'financeiro',
   },
   {
     id: 'clientes',
@@ -94,6 +115,8 @@ const availableReports = [
     description: 'Frequência de visitas e comportamento dos clientes',
     icon: UserCheck,
     color: 'bg-pink-500/10 text-pink-600',
+    borderColor: 'border-pink-500',
+    category: 'clientes',
   },
   {
     id: 'horarios',
@@ -101,6 +124,8 @@ const availableReports = [
     description: 'Análise de dias e horários com maior demanda',
     icon: Clock,
     color: 'bg-cyan-500/10 text-cyan-600',
+    borderColor: 'border-cyan-500',
+    category: 'operacional',
   },
 ];
 
@@ -112,8 +137,20 @@ const Relatorios = () => {
     from: subDays(new Date(), 30),
     to: new Date(),
   });
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const [activeTab, setActiveTab] = useState('relatorios');
   const [selectedReport, setSelectedReport] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('all');
+
+  // Filtrar relatórios por busca e categoria
+  const filteredReports = useMemo(() => {
+    return availableReports.filter(report => {
+      const matchesSearch = report.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        report.description.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesCategory = selectedCategory === 'all' || report.category === selectedCategory;
+      return matchesSearch && matchesCategory;
+    });
+  }, [searchQuery, selectedCategory]);
 
   const isLoading = appointmentsLoading || entriesLoading;
 
@@ -327,25 +364,96 @@ const Relatorios = () => {
   }
 
   const renderReportsList = () => (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      {availableReports.map((report) => (
-        <Card 
-          key={report.id} 
-          className="cursor-pointer hover:shadow-md transition-shadow group"
-          onClick={() => handleSelectReport(report.id)}
-        >
-          <CardHeader className="pb-3">
-            <div className="flex items-start justify-between">
-              <div className={`rounded-lg p-2.5 ${report.color}`}>
-                <report.icon className="h-5 w-5" />
-              </div>
-              <ArrowRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-            </div>
-            <CardTitle className="text-base mt-3">{report.title}</CardTitle>
-            <CardDescription className="text-sm">{report.description}</CardDescription>
-          </CardHeader>
-        </Card>
-      ))}
+    <div className="space-y-6">
+      {/* Barra de busca e filtros */}
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col sm:flex-row gap-3">
+          {/* Campo de busca */}
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar relatórios..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10"
+            />
+          </div>
+          
+          {/* Filtros de categoria */}
+          <div className="flex flex-wrap gap-2">
+            {reportCategories.map((category) => (
+              <Button
+                key={category.id}
+                variant={selectedCategory === category.id ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setSelectedCategory(category.id)}
+                className="gap-1.5"
+              >
+                {selectedCategory === category.id && <Check className="h-3 w-3" />}
+                {category.label}
+              </Button>
+            ))}
+          </div>
+        </div>
+
+        {/* Contador de resultados */}
+        <p className="text-sm text-muted-foreground">
+          {filteredReports.length} relatório{filteredReports.length !== 1 ? 's' : ''} encontrado{filteredReports.length !== 1 ? 's' : ''}
+        </p>
+      </div>
+
+      {/* Grid de relatórios */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {filteredReports.map((report) => {
+          const isSelected = selectedReport === report.id;
+          const categoryLabel = reportCategories.find(c => c.id === report.category)?.label || 'Outros';
+          
+          return (
+            <Card 
+              key={report.id} 
+              className={`cursor-pointer transition-all duration-200 group ${
+                isSelected 
+                  ? `ring-2 ring-primary shadow-lg border-2 ${report.borderColor}` 
+                  : 'hover:shadow-md hover:border-muted-foreground/30'
+              }`}
+              onClick={() => handleSelectReport(report.id)}
+            >
+              <CardHeader className="pb-3">
+                <div className="flex items-start justify-between">
+                  <div className={`rounded-lg p-2.5 ${report.color}`}>
+                    <report.icon className="h-5 w-5" />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="secondary" className="text-xs">
+                      {categoryLabel}
+                    </Badge>
+                    {isSelected ? (
+                      <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center">
+                        <Check className="h-3 w-3 text-primary-foreground" />
+                      </div>
+                    ) : (
+                      <ArrowRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                    )}
+                  </div>
+                </div>
+                <CardTitle className="text-base mt-3">{report.title}</CardTitle>
+                <CardDescription className="text-sm">{report.description}</CardDescription>
+              </CardHeader>
+            </Card>
+          );
+        })}
+      </div>
+
+      {/* Mensagem quando não há resultados */}
+      {filteredReports.length === 0 && (
+        <div className="text-center py-12">
+          <Search className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
+          <h3 className="text-lg font-medium">Nenhum relatório encontrado</h3>
+          <p className="text-sm text-muted-foreground mt-1">
+            Tente ajustar os filtros ou termos de busca
+          </p>
+        </div>
+      )}
     </div>
   );
 
@@ -586,49 +694,181 @@ const Relatorios = () => {
           </TabsContent>
 
           <TabsContent value="relatorios" className="mt-4">
-            {selectedReport ? (
-              renderSelectedReport()
-            ) : (
-              <div className="space-y-4">
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                  <div>
-                    <h2 className="text-lg font-semibold">Relatórios Disponíveis</h2>
-                    <p className="text-sm text-muted-foreground">Selecione um relatório para visualizar</p>
-                  </div>
-                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 w-full sm:w-auto">
-                    <DateRangePicker
-                      dateRange={dateRange}
-                      onDateRangeChange={setDateRange}
-                      placeholder="Selecione o período"
-                    />
-                    {dateRange && (
-                      <Button variant="ghost" size="icon" onClick={clearDateFilter} className="min-h-[44px] min-w-[44px]">
-                        <X className="h-4 w-4" />
+            <div className="space-y-6">
+              {/* Header da sub-aba */}
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div>
+                  <h2 className="text-lg font-semibold">Relatórios Disponíveis</h2>
+                  <p className="text-sm text-muted-foreground">
+                    {selectedReport 
+                      ? 'Visualização individual do relatório selecionado'
+                      : 'Selecione um relatório para visualizar'}
+                  </p>
+                </div>
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 w-full sm:w-auto">
+                  <DateRangePicker
+                    dateRange={dateRange}
+                    onDateRangeChange={setDateRange}
+                    placeholder="Selecione o período"
+                  />
+                  {dateRange && (
+                    <Button variant="ghost" size="icon" onClick={clearDateFilter} className="min-h-[44px] min-w-[44px]">
+                      <X className="h-4 w-4" />
+                    </Button>
+                  )}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" className="gap-2 min-h-[44px] w-full sm:w-auto">
+                        <Download className="h-4 w-4" />
+                        Exportar
                       </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="bg-background">
+                      <DropdownMenuItem onClick={handleExportPDF} className="gap-2 cursor-pointer">
+                        <FileText className="h-4 w-4" />
+                        Exportar PDF
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={handleExportCSV} className="gap-2 cursor-pointer">
+                        <FileSpreadsheet className="h-4 w-4" />
+                        Exportar CSV
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </div>
+
+              {/* Conteúdo: Lista ou Visualização Individual */}
+              <div className="grid gap-6 lg:grid-cols-[350px_1fr]">
+                {/* Coluna esquerda: Lista de relatórios (sempre visível) */}
+                <div className="space-y-4">
+                  {/* Busca */}
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Buscar relatórios..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="pl-10"
+                    />
+                  </div>
+                  
+                  {/* Filtros de categoria */}
+                  <div className="flex flex-wrap gap-2">
+                    {reportCategories.map((category) => (
+                      <Button
+                        key={category.id}
+                        variant={selectedCategory === category.id ? 'default' : 'outline'}
+                        size="sm"
+                        onClick={() => setSelectedCategory(category.id)}
+                        className="gap-1.5 text-xs"
+                      >
+                        {selectedCategory === category.id && <Check className="h-3 w-3" />}
+                        {category.label}
+                      </Button>
+                    ))}
+                  </div>
+
+                  {/* Lista de relatórios */}
+                  <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
+                    {filteredReports.map((report) => {
+                      const isSelected = selectedReport === report.id;
+                      const categoryLabel = reportCategories.find(c => c.id === report.category)?.label || 'Outros';
+                      
+                      return (
+                        <Card 
+                          key={report.id} 
+                          className={`cursor-pointer transition-all duration-200 ${
+                            isSelected 
+                              ? `ring-2 ring-primary border-2 ${report.borderColor} bg-muted/50` 
+                              : 'hover:bg-muted/30 hover:border-muted-foreground/30'
+                          }`}
+                          onClick={() => handleSelectReport(report.id)}
+                        >
+                          <CardContent className="p-3">
+                            <div className="flex items-center gap-3">
+                              <div className={`rounded-lg p-2 ${report.color} shrink-0`}>
+                                <report.icon className="h-4 w-4" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center justify-between gap-2">
+                                  <h4 className="font-medium text-sm truncate">{report.title}</h4>
+                                  {isSelected && (
+                                    <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center shrink-0">
+                                      <Check className="h-3 w-3 text-primary-foreground" />
+                                    </div>
+                                  )}
+                                </div>
+                                <p className="text-xs text-muted-foreground truncate">{report.description}</p>
+                                <Badge variant="secondary" className="text-[10px] mt-1">
+                                  {categoryLabel}
+                                </Badge>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
+
+                    {filteredReports.length === 0 && (
+                      <div className="text-center py-8">
+                        <Search className="h-8 w-8 mx-auto text-muted-foreground/50 mb-2" />
+                        <p className="text-sm text-muted-foreground">Nenhum relatório encontrado</p>
+                      </div>
                     )}
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="outline" className="gap-2 min-h-[44px] w-full sm:w-auto">
-                          <Download className="h-4 w-4" />
-                          Exportar
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="bg-background">
-                        <DropdownMenuItem onClick={handleExportPDF} className="gap-2 cursor-pointer">
-                          <FileText className="h-4 w-4" />
-                          Exportar PDF
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={handleExportCSV} className="gap-2 cursor-pointer">
-                          <FileSpreadsheet className="h-4 w-4" />
-                          Exportar CSV
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
                   </div>
                 </div>
-                {renderReportsList()}
+
+                {/* Coluna direita: Visualização do relatório */}
+                <div className="min-h-[400px]">
+                  {selectedReport ? (
+                    <div className="space-y-4">
+                      {/* Header do relatório selecionado */}
+                      <Card className="border-dashed">
+                        <CardContent className="p-4">
+                          <div className="flex items-center gap-3">
+                            {(() => {
+                              const reportInfo = getSelectedReportInfo();
+                              if (!reportInfo) return null;
+                              return (
+                                <>
+                                  <div className={`rounded-lg p-2.5 ${reportInfo.color}`}>
+                                    <reportInfo.icon className="h-5 w-5" />
+                                  </div>
+                                  <div>
+                                    <h3 className="font-semibold">{reportInfo.title}</h3>
+                                    <p className="text-sm text-muted-foreground">{reportInfo.description}</p>
+                                  </div>
+                                </>
+                              );
+                            })()}
+                          </div>
+                        </CardContent>
+                      </Card>
+
+                      {/* Conteúdo do relatório */}
+                      {selectedReport === 'financeiro' && <ReportFinanceiro data={filteredData} />}
+                      {selectedReport === 'agendamentos' && <ReportAgendamentos data={filteredData} />}
+                      {selectedReport === 'servicos' && <ReportServicos data={filteredData} />}
+                      {selectedReport === 'desempenho' && <ReportDesempenho data={filteredData} />}
+                      {selectedReport === 'clientes' && <ReportClientes data={filteredData} />}
+                      {selectedReport === 'horarios' && <ReportHorarios data={filteredData} />}
+                    </div>
+                  ) : (
+                    <Card className="h-full min-h-[400px] border-dashed">
+                      <CardContent className="flex flex-col items-center justify-center h-full text-center p-8">
+                        <div className="rounded-full bg-muted p-4 mb-4">
+                          <FileText className="h-8 w-8 text-muted-foreground" />
+                        </div>
+                        <h3 className="font-semibold text-lg mb-2">Selecione um relatório</h3>
+                        <p className="text-sm text-muted-foreground max-w-sm">
+                          Escolha um relatório na lista ao lado para visualizar os dados e gráficos detalhados
+                        </p>
+                      </CardContent>
+                    </Card>
+                  )}
+                </div>
               </div>
-            )}
+            </div>
           </TabsContent>
         </Tabs>
       </div>
