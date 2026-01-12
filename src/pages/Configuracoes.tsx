@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -15,7 +14,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Building2, Clock, Bell, Save } from 'lucide-react';
+import { Building2, Clock, Bell, Save, Loader2 } from 'lucide-react';
+import { useTenantSettings } from '@/hooks/useTenantSettings';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const DAYS_OF_WEEK = [
   { key: 'seg', label: 'Seg' },
@@ -28,16 +29,32 @@ const DAYS_OF_WEEK = [
 ];
 
 const Configuracoes = () => {
-  // State for working days - default Mon-Sat selected
-  const [workingDays, setWorkingDays] = useState<string[]>(['seg', 'ter', 'qua', 'qui', 'sex', 'sab']);
+  const { 
+    settings, 
+    loading, 
+    saving, 
+    saveSettings, 
+    updateSetting, 
+    toggleWorkingDay 
+  } = useTenantSettings();
 
-  const toggleWorkingDay = (dayKey: string) => {
-    setWorkingDays(prev => 
-      prev.includes(dayKey) 
-        ? prev.filter(d => d !== dayKey)
-        : [...prev, dayKey]
-    );
+  const handleSave = async () => {
+    await saveSettings(settings);
   };
+
+  if (loading) {
+    return (
+      <MainLayout>
+        <div className="space-y-6">
+          <div>
+            <Skeleton className="h-8 w-48" />
+            <Skeleton className="h-4 w-72 mt-2" />
+          </div>
+          <Skeleton className="h-[400px] w-full" />
+        </div>
+      </MainLayout>
+    );
+  }
 
   return (
     <MainLayout>
@@ -75,35 +92,56 @@ const Configuracoes = () => {
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor="companyName">Nome da Empresa</Label>
-                    <Input id="companyName" defaultValue="Barbearia Style" />
+                    <Input 
+                      id="companyName" 
+                      value={settings.companyName}
+                      onChange={(e) => updateSetting('companyName', e.target.value)}
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="phone">Telefone</Label>
-                    <Input id="phone" defaultValue="(11) 3456-7890" />
+                    <Input 
+                      id="phone" 
+                      value={settings.phone}
+                      onChange={(e) => updateSetting('phone', e.target.value)}
+                    />
                   </div>
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="address">Endereço</Label>
-                  <Textarea id="address" defaultValue="Rua das Flores, 123 - Centro, São Paulo - SP" />
+                  <Textarea 
+                    id="address" 
+                    value={settings.address}
+                    onChange={(e) => updateSetting('address', e.target.value)}
+                  />
                 </div>
 
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor="email">E-mail</Label>
-                    <Input id="email" type="email" defaultValue="contato@barbearia.com" />
+                    <Input 
+                      id="email" 
+                      type="email" 
+                      value={settings.email}
+                      onChange={(e) => updateSetting('email', e.target.value)}
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="whatsapp">WhatsApp para Atendimento</Label>
-                    <Input id="whatsapp" defaultValue="(11) 99999-0000" />
+                    <Input 
+                      id="whatsapp" 
+                      value={settings.whatsapp}
+                      onChange={(e) => updateSetting('whatsapp', e.target.value)}
+                    />
                   </div>
                 </div>
 
                 <Separator />
 
                 <div className="flex justify-end">
-                  <Button className="gap-2">
-                    <Save className="h-4 w-4" />
+                  <Button className="gap-2" onClick={handleSave} disabled={saving}>
+                    {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                     Salvar Alterações
                   </Button>
                 </div>
@@ -123,11 +161,21 @@ const Configuracoes = () => {
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
                       <Label htmlFor="openTime">Abertura</Label>
-                      <Input id="openTime" type="time" defaultValue="09:00" />
+                      <Input 
+                        id="openTime" 
+                        type="time" 
+                        value={settings.openTime}
+                        onChange={(e) => updateSetting('openTime', e.target.value)}
+                      />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="closeTime">Fechamento</Label>
-                      <Input id="closeTime" type="time" defaultValue="19:00" />
+                      <Input 
+                        id="closeTime" 
+                        type="time" 
+                        value={settings.closeTime}
+                        onChange={(e) => updateSetting('closeTime', e.target.value)}
+                      />
                     </div>
                   </div>
 
@@ -135,7 +183,7 @@ const Configuracoes = () => {
                     <Label>Dias de Funcionamento</Label>
                     <div className="flex flex-wrap gap-2">
                       {DAYS_OF_WEEK.map((day) => {
-                        const isSelected = workingDays.includes(day.key);
+                        const isSelected = settings.workingDays.includes(day.key);
                         return (
                           <Button
                             key={day.key}
@@ -150,6 +198,15 @@ const Configuracoes = () => {
                         );
                       })}
                     </div>
+                  </div>
+
+                  <Separator />
+
+                  <div className="flex justify-end">
+                    <Button className="gap-2" onClick={handleSave} disabled={saving}>
+                      {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                      Salvar Alterações
+                    </Button>
                   </div>
                 </CardContent>
               </Card>
@@ -167,12 +224,18 @@ const Configuracoes = () => {
                         Clientes podem cancelar via WhatsApp
                       </p>
                     </div>
-                    <Switch defaultChecked />
+                    <Switch 
+                      checked={settings.allowCancellation}
+                      onCheckedChange={(checked) => updateSetting('allowCancellation', checked)}
+                    />
                   </div>
 
                   <div className="space-y-2">
                     <Label htmlFor="cancelHours">Antecedência Mínima (horas)</Label>
-                    <Select defaultValue="2">
+                    <Select 
+                      value={settings.cancelHoursMinimum}
+                      onValueChange={(value) => updateSetting('cancelHoursMinimum', value)}
+                    >
                       <SelectTrigger id="cancelHours" className="w-[180px]">
                         <SelectValue />
                       </SelectTrigger>
@@ -184,6 +247,15 @@ const Configuracoes = () => {
                         <SelectItem value="24">24 horas</SelectItem>
                       </SelectContent>
                     </Select>
+                  </div>
+
+                  <Separator />
+
+                  <div className="flex justify-end">
+                    <Button className="gap-2" onClick={handleSave} disabled={saving}>
+                      {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                      Salvar Alterações
+                    </Button>
                   </div>
                 </CardContent>
               </Card>
@@ -205,7 +277,10 @@ const Configuracoes = () => {
                       Enviar mensagem ao confirmar agendamento
                     </p>
                   </div>
-                  <Switch defaultChecked />
+                  <Switch 
+                    checked={settings.notifyOnConfirmation}
+                    onCheckedChange={(checked) => updateSetting('notifyOnConfirmation', checked)}
+                  />
                 </div>
 
                 <Separator />
@@ -217,12 +292,18 @@ const Configuracoes = () => {
                       Enviar lembrete antes do horário marcado
                     </p>
                   </div>
-                  <Switch defaultChecked />
+                  <Switch 
+                    checked={settings.notifyOnReminder}
+                    onCheckedChange={(checked) => updateSetting('notifyOnReminder', checked)}
+                  />
                 </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="reminderTime">Enviar lembrete com antecedência de</Label>
-                  <Select defaultValue="2">
+                  <Select 
+                    value={settings.reminderHours}
+                    onValueChange={(value) => updateSetting('reminderHours', value)}
+                  >
                     <SelectTrigger className="w-[180px]">
                       <SelectValue />
                     </SelectTrigger>
@@ -243,7 +324,19 @@ const Configuracoes = () => {
                       Notificar quando agendamento for cancelado
                     </p>
                   </div>
-                  <Switch defaultChecked />
+                  <Switch 
+                    checked={settings.notifyOnCancellation}
+                    onCheckedChange={(checked) => updateSetting('notifyOnCancellation', checked)}
+                  />
+                </div>
+
+                <Separator />
+
+                <div className="flex justify-end">
+                  <Button className="gap-2" onClick={handleSave} disabled={saving}>
+                    {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                    Salvar Alterações
+                  </Button>
                 </div>
               </CardContent>
             </Card>
