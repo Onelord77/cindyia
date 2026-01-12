@@ -6,7 +6,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
-import { Loader2, Calendar } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
+import cindyLogo from '@/assets/cindy-ia-logo.png';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -37,10 +38,10 @@ export default function Login() {
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
             <div className="rounded-full bg-primary/10 p-3">
-              <Calendar className="h-8 w-8 text-primary" />
+              <img src={cindyLogo} alt="Cindy IA" className="h-12 w-12 object-contain" />
             </div>
           </div>
-          <CardTitle className="text-2xl">AgendAI</CardTitle>
+          <CardTitle className="text-2xl">Cindy IA</CardTitle>
           <CardDescription>
             Faça login para acessar sua conta
           </CardDescription>
@@ -83,11 +84,8 @@ export default function Login() {
                 'Entrar'
               )}
             </Button>
-            <p className="text-sm text-muted-foreground text-center">
-              Não tem uma conta?{' '}
-              <Link to="/cadastro" className="text-primary hover:underline">
-                Cadastre-se
-              </Link>
+            <p className="text-xs text-muted-foreground text-center">
+              Produzido pela <span className="font-semibold text-primary">OneLord</span>
             </p>
           </CardFooter>
         </form>
