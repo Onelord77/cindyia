@@ -40,7 +40,8 @@ import {
   Wallet,
   UserCheck,
   Clock,
-  ArrowRight
+  ArrowRight,
+  ArrowLeft
 } from 'lucide-react';
 import { useAppointments } from '@/hooks/useAppointments';
 import { useFinancialEntries } from '@/hooks/useFinancialEntries';
@@ -48,6 +49,14 @@ import { DateRangePicker } from '@/components/ui/date-range-picker';
 import { isWithinInterval, startOfDay, endOfDay, format, subDays } from 'date-fns';
 import { exportToCSV, exportToPDF } from '@/utils/reportExport';
 import { toast } from 'sonner';
+import {
+  ReportFinanceiro,
+  ReportAgendamentos,
+  ReportServicos,
+  ReportDesempenho,
+  ReportClientes,
+  ReportHorarios,
+} from '@/components/reports';
 
 // Definição dos relatórios disponíveis
 const availableReports = [
@@ -232,7 +241,79 @@ const Relatorios = () => {
 
   const handleSelectReport = (reportId: string) => {
     setSelectedReport(reportId);
-    setActiveTab('dashboard');
+  };
+
+  const handleBackToList = () => {
+    setSelectedReport(null);
+  };
+
+  const getSelectedReportInfo = () => {
+    return availableReports.find(r => r.id === selectedReport);
+  };
+
+  const renderSelectedReport = () => {
+    const reportInfo = getSelectedReportInfo();
+    if (!reportInfo) return null;
+
+    return (
+      <div className="space-y-4">
+        {/* Header do relatório selecionado */}
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="icon" onClick={handleBackToList}>
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <div className="flex items-center gap-3">
+            <div className={`rounded-lg p-2.5 ${reportInfo.color}`}>
+              <reportInfo.icon className="h-5 w-5" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold">{reportInfo.title}</h2>
+              <p className="text-sm text-muted-foreground">{reportInfo.description}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Filtros */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+          <DateRangePicker
+            dateRange={dateRange}
+            onDateRangeChange={setDateRange}
+            placeholder="Selecione o período"
+          />
+          {dateRange && (
+            <Button variant="ghost" size="icon" onClick={clearDateFilter} className="min-h-[44px] min-w-[44px]">
+              <X className="h-4 w-4" />
+            </Button>
+          )}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="gap-2 min-h-[44px]">
+                <Download className="h-4 w-4" />
+                Exportar
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="bg-background">
+              <DropdownMenuItem onClick={handleExportPDF} className="gap-2 cursor-pointer">
+                <FileText className="h-4 w-4" />
+                Exportar PDF
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleExportCSV} className="gap-2 cursor-pointer">
+                <FileSpreadsheet className="h-4 w-4" />
+                Exportar CSV
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+
+        {/* Conteúdo do relatório */}
+        {selectedReport === 'financeiro' && <ReportFinanceiro data={filteredData} />}
+        {selectedReport === 'agendamentos' && <ReportAgendamentos data={filteredData} />}
+        {selectedReport === 'servicos' && <ReportServicos data={filteredData} />}
+        {selectedReport === 'desempenho' && <ReportDesempenho data={filteredData} />}
+        {selectedReport === 'clientes' && <ReportClientes data={filteredData} />}
+        {selectedReport === 'horarios' && <ReportHorarios data={filteredData} />}
+      </div>
+    );
   };
 
   if (isLoading) {
@@ -505,45 +586,49 @@ const Relatorios = () => {
           </TabsContent>
 
           <TabsContent value="relatorios" className="mt-4">
-            <div className="space-y-4">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                <div>
-                  <h2 className="text-lg font-semibold">Relatórios Disponíveis</h2>
-                  <p className="text-sm text-muted-foreground">Selecione um relatório para visualizar</p>
-                </div>
-                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 w-full sm:w-auto">
-                  <DateRangePicker
-                    dateRange={dateRange}
-                    onDateRangeChange={setDateRange}
-                    placeholder="Selecione o período"
-                  />
-                  {dateRange && (
-                    <Button variant="ghost" size="icon" onClick={clearDateFilter} className="min-h-[44px] min-w-[44px]">
-                      <X className="h-4 w-4" />
-                    </Button>
-                  )}
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="outline" className="gap-2 min-h-[44px] w-full sm:w-auto">
-                        <Download className="h-4 w-4" />
-                        Exportar
+            {selectedReport ? (
+              renderSelectedReport()
+            ) : (
+              <div className="space-y-4">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                  <div>
+                    <h2 className="text-lg font-semibold">Relatórios Disponíveis</h2>
+                    <p className="text-sm text-muted-foreground">Selecione um relatório para visualizar</p>
+                  </div>
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 w-full sm:w-auto">
+                    <DateRangePicker
+                      dateRange={dateRange}
+                      onDateRangeChange={setDateRange}
+                      placeholder="Selecione o período"
+                    />
+                    {dateRange && (
+                      <Button variant="ghost" size="icon" onClick={clearDateFilter} className="min-h-[44px] min-w-[44px]">
+                        <X className="h-4 w-4" />
                       </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="bg-background">
-                      <DropdownMenuItem onClick={handleExportPDF} className="gap-2 cursor-pointer">
-                        <FileText className="h-4 w-4" />
-                        Exportar PDF
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={handleExportCSV} className="gap-2 cursor-pointer">
-                        <FileSpreadsheet className="h-4 w-4" />
-                        Exportar CSV
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                    )}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="outline" className="gap-2 min-h-[44px] w-full sm:w-auto">
+                          <Download className="h-4 w-4" />
+                          Exportar
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="bg-background">
+                        <DropdownMenuItem onClick={handleExportPDF} className="gap-2 cursor-pointer">
+                          <FileText className="h-4 w-4" />
+                          Exportar PDF
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={handleExportCSV} className="gap-2 cursor-pointer">
+                          <FileSpreadsheet className="h-4 w-4" />
+                          Exportar CSV
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
                 </div>
+                {renderReportsList()}
               </div>
-              {renderReportsList()}
-            </div>
+            )}
           </TabsContent>
         </Tabs>
       </div>
