@@ -4,7 +4,6 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
-import { ThemeProvider } from "@/hooks/useTheme";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
@@ -27,37 +26,35 @@ const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <AuthProvider>
-        <ThemeProvider>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter>
-            <Routes>
-              {/* Public Routes - Only Login, no registration */}
-              <Route path="/login" element={<Login />} />
-              
-              {/* Redirect old cadastro route to login */}
-              <Route path="/cadastro" element={<Navigate to="/login" replace />} />
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <Routes>
+            {/* Public Routes - Only Login, no registration */}
+            <Route path="/login" element={<Login />} />
+            
+            {/* Redirect old cadastro route to login */}
+            <Route path="/cadastro" element={<Navigate to="/login" replace />} />
 
-              {/* Protected Routes */}
-              <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-              <Route path="/agenda" element={<ProtectedRoute><Agenda /></ProtectedRoute>} />
-              <Route path="/agendamentos" element={<ProtectedRoute><Agendamentos /></ProtectedRoute>} />
-              <Route path="/clientes" element={<ProtectedRoute><Clientes /></ProtectedRoute>} />
-              <Route path="/funcionarios" element={<ProtectedRoute requiredRoles={['admin', 'manager', 'super_admin']}><Funcionarios /></ProtectedRoute>} />
-              <Route path="/servicos" element={<ProtectedRoute><Servicos /></ProtectedRoute>} />
-              <Route path="/financeiro" element={<ProtectedRoute requiredRoles={['admin', 'manager', 'super_admin']}><Financeiro /></ProtectedRoute>} />
-              <Route path="/relatorios" element={<ProtectedRoute requiredRoles={['admin', 'manager', 'super_admin']}><Relatorios /></ProtectedRoute>} />
-              <Route path="/integracoes" element={<ProtectedRoute requiredRoles={['admin', 'super_admin']}><Integracoes /></ProtectedRoute>} />
-              <Route path="/configuracoes" element={<ProtectedRoute requiredRoles={['admin', 'super_admin']}><Configuracoes /></ProtectedRoute>} />
+            {/* Protected Routes */}
+            <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+            <Route path="/agenda" element={<ProtectedRoute><Agenda /></ProtectedRoute>} />
+            <Route path="/agendamentos" element={<ProtectedRoute><Agendamentos /></ProtectedRoute>} />
+            <Route path="/clientes" element={<ProtectedRoute><Clientes /></ProtectedRoute>} />
+            <Route path="/funcionarios" element={<ProtectedRoute requiredRoles={['admin', 'manager', 'super_admin']}><Funcionarios /></ProtectedRoute>} />
+            <Route path="/servicos" element={<ProtectedRoute><Servicos /></ProtectedRoute>} />
+            <Route path="/financeiro" element={<ProtectedRoute requiredRoles={['admin', 'manager', 'super_admin']}><Financeiro /></ProtectedRoute>} />
+            <Route path="/relatorios" element={<ProtectedRoute requiredRoles={['admin', 'manager', 'super_admin']}><Relatorios /></ProtectedRoute>} />
+            <Route path="/integracoes" element={<ProtectedRoute requiredRoles={['admin', 'super_admin']}><Integracoes /></ProtectedRoute>} />
+            <Route path="/configuracoes" element={<ProtectedRoute requiredRoles={['admin', 'super_admin']}><Configuracoes /></ProtectedRoute>} />
 
-              {/* Super Admin Routes */}
-              <Route path="/admin/empresas" element={<ProtectedRoute requiredRoles={['super_admin']}><SuperAdminEmpresas /></ProtectedRoute>} />
-              <Route path="/admin/configuracoes" element={<ProtectedRoute requiredRoles={['super_admin']}><AdminConfiguracoes /></ProtectedRoute>} />
+            {/* Super Admin Routes */}
+            <Route path="/admin/empresas" element={<ProtectedRoute requiredRoles={['super_admin']}><SuperAdminEmpresas /></ProtectedRoute>} />
+            <Route path="/admin/configuracoes" element={<ProtectedRoute requiredRoles={['super_admin']}><AdminConfiguracoes /></ProtectedRoute>} />
 
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </BrowserRouter>
-        </ThemeProvider>
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
       </AuthProvider>
     </TooltipProvider>
   </QueryClientProvider>

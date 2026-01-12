@@ -1,4 +1,4 @@
-import { Search, User, Settings, LogOut } from 'lucide-react';
+import { Bell, Search, User, Settings, LogOut } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,17 +11,16 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
-import { NotificationsDropdown } from './NotificationsDropdown';
-import { ThemeToggle } from './ThemeToggle';
 
 export function Header() {
   const navigate = useNavigate();
   const { profile, signOut } = useAuth();
   
   const userName = profile?.full_name || 'Usuário';
-  const tenantName = 'Cindy IA';
+  const tenantName = 'AgendAI';
 
   const handleProfile = () => {
     navigate('/configuracoes');
@@ -56,11 +55,13 @@ export function Header() {
 
       {/* Right side */}
       <div className="flex items-center gap-2 sm:gap-4">
-        {/* Theme Toggle */}
-        <ThemeToggle />
-
         {/* Notifications */}
-        <NotificationsDropdown />
+        <Button variant="ghost" size="icon" className="relative min-h-[44px] min-w-[44px]">
+          <Bell className="h-5 w-5 text-muted-foreground" />
+          <Badge className="absolute -right-1 -top-1 h-5 w-5 rounded-full p-0 text-xs">
+            3
+          </Badge>
+        </Button>
 
         {/* User Menu */}
         <DropdownMenu>

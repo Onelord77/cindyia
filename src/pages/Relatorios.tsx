@@ -267,21 +267,13 @@ const Relatorios = () => {
   };
 
   const handleExportPDF = () => {
-    if (!selectedReport) {
-      toast.warning('Selecione um relatório para exportar');
-      return;
-    }
     exportToPDF(filteredData, dateRange);
-    toast.success(`Gerando PDF do relatório "${getSelectedReportInfo()?.title}"...`);
+    toast.success('Gerando PDF...');
   };
 
   const handleExportCSV = () => {
-    if (!selectedReport) {
-      toast.warning('Selecione um relatório para exportar');
-      return;
-    }
     exportToCSV(filteredData, dateRange);
-    toast.success(`CSV do relatório "${getSelectedReportInfo()?.title}" exportado com sucesso!`);
+    toast.success('CSV exportado com sucesso!');
   };
 
   const handleSelectReport = (reportId: string) => {
@@ -726,11 +718,7 @@ const Relatorios = () => {
                   )}
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button 
-                        variant="outline" 
-                        className="gap-2 min-h-[44px] w-full sm:w-auto"
-                        disabled={!selectedReport}
-                      >
+                      <Button variant="outline" className="gap-2 min-h-[44px] w-full sm:w-auto">
                         <Download className="h-4 w-4" />
                         Exportar
                       </Button>
