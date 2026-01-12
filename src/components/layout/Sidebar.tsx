@@ -80,7 +80,7 @@ export function Sidebar() {
           </div>
           {!collapsed && (
             <span className="text-lg font-bold text-sidebar-foreground">
-              Agend<span className="text-sidebar-primary">AI</span>
+              Cindy <span className="text-sidebar-primary">IA</span>
             </span>
           )}
         </div>
@@ -130,7 +130,7 @@ export function Sidebar() {
         <div className="absolute bottom-4 left-4 right-4">
           <div className="rounded-lg bg-sidebar-accent p-3">
             <p className="text-xs text-sidebar-foreground/70">
-              Powered by <span className="font-semibold text-sidebar-primary">AgendAI</span>
+              Powered by <span className="font-semibold text-sidebar-primary">Cindy IA</span>
             </p>
           </div>
         </div>

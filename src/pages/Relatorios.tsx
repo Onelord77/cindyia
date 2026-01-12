@@ -267,13 +267,23 @@ const Relatorios = () => {
   };
 
   const handleExportPDF = () => {
+    if (!selectedReport) {
+      toast.error('Selecione um relatório para exportar');
+      return;
+    }
+    const reportInfo = getSelectedReportInfo();
     exportToPDF(filteredData, dateRange);
-    toast.success('Gerando PDF...');
+    toast.success(`Gerando PDF do relatório "${reportInfo?.title}"...`);
   };
 
   const handleExportCSV = () => {
+    if (!selectedReport) {
+      toast.error('Selecione um relatório para exportar');
+      return;
+    }
+    const reportInfo = getSelectedReportInfo();
     exportToCSV(filteredData, dateRange);
-    toast.success('CSV exportado com sucesso!');
+    toast.success(`CSV do relatório "${reportInfo?.title}" exportado com sucesso!`);
   };
 
   const handleSelectReport = (reportId: string) => {
@@ -459,7 +469,7 @@ const Relatorios = () => {
 
   const renderDashboard = () => (
     <div className="space-y-4 sm:space-y-6">
-      {/* Filtros e Exportação */}
+      {/* Filtros */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
         <DateRangePicker
           dateRange={dateRange}
@@ -471,24 +481,9 @@ const Relatorios = () => {
             <X className="h-4 w-4" />
           </Button>
         )}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" className="gap-2 min-h-[44px] w-full sm:w-auto">
-              <Download className="h-4 w-4" />
-              Exportar
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={handleExportPDF} className="gap-2 cursor-pointer">
-              <FileText className="h-4 w-4" />
-              Exportar PDF
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={handleExportCSV} className="gap-2 cursor-pointer">
-              <FileSpreadsheet className="h-4 w-4" />
-              Exportar CSV
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <p className="text-sm text-muted-foreground ml-auto">
+          Para exportar, selecione um relatório na aba "Relatórios Disponíveis"
+        </p>
       </div>
 
       {/* KPIs */}
