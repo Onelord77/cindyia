@@ -9,10 +9,23 @@ const corsHeaders = {
 }
 
 interface EvolutionRequest {
-  action: 'create-instance' | 'get-qrcode' | 'connect' | 'disconnect' | 'delete-instance' | 'get-status' | 'fetch-instances'
+  action: 'create-instance' | 'get-qrcode' | 'connect' | 'disconnect' | 'delete-instance' | 'get-status' | 'fetch-instances' | 'update-webhook'
   instanceName?: string
   webhookUrl?: string
 }
+
+// Default webhook configuration
+const DEFAULT_WEBHOOK_URL = 'https://n8n-n8n.gxc0ym.easypanel.host/webhook/cindyia'
+
+const getWebhookConfig = (webhookUrl: string = DEFAULT_WEBHOOK_URL) => ({
+  enabled: true,
+  url: webhookUrl,
+  webhookByEvents: true,
+  webhookBase64: false,
+  events: [
+    'MESSAGES_UPSERT',
+  ],
+})
 
 serve(async (req) => {
   // Handle CORS preflight
@@ -147,33 +160,23 @@ serve(async (req) => {
           )
         }
 
+        // Always configure webhook with default URL and groups ignored
+        const webhookConfig = getWebhookConfig(webhookUrl || DEFAULT_WEBHOOK_URL)
+        
         const createBody: Record<string, unknown> = {
           instanceName,
           integration: 'WHATSAPP-BAILEYS',
           qrcode: true,
           rejectCall: false,
-          groupsIgnore: false,
+          groupsIgnore: true, // Always ignore groups
           alwaysOnline: false,
           readMessages: false,
           readStatus: false,
           syncFullHistory: false,
+          webhook: webhookConfig, // Always enable webhook
         }
 
-        // Add webhook if provided
-        if (webhookUrl) {
-          createBody.webhook = {
-            url: webhookUrl,
-            byEvents: true,
-            base64: false,
-            headers: {},
-            events: [
-              'QRCODE_UPDATED',
-              'CONNECTION_UPDATE',
-              'MESSAGES_UPSERT',
-              'SEND_MESSAGE',
-            ],
-          }
-        }
+        console.log('create-instance: Creating with webhook config:', webhookConfig);
 
         response = await fetch(`${baseUrl}/instance/create`, {
           method: 'POST',
@@ -270,6 +273,48 @@ serve(async (req) => {
           headers: evolutionHeaders,
         })
         result = await response.json()
+        break
+      }
+
+      case 'update-webhook': {
+        if (!instanceName) {
+          console.error('update-webhook: instanceName is empty');
+          return new Response(
+            JSON.stringify({ error: 'Instance name is required', code: 'INSTANCE_NAME_REQUIRED' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
+
+        const webhookConfig = getWebhookConfig(webhookUrl || DEFAULT_WEBHOOK_URL)
+        
+        console.log('update-webhook: Updating instance:', instanceName, 'with config:', webhookConfig);
+
+        // Update webhook settings for existing instance
+        response = await fetch(`${baseUrl}/webhook/set/${instanceName}`, {
+          method: 'POST',
+          headers: evolutionHeaders,
+          body: JSON.stringify(webhookConfig),
+        })
+        result = await response.json()
+        
+        // Also update instance settings to ignore groups
+        const settingsResponse = await fetch(`${baseUrl}/settings/set/${instanceName}`, {
+          method: 'POST',
+          headers: evolutionHeaders,
+          body: JSON.stringify({
+            groupsIgnore: true,
+            rejectCall: false,
+            alwaysOnline: false,
+            readMessages: false,
+            readStatus: false,
+            syncFullHistory: false,
+          }),
+        })
+        const settingsResult = await settingsResponse.json()
+        
+        console.log('update-webhook: Webhook result:', result, 'Settings result:', settingsResult);
+        
+        result = { webhook: result, settings: settingsResult }
         break
       }
 

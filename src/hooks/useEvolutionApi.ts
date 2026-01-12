@@ -9,7 +9,8 @@ type EvolutionAction =
   | 'disconnect' 
   | 'delete-instance' 
   | 'get-status'
-  | 'fetch-instances';
+  | 'fetch-instances'
+  | 'update-webhook';
 
 interface EvolutionInstance {
   instanceName: string;
@@ -368,6 +369,40 @@ export function useEvolutionApi() {
     return null;
   };
 
+  const updateInstanceWebhook = async (instanceName: string, webhookUrl?: string) => {
+    const trimmedName = instanceName?.trim();
+    if (!trimmedName) {
+      toast.error('Nome da instância é obrigatório');
+      return null;
+    }
+
+    const result = await callEvolutionApi('update-webhook', trimmedName, webhookUrl);
+    if (result?.success) {
+      toast.success(`Webhook atualizado para ${trimmedName}!`);
+      return result.data;
+    }
+    return null;
+  };
+
+  const updateAllInstancesWebhook = async () => {
+    const currentInstances = await fetchInstances();
+    if (!currentInstances || currentInstances.length === 0) {
+      toast.info('Nenhuma instância encontrada');
+      return [];
+    }
+
+    const results = await Promise.all(
+      currentInstances.map(async (instance) => {
+        const result = await callEvolutionApi('update-webhook', instance.instanceName);
+        return { instanceName: instance.instanceName, success: result?.success || false };
+      })
+    );
+
+    const successCount = results.filter(r => r.success).length;
+    toast.success(`Webhook atualizado em ${successCount}/${results.length} instâncias`);
+    return results;
+  };
+
   const clearQRCode = useCallback(() => {
     setQrCode(null);
     stopStatusPolling();
@@ -422,6 +457,8 @@ export function useEvolutionApi() {
     connectInstance,
     disconnectInstance,
     deleteInstance,
+    updateInstanceWebhook,
+    updateAllInstancesWebhook,
     clearQRCode,
     openQRCodeInNewTab,
     startStatusPolling,
