@@ -52,7 +52,7 @@ import { useAppointments } from '@/hooks/useAppointments';
 import { useFinancialEntries } from '@/hooks/useFinancialEntries';
 import { DateRangePicker } from '@/components/ui/date-range-picker';
 import { isWithinInterval, startOfDay, endOfDay, format, subDays } from 'date-fns';
-import { exportToCSV, exportToPDF } from '@/utils/reportExport';
+import { exportToCSV, exportToPDF, ReportType } from '@/utils/reportExport';
 import { toast } from 'sonner';
 import {
   ReportFinanceiro,
@@ -272,7 +272,7 @@ const Relatorios = () => {
       return;
     }
     const reportInfo = getSelectedReportInfo();
-    exportToPDF(filteredData, dateRange);
+    exportToPDF(filteredData, dateRange, selectedReport as ReportType);
     toast.success(`Gerando PDF do relatório "${reportInfo?.title}"...`);
   };
 
@@ -282,7 +282,7 @@ const Relatorios = () => {
       return;
     }
     const reportInfo = getSelectedReportInfo();
-    exportToCSV(filteredData, dateRange);
+    exportToCSV(filteredData, dateRange, selectedReport as ReportType);
     toast.success(`CSV do relatório "${reportInfo?.title}" exportado com sucesso!`);
   };
 
