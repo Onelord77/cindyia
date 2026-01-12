@@ -14,11 +14,11 @@ import {
   Building2,
   ChevronLeft,
   ChevronRight,
-  Sparkles,
   Plug,
   Shield,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import cindyLogo from '@/assets/cindy-ia-logo.png';
 
 interface SidebarItem {
   label: string;
@@ -35,7 +35,7 @@ const menuItems: SidebarItem[] = [
   { label: 'Agendamentos', icon: CalendarCheck, href: '/agendamentos' },
   { label: 'Clientes', icon: Users, href: '/clientes' },
   { label: 'Equipe', icon: UserCog, href: '/funcionarios', managerOnly: true },
-  { label: 'Serviços', icon: Sparkles, href: '/servicos' },
+  { label: 'Serviços', icon: DollarSign, href: '/servicos' },
   { label: 'Financeiro', icon: DollarSign, href: '/financeiro', managerOnly: true },
   { label: 'Relatórios', icon: BarChart3, href: '/relatorios', managerOnly: true },
   { label: 'Integrações', icon: Plug, href: '/integracoes', adminOnly: true },
@@ -75,12 +75,12 @@ export function Sidebar() {
       {/* Logo */}
       <div className="flex h-16 items-center justify-between border-b border-sidebar-border px-4">
         <div className={cn('flex items-center gap-2 overflow-hidden', collapsed && 'justify-center')}>
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg gradient-primary">
-            <Sparkles className="h-5 w-5 text-sidebar-primary-foreground" />
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/10 overflow-hidden">
+            <img src={cindyLogo} alt="Cindy IA" className="h-8 w-8 object-contain" />
           </div>
           {!collapsed && (
             <span className="text-lg font-bold text-sidebar-foreground">
-              Agend<span className="text-sidebar-primary">AI</span>
+              Cindy <span className="text-sidebar-primary">IA</span>
             </span>
           )}
         </div>
@@ -130,7 +130,7 @@ export function Sidebar() {
         <div className="absolute bottom-4 left-4 right-4">
           <div className="rounded-lg bg-sidebar-accent p-3">
             <p className="text-xs text-sidebar-foreground/70">
-              Powered by <span className="font-semibold text-sidebar-primary">AgendAI</span>
+              Produzido pela <span className="font-semibold text-sidebar-primary">OneLord</span>
             </p>
           </div>
         </div>
