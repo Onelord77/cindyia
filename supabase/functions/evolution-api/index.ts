@@ -289,11 +289,11 @@ serve(async (req) => {
         
         console.log('update-webhook: Updating instance:', instanceName, 'with config:', webhookConfig);
 
-        // Update webhook settings for existing instance
+        // Update webhook settings for existing instance - wrap in webhook object
         response = await fetch(`${baseUrl}/webhook/set/${instanceName}`, {
           method: 'POST',
           headers: evolutionHeaders,
-          body: JSON.stringify(webhookConfig),
+          body: JSON.stringify({ webhook: webhookConfig }),
         })
         result = await response.json()
         
@@ -302,12 +302,14 @@ serve(async (req) => {
           method: 'POST',
           headers: evolutionHeaders,
           body: JSON.stringify({
-            groupsIgnore: true,
-            rejectCall: false,
-            alwaysOnline: false,
-            readMessages: false,
-            readStatus: false,
-            syncFullHistory: false,
+            settings: {
+              groupsIgnore: true,
+              rejectCall: false,
+              alwaysOnline: false,
+              readMessages: false,
+              readStatus: false,
+              syncFullHistory: false,
+            }
           }),
         })
         const settingsResult = await settingsResponse.json()
