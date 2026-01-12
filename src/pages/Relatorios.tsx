@@ -4,6 +4,12 @@ import { MainLayout } from '@/components/layout/MainLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
   AreaChart,
   Area,
   BarChart,
@@ -18,11 +24,13 @@ import {
   ResponsiveContainer,
   Legend,
 } from 'recharts';
-import { Download, TrendingUp, Users, Calendar, DollarSign, X, Loader2 } from 'lucide-react';
+import { Download, TrendingUp, Users, Calendar, DollarSign, X, Loader2, FileText, FileSpreadsheet } from 'lucide-react';
 import { useAppointments } from '@/hooks/useAppointments';
 import { useFinancialEntries } from '@/hooks/useFinancialEntries';
 import { DateRangePicker } from '@/components/ui/date-range-picker';
 import { isWithinInterval, startOfDay, endOfDay, format, subDays } from 'date-fns';
+import { exportToCSV, exportToPDF } from '@/utils/reportExport';
+import { toast } from 'sonner';
 
 const Relatorios = () => {
   const { appointments, isLoading: appointmentsLoading } = useAppointments();
@@ -140,6 +148,16 @@ const Relatorios = () => {
     setDateRange(undefined);
   };
 
+  const handleExportPDF = () => {
+    exportToPDF(filteredData, dateRange);
+    toast.success('Gerando PDF...');
+  };
+
+  const handleExportCSV = () => {
+    exportToCSV(filteredData, dateRange);
+    toast.success('CSV exportado com sucesso!');
+  };
+
   if (isLoading) {
     return (
       <MainLayout>
@@ -171,10 +189,24 @@ const Relatorios = () => {
                 <X className="h-4 w-4" />
               </Button>
             )}
-            <Button variant="outline" className="gap-2 min-h-[44px] w-full sm:w-auto">
-              <Download className="h-4 w-4" />
-              Exportar
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="gap-2 min-h-[44px] w-full sm:w-auto">
+                  <Download className="h-4 w-4" />
+                  Exportar
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={handleExportPDF} className="gap-2 cursor-pointer">
+                  <FileText className="h-4 w-4" />
+                  Exportar PDF
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleExportCSV} className="gap-2 cursor-pointer">
+                  <FileSpreadsheet className="h-4 w-4" />
+                  Exportar CSV
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 
