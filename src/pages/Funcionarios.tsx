@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -21,6 +22,7 @@ import { useTenants } from '@/hooks/useTenants';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserManagement } from '@/hooks/useUserManagement';
 import { useEmployeeServices, useEmployeeServicesBulk } from '@/hooks/useEmployeeServices';
+import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
 const Funcionarios = () => {
@@ -78,9 +80,26 @@ const Funcionarios = () => {
   const adminsCount = employees.filter(e => e.role === 'admin').length;
   const activeCount = employees.filter(e => e.is_active).length;
 
-  const selectedTenant = useMemo(() => {
-    return tenants.find(t => t.id === activeTenantId);
-  }, [tenants, activeTenantId]);
+  // For super admins, get tenant from selection; for regular admins, fetch their own tenant
+  const { data: currentTenant } = useQuery({
+    queryKey: ['current-tenant', activeTenantId],
+    queryFn: async () => {
+      if (!activeTenantId) return null;
+      const { data, error } = await supabase
+        .from('tenants')
+        .select('*')
+        .eq('id', activeTenantId)
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!activeTenantId,
+  });
+
+  // Use currentTenant for both super admins and regular admins
+  const selectedTenant = isSuperAdmin 
+    ? tenants.find(t => t.id === activeTenantId) || currentTenant
+    : currentTenant;
 
   const resetForm = () => {
     setFormData({ name: '', email: '', phone: '', role: 'employee', selectedServiceIds: [], workingHours: {}, password: '' });
@@ -92,6 +111,15 @@ const Funcionarios = () => {
     if (!formData.name) {
       toast.error('Nome é obrigatório');
       return;
+    }
+
+    // Check employee limit when creating new employee (not editing)
+    if (!editingEmployee && selectedTenant) {
+      const maxEmployees = selectedTenant.max_employees || 10;
+      if (employees.length >= maxEmployees) {
+        toast.error(`Limite de funcionários atingido (${maxEmployees}). Entre em contato para aumentar o plano.`);
+        return;
+      }
     }
 
     let employeeId: string | null = null;
