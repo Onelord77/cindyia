@@ -14,3 +14,6 @@ verify_jwt = false
 
 [functions.client-lookup]
 verify_jwt = false
+
+[functions.available-professionals]
+verify_jwt = false
