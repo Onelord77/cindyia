@@ -48,7 +48,7 @@ export function useEmployeeServices(employeeId?: string) {
   });
 
   // Get just the service IDs for easier manipulation
-  const linkedServiceIds = employeeServices.map(es => es.service_id);
+  const linkedServiceIds = employeeServices?.map(es => es.service_id) ?? [];
 
   // Update all services for an employee (replace operation)
   const updateEmployeeServices = useMutation({
