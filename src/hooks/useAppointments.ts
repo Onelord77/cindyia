@@ -56,6 +56,60 @@ export function useAppointments() {
     return !!data;
   };
 
+  // Day names for working hours lookup
+  const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+
+  // Validate if employee works on the given day and time
+  const validateEmployeeWorkingDay = async (
+    employeeId: string,
+    scheduledAt: string,
+    duration: number
+  ): Promise<void> => {
+    // Fetch employee's working hours
+    const { data: employee, error } = await supabase
+      .from('employees')
+      .select('name, working_hours')
+      .eq('id', employeeId)
+      .single();
+
+    if (error) throw error;
+    if (!employee) throw new Error('Profissional não encontrado.');
+
+    const workingHours = employee.working_hours as Record<string, { open: string; close: string; isOpen: boolean }> | null;
+    
+    if (!workingHours) {
+      // No working hours configured - assume available
+      return;
+    }
+
+    const appointmentDate = new Date(scheduledAt);
+    const dayOfWeek = dayNames[appointmentDate.getDay()];
+    const daySchedule = workingHours[dayOfWeek];
+
+    // Check if employee works on this day
+    if (!daySchedule || !daySchedule.isOpen) {
+      const dayLabels: Record<string, string> = {
+        sunday: 'domingo',
+        monday: 'segunda-feira',
+        tuesday: 'terça-feira',
+        wednesday: 'quarta-feira',
+        thursday: 'quinta-feira',
+        friday: 'sexta-feira',
+        saturday: 'sábado',
+      };
+      throw new Error(`${employee.name} não trabalha ${dayLabels[dayOfWeek]}. Selecione outro dia.`);
+    }
+
+    // Check if time is within working hours
+    const appointmentTime = `${appointmentDate.getHours().toString().padStart(2, '0')}:${appointmentDate.getMinutes().toString().padStart(2, '0')}`;
+    const appointmentEndTime = new Date(appointmentDate.getTime() + duration * 60000);
+    const endTimeStr = `${appointmentEndTime.getHours().toString().padStart(2, '0')}:${appointmentEndTime.getMinutes().toString().padStart(2, '0')}`;
+
+    if (appointmentTime < daySchedule.open || endTimeStr > daySchedule.close) {
+      throw new Error(`${employee.name} só atende das ${daySchedule.open} às ${daySchedule.close} neste dia. Selecione outro horário.`);
+    }
+  };
+
   // Validate time conflict for employee
   const validateTimeConflict = async (
     employeeId: string, 
@@ -117,6 +171,13 @@ export function useAppointments() {
           throw new Error('Este profissional não executa o serviço selecionado.');
         }
       }
+
+      // Validate employee works on this day/time
+      await validateEmployeeWorkingDay(
+        appointment.employee_id,
+        appointment.scheduled_at,
+        appointment.duration || 30
+      );
 
       // Validate time conflict
       await validateTimeConflict(
