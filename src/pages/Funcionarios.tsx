@@ -370,12 +370,14 @@ const Funcionarios = () => {
                       className="flex-1" 
                       onClick={() => { 
                         setEditingEmployee(employee); 
+                        // Use services from the bulk map that's already loaded
+                        const existingServiceIds = employeeServicesMap[employee.id]?.map(es => es.serviceId) || [];
                         setFormData({ 
                           name: employee.name, 
                           email: employee.email || '', 
                           phone: employee.phone || '', 
                           role: employee.role || 'employee', 
-                          selectedServiceIds: [],
+                          selectedServiceIds: existingServiceIds,
                           workingHours: (employee.working_hours as unknown as WorkingHours) || {},
                           password: '',
                         });
