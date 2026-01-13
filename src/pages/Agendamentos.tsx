@@ -155,6 +155,39 @@ const Agendamentos = () => {
     const scheduledAt = new Date(`${formData.date}T${formData.time}:00`);
     const duration = service?.duration || 30;
 
+    // Frontend validation for working day
+    const selectedEmployee = employees.find(e => e.id === formData.employee_id);
+    if (selectedEmployee?.working_hours) {
+      const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+      const dayLabels: Record<string, string> = {
+        sunday: 'domingo',
+        monday: 'segunda-feira',
+        tuesday: 'terça-feira',
+        wednesday: 'quarta-feira',
+        thursday: 'quinta-feira',
+        friday: 'sexta-feira',
+        saturday: 'sábado',
+      };
+      const dayOfWeek = dayNames[scheduledAt.getDay()];
+      const workingHours = selectedEmployee.working_hours as Record<string, { open: string; close: string; isOpen: boolean }>;
+      const daySchedule = workingHours[dayOfWeek];
+
+      if (!daySchedule || !daySchedule.isOpen) {
+        toast.error(`${selectedEmployee.name} não trabalha ${dayLabels[dayOfWeek]}. Selecione outro dia.`);
+        return;
+      }
+
+      // Check if time is within working hours
+      const appointmentTime = formData.time;
+      const appointmentEndTime = new Date(scheduledAt.getTime() + duration * 60000);
+      const endTimeStr = `${appointmentEndTime.getHours().toString().padStart(2, '0')}:${appointmentEndTime.getMinutes().toString().padStart(2, '0')}`;
+
+      if (appointmentTime < daySchedule.open || endTimeStr > daySchedule.close) {
+        toast.error(`${selectedEmployee.name} só atende das ${daySchedule.open} às ${daySchedule.close} neste dia. Selecione outro horário.`);
+        return;
+      }
+    }
+
     // Frontend validation for time conflict
     const newStart = scheduledAt.getTime();
     const newEnd = newStart + duration * 60000;
