@@ -12,7 +12,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Plus, Phone, Mail, Clock, Edit, Trash2, UserCog, Loader2, Building2, Scissors } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Plus, Phone, Mail, Clock, Edit, Trash2, UserCog, Loader2, Building2, Scissors, Calendar } from 'lucide-react';
+import { WorkingHoursEditor, formatWorkingHoursSummary, type WorkingHours } from '@/components/employees/WorkingHoursEditor';
 import { useEmployees } from '@/hooks/useEmployees';
 import { useServices } from '@/hooks/useServices';
 import { useTenants } from '@/hooks/useTenants';
@@ -51,18 +53,20 @@ const Funcionarios = () => {
     phone: '',
     role: 'employee',
     selectedServiceIds: [] as string[],
+    workingHours: {} as WorkingHours,
     password: '',
   });
 
   // Hook for managing services of the employee being edited
   const { updateEmployeeServices, linkedServiceIds } = useEmployeeServices(editingEmployee?.id);
 
-  // Load linked services when editing an employee
+  // Load linked services and working hours when editing an employee
   useEffect(() => {
-    if (editingEmployee && linkedServiceIds) {
+    if (editingEmployee) {
       setFormData(prev => ({
         ...prev,
-        selectedServiceIds: linkedServiceIds,
+        selectedServiceIds: linkedServiceIds || [],
+        workingHours: (editingEmployee.working_hours as unknown as WorkingHours) || {},
       }));
     }
   }, [editingEmployee, linkedServiceIds]);
@@ -75,7 +79,7 @@ const Funcionarios = () => {
   }, [tenants, activeTenantId]);
 
   const resetForm = () => {
-    setFormData({ name: '', email: '', phone: '', role: 'employee', selectedServiceIds: [], password: '' });
+    setFormData({ name: '', email: '', phone: '', role: 'employee', selectedServiceIds: [], workingHours: {}, password: '' });
     setEditingEmployee(null);
     setCreateWithAuth(false);
   };
@@ -96,6 +100,7 @@ const Funcionarios = () => {
         email: formData.email,
         phone: formData.phone,
         role: formData.role,
+        working_hours: JSON.parse(JSON.stringify(formData.workingHours)),
       });
       employeeId = editingEmployee.id;
       
@@ -131,6 +136,7 @@ const Funcionarios = () => {
         email: formData.email,
         phone: formData.phone,
         role: formData.role,
+        working_hours: JSON.parse(JSON.stringify(formData.workingHours)),
       });
       
       // Link services to new employee
@@ -330,6 +336,13 @@ const Funcionarios = () => {
                       {employee.email || '-'}
                     </div>
                   </div>
+                  {/* Display working hours summary */}
+                  <div className="flex items-center gap-2 text-sm">
+                    <Calendar className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-muted-foreground">
+                      {formatWorkingHoursSummary(employee.working_hours as unknown as WorkingHours)}
+                    </span>
+                  </div>
                   {/* Display linked services */}
                   {employeeServicesMap[employee.id] && employeeServicesMap[employee.id].length > 0 ? (
                     <div>
@@ -363,8 +376,9 @@ const Funcionarios = () => {
                           phone: employee.phone || '', 
                           role: employee.role || 'employee', 
                           selectedServiceIds: [],
+                          workingHours: (employee.working_hours as unknown as WorkingHours) || {},
                           password: '',
-                        }); 
+                        });
                         setIsDialogOpen(true); 
                       }}
                     >
@@ -390,7 +404,7 @@ const Funcionarios = () => {
         </div>
 
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogContent>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
             <DialogHeader>
               <DialogTitle>{editingEmployee ? 'Editar' : 'Novo'} Funcionário</DialogTitle>
               <DialogDescription>
@@ -400,127 +414,157 @@ const Funcionarios = () => {
                 }
               </DialogDescription>
             </DialogHeader>
-            <div className="grid gap-4 py-4">
-              {!editingEmployee && (
-                <div className="flex items-center space-x-2">
-                  <Switch 
-                    id="create-auth" 
-                    checked={createWithAuth} 
-                    onCheckedChange={setCreateWithAuth}
-                  />
-                  <Label htmlFor="create-auth" className="text-sm">
-                    Criar com acesso ao sistema (login)
-                  </Label>
-                </div>
-              )}
-              
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Nome *</Label>
-                  <Input 
-                    value={formData.name} 
-                    onChange={(e) => setFormData(p => ({ ...p, name: e.target.value }))}
-                    className="min-h-[44px]"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>E-mail {createWithAuth && '*'}</Label>
-                  <Input 
-                    type="email" 
-                    value={formData.email} 
-                    onChange={(e) => setFormData(p => ({ ...p, email: e.target.value }))}
-                    className="min-h-[44px]"
-                    placeholder={createWithAuth ? 'Obrigatório para login' : 'Opcional'}
-                  />
-                </div>
-              </div>
-              
-              {createWithAuth && !editingEmployee && (
-                <div className="space-y-2">
-                  <Label>Senha *</Label>
-                  <Input 
-                    type="password"
-                    value={formData.password} 
-                    onChange={(e) => setFormData(p => ({ ...p, password: e.target.value }))}
-                    className="min-h-[44px]"
-                    placeholder="Mínimo 6 caracteres"
-                  />
-                </div>
-              )}
-              
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Telefone</Label>
-                  <Input 
-                    value={formData.phone} 
-                    onChange={(e) => setFormData(p => ({ ...p, phone: e.target.value }))}
-                    className="min-h-[44px]"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Função</Label>
-                  <Select 
-                    value={formData.role} 
-                    onValueChange={(v) => setFormData(p => ({ ...p, role: v }))}
-                  >
-                    <SelectTrigger className="min-h-[44px]">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="employee">Funcionário</SelectItem>
-                      <SelectItem value="admin">Administrador</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              {/* Services multi-select */}
-              <div className="space-y-2">
-                <Label className="flex items-center gap-2">
+            
+            <Tabs defaultValue="dados" className="flex-1 overflow-hidden flex flex-col">
+              <TabsList className="grid w-full grid-cols-3">
+                <TabsTrigger value="dados" className="gap-2">
+                  <UserCog className="h-4 w-4" />
+                  Dados
+                </TabsTrigger>
+                <TabsTrigger value="servicos" className="gap-2">
                   <Scissors className="h-4 w-4" />
-                  Serviços que pode realizar
-                </Label>
-                <ScrollArea className="h-40 rounded-md border p-3">
-                  {services.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">Nenhum serviço cadastrado</p>
-                  ) : (
-                    <div className="space-y-3">
-                      {services.filter(s => s.is_active).map((service) => (
-                        <div key={service.id} className="flex items-start space-x-3">
-                          <Checkbox
-                            id={`service-${service.id}`}
-                            checked={formData.selectedServiceIds.includes(service.id)}
-                            onCheckedChange={(checked) => {
-                              setFormData(prev => ({
-                                ...prev,
-                                selectedServiceIds: checked
-                                  ? [...prev.selectedServiceIds, service.id]
-                                  : prev.selectedServiceIds.filter(id => id !== service.id)
-                              }));
-                            }}
-                          />
-                          <div className="flex-1">
-                            <label 
-                              htmlFor={`service-${service.id}`} 
-                              className="text-sm font-medium leading-none cursor-pointer"
-                            >
-                              {service.name}
-                            </label>
-                            <p className="text-xs text-muted-foreground mt-1">
-                              {service.duration} min • R$ {Number(service.price).toFixed(2)}
-                            </p>
-                          </div>
-                        </div>
-                      ))}
+                  Serviços
+                </TabsTrigger>
+                <TabsTrigger value="horarios" className="gap-2">
+                  <Clock className="h-4 w-4" />
+                  Horários
+                </TabsTrigger>
+              </TabsList>
+
+              <ScrollArea className="flex-1 mt-4">
+                <TabsContent value="dados" className="mt-0 space-y-4 pr-4">
+                  {!editingEmployee && (
+                    <div className="flex items-center space-x-2">
+                      <Switch 
+                        id="create-auth" 
+                        checked={createWithAuth} 
+                        onCheckedChange={setCreateWithAuth}
+                      />
+                      <Label htmlFor="create-auth" className="text-sm">
+                        Criar com acesso ao sistema (login)
+                      </Label>
                     </div>
                   )}
-                </ScrollArea>
-                <p className="text-xs text-muted-foreground">
-                  {formData.selectedServiceIds.length} serviço(s) selecionado(s)
-                </p>
-              </div>
-            </div>
-            <DialogFooter>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Nome *</Label>
+                      <Input 
+                        value={formData.name} 
+                        onChange={(e) => setFormData(p => ({ ...p, name: e.target.value }))}
+                        className="min-h-[44px]"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>E-mail {createWithAuth && '*'}</Label>
+                      <Input 
+                        type="email" 
+                        value={formData.email} 
+                        onChange={(e) => setFormData(p => ({ ...p, email: e.target.value }))}
+                        className="min-h-[44px]"
+                        placeholder={createWithAuth ? 'Obrigatório para login' : 'Opcional'}
+                      />
+                    </div>
+                  </div>
+                  
+                  {createWithAuth && !editingEmployee && (
+                    <div className="space-y-2">
+                      <Label>Senha *</Label>
+                      <Input 
+                        type="password"
+                        value={formData.password} 
+                        onChange={(e) => setFormData(p => ({ ...p, password: e.target.value }))}
+                        className="min-h-[44px]"
+                        placeholder="Mínimo 6 caracteres"
+                      />
+                    </div>
+                  )}
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Telefone</Label>
+                      <Input 
+                        value={formData.phone} 
+                        onChange={(e) => setFormData(p => ({ ...p, phone: e.target.value }))}
+                        className="min-h-[44px]"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Função</Label>
+                      <Select 
+                        value={formData.role} 
+                        onValueChange={(v) => setFormData(p => ({ ...p, role: v }))}
+                      >
+                        <SelectTrigger className="min-h-[44px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="employee">Funcionário</SelectItem>
+                          <SelectItem value="admin">Administrador</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="servicos" className="mt-0 pr-4">
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-2">
+                      <Scissors className="h-4 w-4" />
+                      Serviços que pode realizar
+                    </Label>
+                    <p className="text-xs text-muted-foreground mb-3">
+                      Selecione os serviços que este funcionário está habilitado a realizar
+                    </p>
+                    <div className="space-y-3 rounded-md border p-3">
+                      {services.length === 0 ? (
+                        <p className="text-sm text-muted-foreground py-4 text-center">Nenhum serviço cadastrado</p>
+                      ) : (
+                        services.filter(s => s.is_active).map((service) => (
+                          <div key={service.id} className="flex items-start space-x-3">
+                            <Checkbox
+                              id={`service-${service.id}`}
+                              checked={formData.selectedServiceIds.includes(service.id)}
+                              onCheckedChange={(checked) => {
+                                setFormData(prev => ({
+                                  ...prev,
+                                  selectedServiceIds: checked
+                                    ? [...prev.selectedServiceIds, service.id]
+                                    : prev.selectedServiceIds.filter(id => id !== service.id)
+                                }));
+                              }}
+                            />
+                            <div className="flex-1">
+                              <label 
+                                htmlFor={`service-${service.id}`} 
+                                className="text-sm font-medium leading-none cursor-pointer"
+                              >
+                                {service.name}
+                              </label>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                {service.duration} min • R$ {Number(service.price).toFixed(2)}
+                              </p>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {formData.selectedServiceIds.length} serviço(s) selecionado(s)
+                    </p>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="horarios" className="mt-0 pr-4">
+                  <WorkingHoursEditor
+                    value={formData.workingHours}
+                    onChange={(value) => setFormData(p => ({ ...p, workingHours: value }))}
+                  />
+                </TabsContent>
+              </ScrollArea>
+            </Tabs>
+
+            <DialogFooter className="mt-4 pt-4 border-t">
               <Button variant="outline" onClick={() => setIsDialogOpen(false)} className="min-h-[44px]">
                 Cancelar
               </Button>
