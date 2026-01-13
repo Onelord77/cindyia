@@ -59,7 +59,7 @@ const Funcionarios = () => {
 
   // Load linked services when editing an employee
   useEffect(() => {
-    if (editingEmployee && linkedServiceIds.length >= 0) {
+    if (editingEmployee && linkedServiceIds) {
       setFormData(prev => ({
         ...prev,
         selectedServiceIds: linkedServiceIds,
