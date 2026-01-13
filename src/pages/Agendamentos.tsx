@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { DateRange } from 'react-day-picker';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Card, CardContent } from '@/components/ui/card';
@@ -9,7 +9,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
@@ -22,13 +22,14 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Search, Filter, Plus, MoreVertical, Eye, Edit, Calendar, X, Loader2 } from 'lucide-react';
+import { Search, Filter, Plus, MoreVertical, Eye, Edit, Calendar, X, Loader2, CheckCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useAppointments } from '@/hooks/useAppointments';
 import { useClients } from '@/hooks/useClients';
 import { useEmployees } from '@/hooks/useEmployees';
 import { useServices } from '@/hooks/useServices';
+import { useEmployeeServicesBulk } from '@/hooks/useEmployeeServices';
 import { DateRangePicker } from '@/components/ui/date-range-picker';
 import { isWithinInterval, startOfDay, endOfDay } from 'date-fns';
 import type { Database } from '@/integrations/supabase/types';
@@ -52,10 +53,14 @@ const paymentConfig: Record<string, { label: string; class: string }> = {
 };
 
 const Agendamentos = () => {
-  const { appointments, isLoading, addAppointment, updateStatus, deleteAppointment } = useAppointments();
+  const { appointments, isLoading, addAppointment, updateStatus, markAsCompleted, deleteAppointment } = useAppointments();
   const { clients } = useClients();
   const { employees } = useEmployees();
   const { services } = useServices();
+
+  // Get employee services for validation
+  const employeeIds = employees.map(e => e.id);
+  const { data: employeeServicesMap = {} } = useEmployeeServicesBulk(employeeIds);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -71,6 +76,27 @@ const Agendamentos = () => {
     date: new Date().toISOString().split('T')[0],
     time: '09:00',
   });
+
+  // Filter employees that can perform the selected service
+  const availableEmployees = useMemo(() => {
+    if (!formData.service_id) return employees.filter(e => e.is_active);
+    
+    return employees.filter(e => {
+      if (!e.is_active) return false;
+      const empServices = employeeServicesMap[e.id] || [];
+      return empServices.some(es => es.serviceId === formData.service_id);
+    });
+  }, [employees, formData.service_id, employeeServicesMap]);
+
+  // Reset employee selection when service changes and employee can't perform it
+  useEffect(() => {
+    if (formData.service_id && formData.employee_id) {
+      const canPerform = availableEmployees.some(e => e.id === formData.employee_id);
+      if (!canPerform) {
+        setFormData(prev => ({ ...prev, employee_id: '' }));
+      }
+    }
+  }, [formData.service_id, availableEmployees]);
 
   const filteredAppointments = useMemo(() => {
     return appointments.filter((appointment) => {
@@ -103,8 +129,25 @@ const Agendamentos = () => {
   };
 
   const handleSave = async () => {
-    if (!formData.client_id || !formData.service_id || !formData.employee_id) {
-      toast.error('Preencha todos os campos');
+    // Validate required fields with specific messages
+    if (!formData.client_id) {
+      toast.error('Selecione um cliente para criar o agendamento.');
+      return;
+    }
+    if (!formData.service_id) {
+      toast.error('Selecione um serviço para criar o agendamento.');
+      return;
+    }
+    if (!formData.employee_id) {
+      toast.error('Selecione um profissional para criar o agendamento.');
+      return;
+    }
+
+    // Validate employee can perform the service (frontend validation)
+    const empServices = employeeServicesMap[formData.employee_id] || [];
+    const canPerform = empServices.some(es => es.serviceId === formData.service_id);
+    if (!canPerform) {
+      toast.error('Este profissional não executa o serviço selecionado.');
       return;
     }
 
@@ -128,6 +171,10 @@ const Agendamentos = () => {
     const payment_status: PaymentStatus | undefined = status === 'completed' ? 'paid' : undefined;
     await updateStatus.mutateAsync({ id, status, payment_status });
     toast.success(`Status atualizado para ${statusConfig[status]?.label}`);
+  };
+
+  const handleMarkAsCompleted = async (appointmentId: string, price: number) => {
+    await markAsCompleted.mutateAsync({ appointmentId, price });
   };
 
   const handleDelete = async () => {
@@ -229,6 +276,9 @@ const Agendamentos = () => {
                   filteredAppointments.map((appointment) => {
                     const status = statusConfig[appointment.status || 'scheduled'];
                     const times = formatTime(appointment.scheduled_at, appointment.duration);
+                    const isCompleted = appointment.status === 'completed';
+                    const canComplete = appointment.status === 'scheduled' || appointment.status === 'confirmed';
+                    
                     return (
                       <TableRow key={appointment.id}>
                         <TableCell>
@@ -260,11 +310,13 @@ const Agendamentos = () => {
                               </Badge>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent>
-                              {Object.entries(statusConfig).map(([key, config]) => (
-                                <DropdownMenuItem key={key} onClick={() => handleStatusChange(appointment.id, key as AppointmentStatus)}>
-                                  {config.label}
-                                </DropdownMenuItem>
-                              ))}
+                              {Object.entries(statusConfig)
+                                .filter(([key]) => key !== 'completed') // Remove completed from regular status change
+                                .map(([key, config]) => (
+                                  <DropdownMenuItem key={key} onClick={() => handleStatusChange(appointment.id, key as AppointmentStatus)}>
+                                    {config.label}
+                                  </DropdownMenuItem>
+                                ))}
                             </DropdownMenuContent>
                           </DropdownMenu>
                         </TableCell>
@@ -274,6 +326,18 @@ const Agendamentos = () => {
                               <Button variant="ghost" size="icon"><MoreVertical className="h-4 w-4" /></Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
+                              {canComplete && (
+                                <>
+                                  <DropdownMenuItem 
+                                    className="text-success"
+                                    onClick={() => handleMarkAsCompleted(appointment.id, Number(appointment.price || 0))}
+                                  >
+                                    <CheckCircle className="mr-2 h-4 w-4" />
+                                    Marcar como Concluído
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                </>
+                              )}
                               <DropdownMenuItem className="text-destructive" onClick={() => { setDeletingAppointmentId(appointment.id); setIsDeleteDialogOpen(true); }}>
                                 Cancelar Agendamento
                               </DropdownMenuItem>
@@ -297,7 +361,7 @@ const Agendamentos = () => {
             </DialogHeader>
             <div className="grid gap-4 py-4">
               <div className="space-y-2">
-                <Label>Cliente</Label>
+                <Label>Cliente *</Label>
                 <Select value={formData.client_id} onValueChange={(v) => setFormData(p => ({ ...p, client_id: v }))}>
                   <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                   <SelectContent>
@@ -306,7 +370,7 @@ const Agendamentos = () => {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Serviço</Label>
+                <Label>Serviço *</Label>
                 <Select value={formData.service_id} onValueChange={(v) => setFormData(p => ({ ...p, service_id: v }))}>
                   <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                   <SelectContent>
@@ -315,21 +379,36 @@ const Agendamentos = () => {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Profissional</Label>
-                <Select value={formData.employee_id} onValueChange={(v) => setFormData(p => ({ ...p, employee_id: v }))}>
-                  <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                <Label>Profissional *</Label>
+                <Select 
+                  value={formData.employee_id} 
+                  onValueChange={(v) => setFormData(p => ({ ...p, employee_id: v }))}
+                  disabled={!formData.service_id}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={formData.service_id ? "Selecione" : "Selecione o serviço primeiro"} />
+                  </SelectTrigger>
                   <SelectContent>
-                    {employees.filter(e => e.is_active).map(e => <SelectItem key={e.id} value={e.id}>{e.name}</SelectItem>)}
+                    {availableEmployees.length === 0 && formData.service_id ? (
+                      <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                        Nenhum profissional executa este serviço
+                      </div>
+                    ) : (
+                      availableEmployees.map(e => <SelectItem key={e.id} value={e.id}>{e.name}</SelectItem>)
+                    )}
                   </SelectContent>
                 </Select>
+                {formData.service_id && availableEmployees.length === 0 && (
+                  <p className="text-xs text-destructive">Nenhum profissional cadastrado executa este serviço.</p>
+                )}
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Data</Label>
+                  <Label>Data *</Label>
                   <Input type="date" value={formData.date} onChange={(e) => setFormData(p => ({ ...p, date: e.target.value }))} />
                 </div>
                 <div className="space-y-2">
-                  <Label>Hora</Label>
+                  <Label>Hora *</Label>
                   <Input type="time" value={formData.time} onChange={(e) => setFormData(p => ({ ...p, time: e.target.value }))} />
                 </div>
               </div>
