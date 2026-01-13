@@ -57,19 +57,23 @@ const Funcionarios = () => {
     password: '',
   });
 
-  // Hook for managing services of the employee being edited
-  const { updateEmployeeServices, linkedServiceIds } = useEmployeeServices(editingEmployee?.id);
+  // Hook for managing employee-service links (mutations)
+  const { updateEmployeeServices } = useEmployeeServices();
 
-  // Load linked services and working hours when editing an employee
+  // Load linked services + working hours when editing an employee
+  // (uses the already-fetched bulk map to support older employees reliably)
   useEffect(() => {
-    if (editingEmployee) {
-      setFormData(prev => ({
-        ...prev,
-        selectedServiceIds: linkedServiceIds || [],
-        workingHours: (editingEmployee.working_hours as unknown as WorkingHours) || {},
-      }));
-    }
-  }, [editingEmployee, linkedServiceIds]);
+    if (!editingEmployee) return;
+
+    const existingServiceIds = employeeServicesMap[editingEmployee.id]?.map(es => es.serviceId) ?? [];
+
+    setFormData(prev => ({
+      ...prev,
+      // Avoid wiping user changes if the bulk map arrives after opening the dialog
+      selectedServiceIds: prev.selectedServiceIds.length ? prev.selectedServiceIds : existingServiceIds,
+      workingHours: (editingEmployee.working_hours as unknown as WorkingHours) || {},
+    }));
+  }, [editingEmployee, employeeServicesMap]);
 
   const adminsCount = employees.filter(e => e.role === 'admin').length;
   const activeCount = employees.filter(e => e.is_active).length;
