@@ -40,11 +40,24 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { useServices } from '@/hooks/useServices';
+import { useAuth } from '@/hooks/useAuth';
+import { useTenants } from '@/hooks/useTenants';
 import { toast } from 'sonner';
 
 const Servicos = () => {
-  const { services, isLoading, addService, updateService, deleteService } = useServices();
+  const { profile, isSuperAdmin } = useAuth();
+  const { tenants } = useTenants();
+  const [selectedTenantId, setSelectedTenantId] = useState<string | undefined>(profile?.tenant_id || undefined);
+  
+  const { services, isLoading, addService, updateService, deleteService } = useServices(selectedTenantId);
   
   const [searchTerm, setSearchTerm] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -57,6 +70,7 @@ const Servicos = () => {
     description: '',
     duration: '',
     price: '',
+    tenant_id: '',
   });
 
   const filteredServices = services.filter((service) =>
@@ -72,7 +86,7 @@ const Servicos = () => {
     : 0;
 
   const resetForm = () => {
-    setFormData({ name: '', description: '', duration: '', price: '' });
+    setFormData({ name: '', description: '', duration: '', price: '', tenant_id: selectedTenantId || '' });
     setEditingService(null);
   };
 
@@ -88,6 +102,7 @@ const Servicos = () => {
       description: service.description || '',
       duration: service.duration.toString(),
       price: String(service.price),
+      tenant_id: service.tenant_id,
     });
     setIsDialogOpen(true);
   };
@@ -95,6 +110,12 @@ const Servicos = () => {
   const handleSave = async () => {
     if (!formData.name || !formData.duration || !formData.price) {
       toast.error('Preencha todos os campos obrigatórios');
+      return;
+    }
+
+    // Super admin without profile tenant needs to select a tenant
+    if (isSuperAdmin && !profile?.tenant_id && !formData.tenant_id && !editingService) {
+      toast.error('Selecione uma empresa para cadastrar o serviço');
       return;
     }
 
@@ -112,6 +133,7 @@ const Servicos = () => {
         description: formData.description || null,
         duration: parseInt(formData.duration),
         price: parseFloat(formData.price),
+        tenant_id: formData.tenant_id || undefined,
       });
     }
 
@@ -160,10 +182,27 @@ const Servicos = () => {
             <p className="text-muted-foreground">Gerencie os serviços oferecidos pelo seu salão</p>
           </div>
 
-          <Button className="gap-2" onClick={openNewDialog}>
-            <Plus className="h-4 w-4" />
-            Novo Serviço
-          </Button>
+          <div className="flex items-center gap-3">
+            {/* Tenant selector for super admins */}
+            {isSuperAdmin && tenants.length > 0 && (
+              <Select value={selectedTenantId || ''} onValueChange={(value) => setSelectedTenantId(value || undefined)}>
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder="Selecione empresa" />
+                </SelectTrigger>
+                <SelectContent>
+                  {tenants.map((tenant) => (
+                    <SelectItem key={tenant.id} value={tenant.id}>
+                      {tenant.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            <Button className="gap-2" onClick={openNewDialog}>
+              <Plus className="h-4 w-4" />
+              Novo Serviço
+            </Button>
+          </div>
         </div>
 
         {/* Stats */}
@@ -314,6 +353,27 @@ const Servicos = () => {
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
+              {/* Tenant selector for super admins when creating */}
+              {isSuperAdmin && !editingService && !profile?.tenant_id && (
+                <div className="space-y-2">
+                  <Label>Empresa *</Label>
+                  <Select 
+                    value={formData.tenant_id} 
+                    onValueChange={(value) => setFormData(prev => ({ ...prev, tenant_id: value }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione a empresa" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {tenants.map((tenant) => (
+                        <SelectItem key={tenant.id} value={tenant.id}>
+                          {tenant.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <div className="space-y-2">
                 <Label htmlFor="name">Nome do Serviço *</Label>
                 <Input 
