@@ -8,14 +8,25 @@ type Service = Database['public']['Tables']['services']['Row'];
 type ServiceInsert = Database['public']['Tables']['services']['Insert'];
 type ServiceUpdate = Database['public']['Tables']['services']['Update'];
 
-export function useServices() {
-  const { profile } = useAuth();
+export function useServices(overrideTenantId?: string) {
+  const { profile, isSuperAdmin } = useAuth();
   const queryClient = useQueryClient();
-  const tenantId = profile?.tenant_id;
+  const tenantId = overrideTenantId || profile?.tenant_id;
 
   const { data: services = [], isLoading, error } = useQuery({
-    queryKey: ['services', tenantId],
+    queryKey: ['services', tenantId, isSuperAdmin],
     queryFn: async () => {
+      // Super admin without tenant can see all services
+      if (isSuperAdmin && !tenantId) {
+        const { data, error } = await supabase
+          .from('services')
+          .select('*')
+          .order('name', { ascending: true });
+
+        if (error) throw error;
+        return data;
+      }
+      
       if (!tenantId) return [];
       
       const { data, error } = await supabase
@@ -27,16 +38,17 @@ export function useServices() {
       if (error) throw error;
       return data;
     },
-    enabled: !!tenantId,
+    enabled: !!tenantId || isSuperAdmin,
   });
 
   const addService = useMutation({
-    mutationFn: async (service: Omit<ServiceInsert, 'tenant_id'>) => {
-      if (!tenantId) throw new Error('Tenant não encontrado');
+    mutationFn: async (service: Omit<ServiceInsert, 'tenant_id'> & { tenant_id?: string }) => {
+      const targetTenantId = service.tenant_id || tenantId;
+      if (!targetTenantId) throw new Error('Tenant não encontrado. Selecione uma empresa.');
       
       const { data, error } = await supabase
         .from('services')
-        .insert({ ...service, tenant_id: tenantId })
+        .insert({ ...service, tenant_id: targetTenantId })
         .select()
         .single();
 
@@ -44,7 +56,7 @@ export function useServices() {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['services', tenantId] });
+      queryClient.invalidateQueries({ queryKey: ['services'] });
       toast.success('Serviço cadastrado com sucesso!');
     },
     onError: (error) => {
@@ -65,7 +77,7 @@ export function useServices() {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['services', tenantId] });
+      queryClient.invalidateQueries({ queryKey: ['services'] });
       toast.success('Serviço atualizado com sucesso!');
     },
     onError: (error) => {
@@ -83,7 +95,7 @@ export function useServices() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['services', tenantId] });
+      queryClient.invalidateQueries({ queryKey: ['services'] });
       toast.success('Serviço excluído com sucesso!');
     },
     onError: (error) => {
@@ -104,7 +116,7 @@ export function useServices() {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['services', tenantId] });
+      queryClient.invalidateQueries({ queryKey: ['services'] });
       toast.success('Status do serviço atualizado!');
     },
     onError: (error) => {
