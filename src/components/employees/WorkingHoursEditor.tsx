@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { Clock } from 'lucide-react';
 
 const DAYS_OF_WEEK = [
@@ -72,50 +73,52 @@ export function WorkingHoursEditor({ value, onChange }: WorkingHoursEditorProps)
       <p className="text-xs text-muted-foreground">
         {enabledDaysCount} dia(s) de trabalho configurado(s)
       </p>
-      <div className="space-y-2 rounded-md border p-3">
-        {DAYS_OF_WEEK.map((day) => {
-          const schedule = normalizedValue[day.key];
-          return (
-            <div 
-              key={day.key} 
-              className={`flex items-center gap-3 p-2 rounded-md transition-colors ${
-                schedule.enabled ? 'bg-primary/5' : 'bg-muted/30'
-              }`}
-            >
-              <Switch
-                checked={schedule.enabled}
-                onCheckedChange={() => toggleDay(day.key)}
-                aria-label={`Ativar ${day.label}`}
-              />
-              <span className={`w-20 text-sm font-medium ${
-                schedule.enabled ? 'text-foreground' : 'text-muted-foreground'
-              }`}>
-                {day.label}
-              </span>
-              {schedule.enabled && (
-                <div className="flex items-center gap-2 flex-1">
-                  <Input
-                    type="time"
-                    value={schedule.start}
-                    onChange={(e) => updateTime(day.key, 'start', e.target.value)}
-                    className="w-28 h-8 text-sm"
-                  />
-                  <span className="text-muted-foreground text-sm">até</span>
-                  <Input
-                    type="time"
-                    value={schedule.end}
-                    onChange={(e) => updateTime(day.key, 'end', e.target.value)}
-                    className="w-28 h-8 text-sm"
-                  />
-                </div>
-              )}
-              {!schedule.enabled && (
-                <span className="text-xs text-muted-foreground italic">Folga</span>
-              )}
-            </div>
-          );
-        })}
-      </div>
+      <ScrollArea className="h-[280px] rounded-md border">
+        <div className="space-y-2 p-3">
+          {DAYS_OF_WEEK.map((day) => {
+            const schedule = normalizedValue[day.key];
+            return (
+              <div 
+                key={day.key} 
+                className={`flex items-center gap-3 p-2 rounded-md transition-colors ${
+                  schedule.enabled ? 'bg-primary/5' : 'bg-muted/30'
+                }`}
+              >
+                <Switch
+                  checked={schedule.enabled}
+                  onCheckedChange={() => toggleDay(day.key)}
+                  aria-label={`Ativar ${day.label}`}
+                />
+                <span className={`w-20 text-sm font-medium ${
+                  schedule.enabled ? 'text-foreground' : 'text-muted-foreground'
+                }`}>
+                  {day.label}
+                </span>
+                {schedule.enabled && (
+                  <div className="flex items-center gap-2 flex-1">
+                    <Input
+                      type="time"
+                      value={schedule.start}
+                      onChange={(e) => updateTime(day.key, 'start', e.target.value)}
+                      className="w-28 h-8 text-sm"
+                    />
+                    <span className="text-muted-foreground text-sm">até</span>
+                    <Input
+                      type="time"
+                      value={schedule.end}
+                      onChange={(e) => updateTime(day.key, 'end', e.target.value)}
+                      className="w-28 h-8 text-sm"
+                    />
+                  </div>
+                )}
+                {!schedule.enabled && (
+                  <span className="text-xs text-muted-foreground italic">Folga</span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </ScrollArea>
     </div>
   );
 }

@@ -43,9 +43,35 @@ export function useAppointments() {
     enabled: !!tenantId,
   });
 
+  // Validate if employee can perform the service
+  const validateEmployeeService = async (employeeId: string, serviceId: string): Promise<boolean> => {
+    const { data, error } = await supabase
+      .from('employee_services')
+      .select('id')
+      .eq('employee_id', employeeId)
+      .eq('service_id', serviceId)
+      .maybeSingle();
+
+    if (error) throw error;
+    return !!data;
+  };
+
   const addAppointment = useMutation({
     mutationFn: async (appointment: Omit<AppointmentInsert, 'tenant_id'>) => {
       if (!tenantId) throw new Error('Tenant não encontrado');
+      
+      // Validate employee_id is required
+      if (!appointment.employee_id) {
+        throw new Error('Selecione um profissional para criar o agendamento.');
+      }
+
+      // Validate employee can perform the service
+      if (appointment.service_id) {
+        const canPerform = await validateEmployeeService(appointment.employee_id, appointment.service_id);
+        if (!canPerform) {
+          throw new Error('Este profissional não executa o serviço selecionado.');
+        }
+      }
       
       const { data, error } = await supabase
         .from('appointments')
@@ -70,7 +96,7 @@ export function useAppointments() {
       toast.success('Agendamento criado com sucesso!');
     },
     onError: (error) => {
-      toast.error('Erro ao criar agendamento: ' + error.message);
+      toast.error(error.message);
     },
   });
 
@@ -97,6 +123,69 @@ export function useAppointments() {
     },
     onError: (error) => {
       toast.error('Erro ao atualizar agendamento: ' + error.message);
+    },
+  });
+
+  // Mark as completed and create financial entry
+  const markAsCompleted = useMutation({
+    mutationFn: async ({ appointmentId, price }: { appointmentId: string; price: number }) => {
+      if (!tenantId) throw new Error('Tenant não encontrado');
+
+      // Check if already completed
+      const { data: existing } = await supabase
+        .from('appointments')
+        .select('status')
+        .eq('id', appointmentId)
+        .single();
+
+      if (existing?.status === 'completed') {
+        throw new Error('Este agendamento já está concluído.');
+      }
+
+      // Check if financial entry already exists for this appointment
+      const { data: existingEntry } = await supabase
+        .from('financial_entries')
+        .select('id')
+        .eq('appointment_id', appointmentId)
+        .eq('type', 'income')
+        .maybeSingle();
+
+      if (existingEntry) {
+        throw new Error('Já existe uma receita vinculada a este agendamento.');
+      }
+
+      // Update appointment status
+      const { error: updateError } = await supabase
+        .from('appointments')
+        .update({ status: 'completed', payment_status: 'paid' })
+        .eq('id', appointmentId);
+
+      if (updateError) throw updateError;
+
+      // Create financial entry
+      const { error: entryError } = await supabase
+        .from('financial_entries')
+        .insert({
+          tenant_id: tenantId,
+          type: 'income',
+          category: 'Serviço',
+          description: 'Receita de agendamento concluído',
+          amount: price,
+          appointment_id: appointmentId,
+          created_by: user?.id,
+        });
+
+      if (entryError) throw entryError;
+
+      return { success: true };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['appointments', tenantId] });
+      queryClient.invalidateQueries({ queryKey: ['financial-entries', tenantId] });
+      toast.success('Agendamento concluído e receita registrada!');
+    },
+    onError: (error) => {
+      toast.error(error.message);
     },
   });
 
@@ -151,6 +240,8 @@ export function useAppointments() {
     addAppointment,
     updateAppointment,
     updateStatus,
+    markAsCompleted,
     deleteAppointment,
+    validateEmployeeService,
   };
 }
