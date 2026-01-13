@@ -153,13 +153,36 @@ const Agendamentos = () => {
 
     const service = services.find(s => s.id === formData.service_id);
     const scheduledAt = new Date(`${formData.date}T${formData.time}:00`);
+    const duration = service?.duration || 30;
+
+    // Frontend validation for time conflict
+    const newStart = scheduledAt.getTime();
+    const newEnd = newStart + duration * 60000;
+    const activeStatuses = ['scheduled', 'confirmed', 'in_progress'];
+
+    const conflict = appointments.find(apt => {
+      if (apt.employee_id !== formData.employee_id) return false;
+      if (!apt.status || !activeStatuses.includes(apt.status)) return false;
+      
+      const existingStart = new Date(apt.scheduled_at).getTime();
+      const existingEnd = existingStart + apt.duration * 60000;
+      
+      return newStart < existingEnd && newEnd > existingStart;
+    });
+
+    if (conflict) {
+      const conflictStart = new Date(conflict.scheduled_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+      const conflictEnd = new Date(new Date(conflict.scheduled_at).getTime() + conflict.duration * 60000).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+      toast.error(`O profissional já possui um agendamento das ${conflictStart} às ${conflictEnd}. Selecione outro horário.`);
+      return;
+    }
 
     await addAppointment.mutateAsync({
       client_id: formData.client_id,
       service_id: formData.service_id,
       employee_id: formData.employee_id,
       scheduled_at: scheduledAt.toISOString(),
-      duration: service?.duration || 30,
+      duration,
       price: service?.price,
     });
 

@@ -56,6 +56,51 @@ export function useAppointments() {
     return !!data;
   };
 
+  // Validate time conflict for employee
+  const validateTimeConflict = async (
+    employeeId: string, 
+    scheduledAt: string, 
+    duration: number,
+    excludeAppointmentId?: string
+  ): Promise<void> => {
+    const appointmentDate = new Date(scheduledAt);
+    const dateStr = appointmentDate.toISOString().split('T')[0];
+    const startOfDayStr = `${dateStr}T00:00:00.000Z`;
+    const endOfDayStr = `${dateStr}T23:59:59.999Z`;
+
+    // Fetch all appointments for this employee on this date
+    let query = supabase
+      .from('appointments')
+      .select('id, scheduled_at, duration, status')
+      .eq('employee_id', employeeId)
+      .gte('scheduled_at', startOfDayStr)
+      .lte('scheduled_at', endOfDayStr)
+      .in('status', ['scheduled', 'confirmed', 'in_progress']);
+
+    if (excludeAppointmentId) {
+      query = query.neq('id', excludeAppointmentId);
+    }
+
+    const { data: existingAppointments, error } = await query;
+
+    if (error) throw error;
+
+    const newStart = appointmentDate.getTime();
+    const newEnd = newStart + duration * 60000;
+
+    for (const existing of existingAppointments || []) {
+      const existingStart = new Date(existing.scheduled_at).getTime();
+      const existingEnd = existingStart + existing.duration * 60000;
+
+      // Check for overlap: (newStart < existingEnd) AND (newEnd > existingStart)
+      if (newStart < existingEnd && newEnd > existingStart) {
+        const existingStartTime = new Date(existing.scheduled_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+        const existingEndTime = new Date(existingEnd).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+        throw new Error(`O profissional já possui um agendamento das ${existingStartTime} às ${existingEndTime}. Selecione outro horário.`);
+      }
+    }
+  };
+
   const addAppointment = useMutation({
     mutationFn: async (appointment: Omit<AppointmentInsert, 'tenant_id'>) => {
       if (!tenantId) throw new Error('Tenant não encontrado');
@@ -72,6 +117,13 @@ export function useAppointments() {
           throw new Error('Este profissional não executa o serviço selecionado.');
         }
       }
+
+      // Validate time conflict
+      await validateTimeConflict(
+        appointment.employee_id,
+        appointment.scheduled_at,
+        appointment.duration || 30
+      );
       
       const { data, error } = await supabase
         .from('appointments')
