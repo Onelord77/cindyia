@@ -20,6 +20,7 @@ import Configuracoes from "./pages/Configuracoes";
 import Integracoes from "./pages/Integracoes";
 import SuperAdminEmpresas from "./pages/admin/Empresas";
 import AdminConfiguracoes from "./pages/admin/Configuracoes";
+import Leads from "./pages/Leads";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -55,6 +56,7 @@ const App = () => (
                 {/* Super Admin Routes */}
                 <Route path="/admin/empresas" element={<ProtectedRoute requiredRoles={['super_admin']}><SuperAdminEmpresas /></ProtectedRoute>} />
                 <Route path="/admin/configuracoes" element={<ProtectedRoute requiredRoles={['super_admin']}><AdminConfiguracoes /></ProtectedRoute>} />
+                <Route path="/leads" element={<ProtectedRoute requiredRoles={['super_admin']}><Leads /></ProtectedRoute>} />
 
                 <Route path="*" element={<NotFound />} />
               </Routes>

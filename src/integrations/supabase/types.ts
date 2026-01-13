@@ -269,6 +269,162 @@ export type Database = {
           },
         ]
       }
+      lead_messages: {
+        Row: {
+          content: string
+          created_at: string
+          direction: Database["public"]["Enums"]["message_direction"]
+          external_message_id: string | null
+          id: string
+          lead_id: string
+          sent_at: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          direction: Database["public"]["Enums"]["message_direction"]
+          external_message_id?: string | null
+          id?: string
+          lead_id: string
+          sent_at?: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          direction?: Database["public"]["Enums"]["message_direction"]
+          external_message_id?: string | null
+          id?: string
+          lead_id?: string
+          sent_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_messages_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lead_tag_links: {
+        Row: {
+          created_at: string
+          id: string
+          lead_id: string
+          tag_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          lead_id: string
+          tag_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          lead_id?: string
+          tag_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_tag_links_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_tag_links_tag_id_fkey"
+            columns: ["tag_id"]
+            isOneToOne: false
+            referencedRelation: "lead_tags"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lead_tags: {
+        Row: {
+          color: string | null
+          created_at: string
+          id: string
+          name: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string
+          id?: string
+          name: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          color?: string | null
+          created_at?: string
+          id?: string
+          name?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_tags_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      leads: {
+        Row: {
+          created_at: string
+          first_contact_at: string
+          id: string
+          last_message_at: string
+          name: string | null
+          source: string
+          status: Database["public"]["Enums"]["lead_status"]
+          tenant_id: string
+          updated_at: string
+          whatsapp_number: string
+        }
+        Insert: {
+          created_at?: string
+          first_contact_at?: string
+          id?: string
+          last_message_at?: string
+          name?: string | null
+          source?: string
+          status?: Database["public"]["Enums"]["lead_status"]
+          tenant_id: string
+          updated_at?: string
+          whatsapp_number: string
+        }
+        Update: {
+          created_at?: string
+          first_contact_at?: string
+          id?: string
+          last_message_at?: string
+          name?: string | null
+          source?: string
+          status?: Database["public"]["Enums"]["lead_status"]
+          tenant_id?: string
+          updated_at?: string
+          whatsapp_number?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leads_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -462,6 +618,8 @@ export type Database = {
         | "cancelled"
         | "no_show"
       financial_type: "income" | "expense"
+      lead_status: "new" | "in_conversation" | "not_scheduled" | "scheduled"
+      message_direction: "inbound" | "outbound"
       payment_status: "pending" | "paid" | "partial" | "refunded"
       tenant_status: "active" | "inactive" | "suspended"
     }
@@ -601,6 +759,8 @@ export const Constants = {
         "no_show",
       ],
       financial_type: ["income", "expense"],
+      lead_status: ["new", "in_conversation", "not_scheduled", "scheduled"],
+      message_direction: ["inbound", "outbound"],
       payment_status: ["pending", "paid", "partial", "refunded"],
       tenant_status: ["active", "inactive", "suspended"],
     },
