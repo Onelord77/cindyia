@@ -19,6 +19,57 @@ interface WorkingHours {
   }
 }
 
+// Mapeamento de dias em português para inglês
+const dayMappingPtToEn: Record<string, string> = {
+  'dom': 'sunday',
+  'seg': 'monday',
+  'ter': 'tuesday',
+  'qua': 'wednesday',
+  'qui': 'thursday',
+  'sex': 'friday',
+  'sab': 'saturday'
+}
+
+// Normaliza working_hours para formato padrão (inglês)
+function normalizeWorkingHours(workingHours: unknown): WorkingHours | null {
+  if (!workingHours || typeof workingHours !== 'object') {
+    return null
+  }
+
+  const wh = workingHours as Record<string, unknown>
+  const normalized: WorkingHours = {}
+
+  for (const [key, value] of Object.entries(wh)) {
+    if (!value || typeof value !== 'object') continue
+
+    const dayData = value as Record<string, unknown>
+    
+    // Determina o nome do dia em inglês
+    const dayName = dayMappingPtToEn[key.toLowerCase()] || key.toLowerCase()
+    
+    // Detecta formato: PT-BR usa 'enabled/start/end', EN usa 'isOpen/open/close'
+    const isPortugueseFormat = 'enabled' in dayData || 'start' in dayData
+    
+    if (isPortugueseFormat) {
+      // Formato PT-BR: { enabled, start, end }
+      normalized[dayName] = {
+        isOpen: Boolean(dayData.enabled),
+        open: String(dayData.start || '09:00'),
+        close: String(dayData.end || '18:00')
+      }
+    } else {
+      // Formato EN: { isOpen, open, close }
+      normalized[dayName] = {
+        isOpen: Boolean(dayData.isOpen),
+        open: String(dayData.open || '09:00'),
+        close: String(dayData.close || '18:00')
+      }
+    }
+  }
+
+  return Object.keys(normalized).length > 0 ? normalized : null
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
@@ -179,7 +230,8 @@ serve(async (req) => {
     }> = []
 
     for (const employee of eligibleEmployees) {
-      const workingHours = employee.working_hours as WorkingHours | null
+      // Normaliza working_hours para suportar ambos os formatos (PT-BR e EN)
+      const workingHours = normalizeWorkingHours(employee.working_hours)
       
       // Get working hours for the day
       let dayHours = workingHours?.[dayOfWeek]
