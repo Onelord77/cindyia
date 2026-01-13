@@ -1,5 +1,8 @@
 project_id = "pyqkcfgkwdisabklrxfl"
 
+[functions.lead-broadcast]
+verify_jwt = false
+
 [functions.evolution-api]
 verify_jwt = false
 

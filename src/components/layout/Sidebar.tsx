@@ -17,6 +17,7 @@ import {
   Sparkles,
   Plug,
   Shield,
+  MessageSquare,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -44,6 +45,7 @@ const menuItems: SidebarItem[] = [
 
 const superAdminItems: SidebarItem[] = [
   { label: 'Empresas', icon: Building2, href: '/admin/empresas', superAdminOnly: true },
+  { label: 'Leads', icon: MessageSquare, href: '/leads', superAdminOnly: true },
   { label: 'Config. Admin', icon: Shield, href: '/admin/configuracoes', superAdminOnly: true },
 ];
 
