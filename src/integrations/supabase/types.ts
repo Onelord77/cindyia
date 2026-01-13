@@ -150,6 +150,42 @@ export type Database = {
           },
         ]
       }
+      employee_services: {
+        Row: {
+          created_at: string | null
+          employee_id: string
+          id: string
+          service_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          employee_id: string
+          id?: string
+          service_id: string
+        }
+        Update: {
+          created_at?: string | null
+          employee_id?: string
+          id?: string
+          service_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employee_services_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_services_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       employees: {
         Row: {
           avatar_url: string | null

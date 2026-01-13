@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,12 +10,15 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Plus, Phone, Mail, Clock, Edit, Trash2, UserCog, Loader2, Building2 } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Plus, Phone, Mail, Clock, Edit, Trash2, UserCog, Loader2, Building2, Scissors } from 'lucide-react';
 import { useEmployees } from '@/hooks/useEmployees';
 import { useServices } from '@/hooks/useServices';
 import { useTenants } from '@/hooks/useTenants';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserManagement } from '@/hooks/useUserManagement';
+import { useEmployeeServices, useEmployeeServicesBulk } from '@/hooks/useEmployeeServices';
 import { toast } from 'sonner';
 
 const Funcionarios = () => {
@@ -32,6 +35,10 @@ const Funcionarios = () => {
   const { employees, isLoading, addEmployee, updateEmployee, deleteEmployee, toggleEmployeeActive } = useEmployees(activeTenantId || undefined);
   const { services } = useServices();
 
+  // Get employee IDs for bulk services fetch
+  const employeeIds = useMemo(() => employees.map(e => e.id), [employees]);
+  const { data: employeeServicesMap = {} } = useEmployeeServicesBulk(employeeIds);
+
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<typeof employees[0] | null>(null);
@@ -43,9 +50,22 @@ const Funcionarios = () => {
     email: '',
     phone: '',
     role: 'employee',
-    specialties: [] as string[],
+    selectedServiceIds: [] as string[],
     password: '',
   });
+
+  // Hook for managing services of the employee being edited
+  const { updateEmployeeServices, linkedServiceIds } = useEmployeeServices(editingEmployee?.id);
+
+  // Load linked services when editing an employee
+  useEffect(() => {
+    if (editingEmployee && linkedServiceIds.length >= 0) {
+      setFormData(prev => ({
+        ...prev,
+        selectedServiceIds: linkedServiceIds,
+      }));
+    }
+  }, [editingEmployee, linkedServiceIds]);
 
   const adminsCount = employees.filter(e => e.role === 'admin').length;
   const activeCount = employees.filter(e => e.is_active).length;
@@ -55,7 +75,7 @@ const Funcionarios = () => {
   }, [tenants, activeTenantId]);
 
   const resetForm = () => {
-    setFormData({ name: '', email: '', phone: '', role: 'employee', specialties: [], password: '' });
+    setFormData({ name: '', email: '', phone: '', role: 'employee', selectedServiceIds: [], password: '' });
     setEditingEmployee(null);
     setCreateWithAuth(false);
   };
@@ -66,6 +86,8 @@ const Funcionarios = () => {
       return;
     }
 
+    let employeeId: string | null = null;
+
     if (editingEmployee) {
       // Update existing employee (no auth change)
       await updateEmployee.mutateAsync({
@@ -74,7 +96,13 @@ const Funcionarios = () => {
         email: formData.email,
         phone: formData.phone,
         role: formData.role,
-        specialties: formData.specialties,
+      });
+      employeeId = editingEmployee.id;
+      
+      // Update employee services
+      await updateEmployeeServices.mutateAsync({
+        employeeId: editingEmployee.id,
+        serviceIds: formData.selectedServiceIds,
       });
     } else if (createWithAuth && activeTenantId) {
       // Create user with authentication - requires email for login
@@ -95,15 +123,23 @@ const Funcionarios = () => {
         role: formData.role === 'admin' ? 'manager' : 'user',
         phone: formData.phone || undefined,
       });
+      // Note: Services will be linked after creating employee record via separate mutation
     } else {
       // Create employee without auth (legacy method)
-      await addEmployee.mutateAsync({
+      const newEmployee = await addEmployee.mutateAsync({
         name: formData.name,
         email: formData.email,
         phone: formData.phone,
         role: formData.role,
-        specialties: formData.specialties,
       });
+      
+      // Link services to new employee
+      if (newEmployee && formData.selectedServiceIds.length > 0) {
+        await updateEmployeeServices.mutateAsync({
+          employeeId: newEmployee.id,
+          serviceIds: formData.selectedServiceIds,
+        });
+      }
     }
     setIsDialogOpen(false);
     resetForm();
@@ -294,14 +330,24 @@ const Funcionarios = () => {
                       {employee.email || '-'}
                     </div>
                   </div>
-                  {employee.specialties && employee.specialties.length > 0 && (
+                  {/* Display linked services */}
+                  {employeeServicesMap[employee.id] && employeeServicesMap[employee.id].length > 0 ? (
                     <div>
-                      <p className="text-sm font-medium mb-2">Especialidades</p>
+                      <p className="text-sm font-medium mb-2 flex items-center gap-1">
+                        <Scissors className="h-3 w-3" />
+                        Serviços
+                      </p>
                       <div className="flex flex-wrap gap-1">
-                        {employee.specialties.map((spec, i) => (
-                          <Badge key={i} variant="outline" className="text-xs">{spec}</Badge>
+                        {employeeServicesMap[employee.id].map((es) => (
+                          <Badge key={es.serviceId} variant="outline" className="text-xs">
+                            {es.service?.name}
+                          </Badge>
                         ))}
                       </div>
+                    </div>
+                  ) : (
+                    <div className="text-xs text-muted-foreground italic">
+                      Nenhum serviço vinculado
                     </div>
                   )}
                   <div className="flex gap-2 pt-2">
@@ -316,7 +362,7 @@ const Funcionarios = () => {
                           email: employee.email || '', 
                           phone: employee.phone || '', 
                           role: employee.role || 'employee', 
-                          specialties: employee.specialties || [],
+                          selectedServiceIds: [],
                           password: '',
                         }); 
                         setIsDialogOpen(true); 
@@ -426,6 +472,52 @@ const Funcionarios = () => {
                     </SelectContent>
                   </Select>
                 </div>
+              </div>
+
+              {/* Services multi-select */}
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <Scissors className="h-4 w-4" />
+                  Serviços que pode realizar
+                </Label>
+                <ScrollArea className="h-40 rounded-md border p-3">
+                  {services.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">Nenhum serviço cadastrado</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {services.filter(s => s.is_active).map((service) => (
+                        <div key={service.id} className="flex items-start space-x-3">
+                          <Checkbox
+                            id={`service-${service.id}`}
+                            checked={formData.selectedServiceIds.includes(service.id)}
+                            onCheckedChange={(checked) => {
+                              setFormData(prev => ({
+                                ...prev,
+                                selectedServiceIds: checked
+                                  ? [...prev.selectedServiceIds, service.id]
+                                  : prev.selectedServiceIds.filter(id => id !== service.id)
+                              }));
+                            }}
+                          />
+                          <div className="flex-1">
+                            <label 
+                              htmlFor={`service-${service.id}`} 
+                              className="text-sm font-medium leading-none cursor-pointer"
+                            >
+                              {service.name}
+                            </label>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              {service.duration} min • R$ {Number(service.price).toFixed(2)}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </ScrollArea>
+                <p className="text-xs text-muted-foreground">
+                  {formData.selectedServiceIds.length} serviço(s) selecionado(s)
+                </p>
               </div>
             </div>
             <DialogFooter>

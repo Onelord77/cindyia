@@ -57,7 +57,7 @@ serve(async (req) => {
     // Build employees query
     let employeesQuery = supabase
       .from('employees')
-      .select('id, name, working_hours, specialties, tenant_id')
+      .select('id, name, working_hours, tenant_id')
       .eq('is_active', true)
 
     if (tenantId) {
@@ -75,6 +75,35 @@ serve(async (req) => {
     }
 
     if (!employees || employees.length === 0) {
+      return new Response(
+        JSON.stringify({ date, available: [] }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // If serviceId is provided, filter employees by those who can perform the service
+    let filteredEmployeeIds: string[] = employees.map(e => e.id)
+    
+    if (serviceId) {
+      const { data: employeeServicesData, error: esError } = await supabase
+        .from('employee_services')
+        .select('employee_id')
+        .eq('service_id', serviceId)
+        .in('employee_id', filteredEmployeeIds)
+
+      if (esError) {
+        console.error('Error fetching employee_services:', esError)
+      } else if (employeeServicesData) {
+        filteredEmployeeIds = employeeServicesData.map(es => es.employee_id)
+      }
+    }
+
+    // Filter employees to only those who can perform the service
+    const eligibleEmployees = serviceId 
+      ? employees.filter(e => filteredEmployeeIds.includes(e.id))
+      : employees
+
+    if (eligibleEmployees.length === 0) {
       return new Response(
         JSON.stringify({ date, available: [] }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -146,7 +175,7 @@ serve(async (req) => {
       slots: string[]
     }> = []
 
-    for (const employee of employees) {
+    for (const employee of eligibleEmployees) {
       const workingHours = employee.working_hours as WorkingHours | null
       
       // Get working hours for the day
