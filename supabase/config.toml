@@ -17,3 +17,6 @@ verify_jwt = false
 
 [functions.available-professionals]
 verify_jwt = false
+
+[functions.client-identify]
+verify_jwt = false
