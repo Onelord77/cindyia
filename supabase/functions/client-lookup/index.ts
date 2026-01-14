@@ -18,8 +18,8 @@ serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-    // Get phone number from request
-    const { phone } = await req.json()
+    // Get phone number and tenantId from request
+    const { phone, tenantId } = await req.json()
 
     if (!phone) {
       return new Response(
@@ -28,13 +28,30 @@ serve(async (req) => {
       )
     }
 
+    if (!tenantId) {
+      return new Response(
+        JSON.stringify({ error: 'tenantId is required for tenant isolation' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Validate UUID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    if (!uuidRegex.test(tenantId)) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid tenantId format' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
     // Normalize phone number (remove non-numeric characters)
     const normalizedPhone = phone.replace(/\D/g, '')
 
-    // Find client by phone number
+    // Find client by phone number within the specific tenant
     const { data: client, error: clientError } = await supabase
       .from('clients')
       .select('*')
+      .eq('tenant_id', tenantId)
       .or(`phone.ilike.%${normalizedPhone}%,phone.ilike.%${phone}%`)
       .maybeSingle()
 
