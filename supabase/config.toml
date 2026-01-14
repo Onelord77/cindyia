@@ -26,3 +26,6 @@ verify_jwt = false
 
 [functions.establishment-info]
 verify_jwt = false
+
+[functions.create-appointment]
+verify_jwt = false
