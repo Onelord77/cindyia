@@ -47,7 +47,7 @@ serve(async (req) => {
     // Obter parâmetros da URL
     const url = new URL(req.url)
     const phone = url.searchParams.get('phone')
-    const tenantId = url.searchParams.get('tenantId')
+    const tenantid = url.searchParams.get('tenantid')
 
     // Validar parâmetros obrigatórios
     if (!phone) {
@@ -57,18 +57,18 @@ serve(async (req) => {
       )
     }
 
-    if (!tenantId) {
+    if (!tenantid) {
       return new Response(
-        JSON.stringify({ error: 'tenantId parameter is required for tenant isolation' }),
+        JSON.stringify({ error: 'tenantid parameter is required for tenant isolation' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
     // Validar UUID do tenant
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-    if (!uuidRegex.test(tenantId)) {
+    if (!uuidRegex.test(tenantid)) {
       return new Response(
-        JSON.stringify({ error: 'Invalid tenantId format' }),
+        JSON.stringify({ error: 'Invalid tenantid format' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
@@ -77,14 +77,14 @@ serve(async (req) => {
     const normalizedPhone = normalizePhone(phone)
     const phoneDigitsOnly = normalizedPhone.replace(/\D/g, '')
 
-    console.log(`[client-identify] Looking for phone: ${normalizedPhone} (digits: ${phoneDigitsOnly}) in tenant: ${tenantId}`)
+    console.log(`[client-identify] Looking for phone: ${normalizedPhone} (digits: ${phoneDigitsOnly}) in tenant: ${tenantid}`)
 
     // Buscar cliente pelo telefone no tenant especificado
     // Tenta encontrar com diferentes variações do número
     const { data: client, error: clientError } = await supabase
       .from('clients')
       .select('id, name, phone, email')
-      .eq('tenant_id', tenantId)
+      .eq('tenant_id', tenantid)
       .or(`phone.ilike.%${phoneDigitsOnly.slice(-9)}%`)
       .maybeSingle()
 
@@ -114,7 +114,7 @@ serve(async (req) => {
       .from('appointments')
       .select('*', { count: 'exact', head: true })
       .eq('client_id', client.id)
-      .eq('tenant_id', tenantId)
+      .eq('tenant_id', tenantid)
 
     if (countError) {
       console.error('[client-identify] Error counting appointments:', countError)
@@ -146,7 +146,7 @@ serve(async (req) => {
       .from('appointments')
       .select('scheduled_at')
       .eq('client_id', client.id)
-      .eq('tenant_id', tenantId)
+      .eq('tenant_id', tenantid)
       .order('scheduled_at', { ascending: false })
       .limit(1)
       .maybeSingle()

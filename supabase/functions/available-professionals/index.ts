@@ -86,12 +86,12 @@ serve(async (req) => {
     const startTime = url.searchParams.get('start')
     const endTime = url.searchParams.get('end')
     const serviceId = url.searchParams.get('serviceId')
-    const tenantId = url.searchParams.get('tenantId')
+    const tenantid = url.searchParams.get('tenantid')
 
     // Validate required params
-    if (!tenantId) {
+    if (!tenantid) {
       return new Response(
-        JSON.stringify({ error: 'Parameter "tenantId" is required' }),
+        JSON.stringify({ error: 'Parameter "tenantid" is required' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
@@ -118,7 +118,7 @@ serve(async (req) => {
       .select('id, name, working_hours, tenant_id')
       .eq('is_active', true)
 
-    employeesQuery = employeesQuery.eq('tenant_id', tenantId)
+    employeesQuery = employeesQuery.eq('tenant_id', tenantid)
 
     const { data: employees, error: employeesError } = await employeesQuery
 
@@ -183,7 +183,7 @@ serve(async (req) => {
       .lte('scheduled_at', dayEnd)
       .in('status', ['scheduled', 'confirmed', 'in_progress'])
 
-    appointmentsQuery = appointmentsQuery.eq('tenant_id', tenantId)
+    appointmentsQuery = appointmentsQuery.eq('tenant_id', tenantid)
 
     const { data: appointments, error: appointmentsError } = await appointmentsQuery
 

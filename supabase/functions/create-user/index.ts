@@ -9,7 +9,7 @@ interface CreateUserRequest {
   email: string;
   password: string;
   fullName: string;
-  tenantId: string;
+  tenantid: string;
   role: 'admin' | 'manager' | 'user';
   phone?: string;
 }
@@ -67,12 +67,12 @@ Deno.serve(async (req) => {
       .single();
 
     const body: CreateUserRequest = await req.json();
-    let { email, password, fullName, tenantId, role, phone } = body;
+    let { email, password, fullName, tenantid, role, phone } = body;
 
     // Validate required fields
-    if (!password || !fullName || !tenantId || !role) {
+    if (!password || !fullName || !tenantid || !role) {
       return new Response(
-        JSON.stringify({ error: 'Campos obrigatórios: password, fullName, tenantId, role' }),
+        JSON.stringify({ error: 'Campos obrigatórios: password, fullName, tenantid, role' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -103,7 +103,7 @@ Deno.serve(async (req) => {
       }
 
       // Non-super admins can only create users in their own tenant
-      if (!isSuperAdmin && callerProfile?.tenant_id !== tenantId) {
+      if (!isSuperAdmin && callerProfile?.tenant_id !== tenantid) {
         return new Response(
           JSON.stringify({ error: 'Você só pode criar usuários na sua própria empresa' }),
           { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -115,7 +115,7 @@ Deno.serve(async (req) => {
     const { data: tenant, error: tenantError } = await adminClient
       .from('tenants')
       .select('id, name, max_employees, status')
-      .eq('id', tenantId)
+      .eq('id', tenantid)
       .single();
 
     if (tenantError || !tenant) {
@@ -137,7 +137,7 @@ Deno.serve(async (req) => {
       const { count } = await adminClient
         .from('employees')
         .select('id', { count: 'exact', head: true })
-        .eq('tenant_id', tenantId);
+        .eq('tenant_id', tenantid);
 
       if (count !== null && count >= (tenant.max_employees || 10)) {
         return new Response(
@@ -167,7 +167,7 @@ Deno.serve(async (req) => {
     const { error: profileError } = await adminClient
       .from('profiles')
       .update({
-        tenant_id: tenantId,
+        tenant_id: tenantid,
         full_name: fullName,
         phone: phone || null,
       })
@@ -189,7 +189,7 @@ Deno.serve(async (req) => {
       .insert({
         user_id: newUser.user.id,
         role: role,
-        tenant_id: tenantId,
+        tenant_id: tenantid,
       });
 
     if (roleError) {
@@ -207,7 +207,7 @@ Deno.serve(async (req) => {
       const { error: employeeError } = await adminClient
         .from('employees')
         .insert({
-          tenant_id: tenantId,
+          tenant_id: tenantid,
           user_id: newUser.user.id,
           name: fullName,
           email: email,
@@ -234,7 +234,7 @@ Deno.serve(async (req) => {
           id: newUser.user.id,
           email: newUser.user.email,
           fullName,
-          tenantId,
+          tenantid,
           role,
         }
       }),
