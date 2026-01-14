@@ -23,3 +23,6 @@ verify_jwt = false
 
 [functions.services]
 verify_jwt = false
+
+[functions.establishment-info]
+verify_jwt = false
