@@ -20,3 +20,6 @@ verify_jwt = false
 
 [functions.client-identify]
 verify_jwt = false
+
+[functions.services]
+verify_jwt = false
