@@ -6,6 +6,23 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+// Normaliza telefone para formato E.164 brasileiro
+function normalizePhone(phone: string): string {
+  let cleaned = phone.replace(/\D/g, '')
+  
+  // Se começar com 55 e tiver 12-13 dígitos, já está correto
+  if (cleaned.startsWith('55') && cleaned.length >= 12) {
+    return `+${cleaned}`
+  }
+  
+  // Se tiver 10-11 dígitos (DDD + número), adiciona 55
+  if (cleaned.length >= 10 && cleaned.length <= 11) {
+    return `+55${cleaned}`
+  }
+  
+  return cleaned.startsWith('+') ? cleaned : `+${cleaned}`
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -28,14 +45,17 @@ serve(async (req) => {
       )
     }
 
-    // Normalize phone number (remove non-numeric characters)
-    const normalizedPhone = phone.replace(/\D/g, '')
+    // Normalize phone number to E.164 Brazilian format
+    const normalizedPhone = normalizePhone(phone)
+    const phoneDigitsOnly = normalizedPhone.replace(/\D/g, '')
+    
+    console.log('Phone normalization:', { original: phone, normalized: normalizedPhone, digitsOnly: phoneDigitsOnly })
 
-    // Find client by phone number
+    // Find client by phone number (search by last 9 digits for flexibility)
     const { data: client, error: clientError } = await supabase
       .from('clients')
       .select('*')
-      .or(`phone.ilike.%${normalizedPhone}%,phone.ilike.%${phone}%`)
+      .or(`phone.ilike.%${phoneDigitsOnly.slice(-9)}%`)
       .maybeSingle()
 
     if (clientError) {
