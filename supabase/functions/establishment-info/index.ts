@@ -6,8 +6,12 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-agent-key',
 };
 
+// Working hours type
+type DayHours = { open: string | null; close: string | null; isOpen: boolean };
+type WorkingHoursMap = Record<string, DayHours>;
+
 // Default working hours structure
-const defaultWorkingHours = {
+const createDefaultWorkingHours = (): WorkingHoursMap => ({
   monday: { open: null, close: null, isOpen: false },
   tuesday: { open: null, close: null, isOpen: false },
   wednesday: { open: null, close: null, isOpen: false },
@@ -15,8 +19,9 @@ const defaultWorkingHours = {
   friday: { open: null, close: null, isOpen: false },
   saturday: { open: null, close: null, isOpen: false },
   sunday: { open: null, close: null, isOpen: false },
-};
+});
 
+// Map numeric day index to English day name
 const dayIndexToName: Record<number, string> = {
   0: 'sunday',
   1: 'monday',
@@ -25,6 +30,17 @@ const dayIndexToName: Record<number, string> = {
   4: 'thursday',
   5: 'friday',
   6: 'saturday',
+};
+
+// Map Portuguese abbreviations to English day names
+const ptDayToEnglish: Record<string, string> = {
+  'dom': 'sunday',
+  'seg': 'monday',
+  'ter': 'tuesday',
+  'qua': 'wednesday',
+  'qui': 'thursday',
+  'sex': 'friday',
+  'sab': 'saturday',
 };
 
 serve(async (req) => {
@@ -80,15 +96,25 @@ serve(async (req) => {
     const settings = tenant.settings || {};
     
     // Build working hours from settings
-    const workingHours = { ...defaultWorkingHours };
+    const workingHours: WorkingHoursMap = createDefaultWorkingHours();
     
     // Check if settings has workingDays array and openTime/closeTime
     if (settings.workingDays && Array.isArray(settings.workingDays)) {
       const openTime = settings.openTime || '09:00';
       const closeTime = settings.closeTime || '18:00';
       
-      settings.workingDays.forEach((dayIndex: number) => {
-        const dayName = dayIndexToName[dayIndex];
+      settings.workingDays.forEach((day: number | string) => {
+        let dayName: string | undefined;
+        
+        // Handle numeric index (0-6)
+        if (typeof day === 'number') {
+          dayName = dayIndexToName[day];
+        } 
+        // Handle Portuguese abbreviation (seg, ter, qua, etc.)
+        else if (typeof day === 'string') {
+          dayName = ptDayToEnglish[day.toLowerCase()];
+        }
+        
         if (dayName) {
           workingHours[dayName as keyof typeof workingHours] = {
             open: openTime,
@@ -111,6 +137,38 @@ serve(async (req) => {
           };
         }
       });
+    }
+
+    // Fallback: If no working hours found, try to get from an admin employee
+    const hasWorkingHours = Object.values(workingHours).some((day: DayHours) => day.isOpen);
+    
+    if (!hasWorkingHours) {
+      const { data: adminEmployee } = await supabase
+        .from('employees')
+        .select('working_hours')
+        .eq('tenant_id', tenantId)
+        .eq('role', 'admin')
+        .eq('is_active', true)
+        .limit(1)
+        .single();
+      
+      if (adminEmployee?.working_hours && typeof adminEmployee.working_hours === 'object') {
+        const empHours = adminEmployee.working_hours as Record<string, { start?: string; end?: string; enabled?: boolean }>;
+        Object.keys(empHours).forEach((day) => {
+          const dayData = empHours[day];
+          if (dayData && typeof dayData === 'object') {
+            // Map Portuguese day names to English if needed
+            const englishDay = ptDayToEnglish[day.toLowerCase()] || day.toLowerCase();
+            if (englishDay in workingHours) {
+              workingHours[englishDay as keyof typeof workingHours] = {
+                open: dayData.start || null,
+                close: dayData.end || null,
+                isOpen: dayData.enabled ?? false,
+              };
+            }
+          }
+        });
+      }
     }
 
     // Extract policies (only safe, non-sensitive data)
