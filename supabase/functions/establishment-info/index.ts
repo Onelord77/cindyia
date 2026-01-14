@@ -43,8 +43,8 @@ const ptDayToEnglish: Record<string, string> = {
   'sab': 'saturday',
 };
 
-// Calculate earliest open and latest close times across all days
-const calculateBusinessHours = (hours: WorkingHoursMap): { earliestOpen: string | null; latestClose: string | null } => {
+// Fallback: Calculate earliest open and latest close times from workingHours
+const calculateBusinessHoursFromSchedule = (hours: WorkingHoursMap): { earliestOpen: string | null; latestClose: string | null } => {
   let earliestOpen: string | null = null;
   let latestClose: string | null = null;
   
@@ -200,8 +200,17 @@ serve(async (req) => {
       late: settings.latePolicy || null,
     };
 
-    // Calculate business hours summary
-    const { earliestOpen, latestClose } = calculateBusinessHours(workingHours);
+    // Get business hours directly from settings (openTime/closeTime from Configurações -> Agendamento)
+    // Priority: settings.openTime/closeTime > fallback from workingHours schedule
+    let earliestOpen: string | null = settings.openTime || null;
+    let latestClose: string | null = settings.closeTime || null;
+
+    // If settings don't have times, calculate from workingHours as fallback
+    if (!earliestOpen || !latestClose) {
+      const fallbackHours = calculateBusinessHoursFromSchedule(workingHours);
+      if (!earliestOpen) earliestOpen = fallbackHours.earliestOpen;
+      if (!latestClose) latestClose = fallbackHours.latestClose;
+    }
 
     // Build response (excluding sensitive data)
     const response = {
