@@ -78,25 +78,38 @@ function normalizePhone(phone: string): string {
   return '+' + digits
 }
 
-// Valida formato de data YYYY-MM-DD
-function isValidDate(dateStr: string): boolean {
-  const regex = /^\d{4}-\d{2}-\d{2}$/
-  if (!regex.test(dateStr)) return false
-  
-  const date = new Date(dateStr + 'T12:00:00Z')
-  return !isNaN(date.getTime())
-}
-
-// Valida formato de hora HH:MM
-function isValidTime(timeStr: string): boolean {
-  const regex = /^([01]\d|2[0-3]):([0-5]\d)$/
-  return regex.test(timeStr)
-}
-
 // Valida formato UUID
 function isValidUUID(str: string): boolean {
   const regex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
   return regex.test(str)
+}
+
+// Valida formato ISO 8601 com timezone
+function isValidISO8601(str: string): boolean {
+  // Aceita formatos como: 2026-01-14T14:30:00-03:00 ou 2026-01-14T14:30:00Z
+  const regex = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}([+-]\d{2}:\d{2}|Z)?$/
+  if (!regex.test(str)) return false
+  
+  const date = new Date(str)
+  return !isNaN(date.getTime())
+}
+
+// Extrai date (YYYY-MM-DD) e time (HH:MM) de um ISO 8601 string
+function parseStartAt(startAt: string): { date: string; time: string } | null {
+  try {
+    const dateObj = new Date(startAt)
+    if (isNaN(dateObj.getTime())) return null
+    
+    // Extrai data no formato YYYY-MM-DD
+    const date = startAt.slice(0, 10)
+    
+    // Extrai hora no formato HH:MM
+    const time = startAt.slice(11, 16)
+    
+    return { date, time }
+  } catch {
+    return null
+  }
 }
 
 serve(async (req) => {
@@ -121,14 +134,11 @@ serve(async (req) => {
     // Parse request body
     let body: {
       tenantId?: string
-      client?: {
-        phone?: string
-        name?: string
-      }
+      phone?: string
+      clientName?: string
       serviceId?: string
       professionalId?: string
-      date?: string
-      time?: string
+      startAt?: string  // ISO 8601: 2026-01-14T14:30:00-03:00
       notes?: string
     }
 
@@ -141,18 +151,17 @@ serve(async (req) => {
       )
     }
 
-    const { tenantId, client, serviceId, professionalId, date, time, notes } = body
+    const { tenantId, phone, clientName, serviceId, professionalId, startAt, notes } = body
 
     // ============ VALIDATION ============
 
     // 1. Validate required fields
     const missingFields: string[] = []
     if (!tenantId) missingFields.push('tenantId')
-    if (!client?.phone) missingFields.push('client.phone')
+    if (!phone) missingFields.push('phone')
     if (!serviceId) missingFields.push('serviceId')
     if (!professionalId) missingFields.push('professionalId')
-    if (!date) missingFields.push('date')
-    if (!time) missingFields.push('time')
+    if (!startAt) missingFields.push('startAt')
 
     if (missingFields.length > 0) {
       return new Response(
@@ -186,25 +195,31 @@ serve(async (req) => {
       )
     }
 
-    // 3. Validate date format
-    if (!isValidDate(date!)) {
+    // 3. Validate startAt format (ISO 8601)
+    if (!isValidISO8601(startAt!)) {
       return new Response(
-        JSON.stringify({ success: false, error: 'Invalid date format. Use YYYY-MM-DD' }),
+        JSON.stringify({ 
+          success: false, 
+          error: 'Invalid startAt format. Use ISO 8601 (e.g., 2026-01-14T14:30:00-03:00)' 
+        }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    // 4. Validate time format
-    if (!isValidTime(time!)) {
+    // 4. Parse startAt to get date and time
+    const parsed = parseStartAt(startAt!)
+    if (!parsed) {
       return new Response(
-        JSON.stringify({ success: false, error: 'Invalid time format. Use HH:MM (24h)' }),
+        JSON.stringify({ success: false, error: 'Could not parse startAt' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
+
+    const { date, time } = parsed
 
     // 5. Validate date is not in the past
     const now = new Date()
-    const requestedDateTime = new Date(`${date}T${time}:00`)
+    const requestedDateTime = new Date(startAt!)
     if (requestedDateTime < now) {
       return new Response(
         JSON.stringify({ success: false, error: 'Cannot schedule appointments in the past' }),
@@ -396,7 +411,7 @@ serve(async (req) => {
 
     // ============ CLIENT LOOKUP OR CREATE ============
 
-    const normalizedPhone = normalizePhone(client!.phone!)
+    const normalizedPhone = normalizePhone(phone!)
 
     // Try to find existing client
     let { data: existingClient } = await supabase
@@ -412,10 +427,10 @@ serve(async (req) => {
       clientId = existingClient.id
       
       // Update name if provided and client doesn't have one
-      if (client?.name && !existingClient.name) {
+      if (clientName && !existingClient.name) {
         await supabase
           .from('clients')
-          .update({ name: client.name })
+          .update({ name: clientName })
           .eq('id', clientId)
       }
     } else {
@@ -425,7 +440,7 @@ serve(async (req) => {
         .insert({
           tenant_id: tenantId,
           phone: normalizedPhone,
-          name: client?.name || null
+          name: clientName || null
         })
         .select('id')
         .single()
@@ -495,7 +510,7 @@ serve(async (req) => {
           client: {
             id: clientId,
             phone: normalizedPhone,
-            name: client?.name || existingClient?.name || null,
+            name: clientName || existingClient?.name || null,
             isNew: !existingClient
           }
         },
