@@ -43,6 +43,25 @@ const ptDayToEnglish: Record<string, string> = {
   'sab': 'saturday',
 };
 
+// Calculate earliest open and latest close times across all days
+const calculateBusinessHours = (hours: WorkingHoursMap): { earliestOpen: string | null; latestClose: string | null } => {
+  let earliestOpen: string | null = null;
+  let latestClose: string | null = null;
+  
+  Object.values(hours).forEach((day) => {
+    if (day.isOpen && day.open && day.close) {
+      if (!earliestOpen || day.open < earliestOpen) {
+        earliestOpen = day.open;
+      }
+      if (!latestClose || day.close > latestClose) {
+        latestClose = day.close;
+      }
+    }
+  });
+  
+  return { earliestOpen, latestClose };
+};
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -143,17 +162,18 @@ serve(async (req) => {
     const hasWorkingHours = Object.values(workingHours).some((day: DayHours) => day.isOpen);
     
     if (!hasWorkingHours) {
-      const { data: adminEmployee } = await supabase
+      const { data: employees } = await supabase
         .from('employees')
         .select('working_hours')
         .eq('tenant_id', tenantId)
-        .eq('role', 'admin')
         .eq('is_active', true)
-        .limit(1)
-        .single();
+        .order('created_at', { ascending: true })
+        .limit(1);
       
-      if (adminEmployee?.working_hours && typeof adminEmployee.working_hours === 'object') {
-        const empHours = adminEmployee.working_hours as Record<string, { start?: string; end?: string; enabled?: boolean }>;
+      const firstEmployee = employees?.[0];
+      
+      if (firstEmployee?.working_hours && typeof firstEmployee.working_hours === 'object') {
+        const empHours = firstEmployee.working_hours as Record<string, { start?: string; end?: string; enabled?: boolean }>;
         Object.keys(empHours).forEach((day) => {
           const dayData = empHours[day];
           if (dayData && typeof dayData === 'object') {
@@ -180,6 +200,9 @@ serve(async (req) => {
       late: settings.latePolicy || null,
     };
 
+    // Calculate business hours summary
+    const { earliestOpen, latestClose } = calculateBusinessHours(workingHours);
+
     // Build response (excluding sensitive data)
     const response = {
       tenantId: tenant.id,
@@ -188,6 +211,8 @@ serve(async (req) => {
       phone: tenant.phone || null,
       email: tenant.email || null,
       timezone: settings.timezone || 'America/Sao_Paulo',
+      earliestOpen,
+      latestClose,
       workingHours,
       policies,
     };
