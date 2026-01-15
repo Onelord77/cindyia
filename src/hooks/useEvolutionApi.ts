@@ -61,6 +61,11 @@ export function useEvolutionApi() {
   const isInstanceNotFoundError = (responseData: unknown): boolean => {
     if (!responseData || typeof responseData !== 'object') return false;
     const data = responseData as Record<string, unknown>;
+    
+    // Check for notFound flag from edge function
+    if (data.notFound === true) return true;
+    
+    // Legacy check for nested 404 errors
     if (data.data && typeof data.data === 'object') {
       const innerData = data.data as Record<string, unknown>;
       if (innerData.status === 404) return true;
@@ -116,11 +121,11 @@ export function useEvolutionApi() {
         body: requestBody,
       });
 
-      // Check for 404 "instance not found" errors
+      // Check for "instance not found" errors (now returns 200 with notFound flag)
       if (isInstanceNotFoundError(response.data)) {
         console.warn(`Instance "${instanceName}" not found in Evolution API`);
         if (!options?.silentNotFound) {
-          // Remove instance from local state
+          // Remove instance from local state silently
           setInstances(prev => prev.filter(inst => inst.instanceName !== instanceName?.trim()));
         }
         return { success: false, notFound: true };
