@@ -61,6 +61,7 @@ const SuperAdminEmpresas = () => {
     address: '',
     cnpj: '',
     maxEmployees: 3,
+    maxWhatsappInstances: 1,
   });
 
   const [adminFormData, setAdminFormData] = useState({
@@ -81,7 +82,7 @@ const SuperAdminEmpresas = () => {
   const activeTenants = tenants.filter((t) => t.status === 'active').length;
 
   const resetForm = () => {
-    setFormData({ name: '', email: '', phone: '', address: '', cnpj: '', maxEmployees: 3 });
+    setFormData({ name: '', email: '', phone: '', address: '', cnpj: '', maxEmployees: 3, maxWhatsappInstances: 1 });
     setEditingTenant(null);
   };
 
@@ -96,6 +97,7 @@ const SuperAdminEmpresas = () => {
       address: tenant.address || '',
       cnpj: tenant.cnpj || '',
       maxEmployees: tenant.max_employees || 3,
+      maxWhatsappInstances: (tenant as any).max_whatsapp_instances || 1,
     });
     setIsDialogOpen(true);
   };
@@ -165,6 +167,7 @@ const SuperAdminEmpresas = () => {
         address: formData.address || null,
         cnpj: formData.cnpj || null,
         max_employees: formData.maxEmployees,
+        max_whatsapp_instances: formData.maxWhatsappInstances,
       });
     } else {
       await addTenant.mutateAsync({
@@ -174,6 +177,7 @@ const SuperAdminEmpresas = () => {
         address: formData.address || null,
         cnpj: formData.cnpj || null,
         max_employees: formData.maxEmployees,
+        max_whatsapp_instances: formData.maxWhatsappInstances,
       });
     }
     
@@ -473,15 +477,31 @@ const SuperAdminEmpresas = () => {
                 />
               </div>
               
-              <div className="space-y-2">
-                <Label>Limite de Funcionários</Label>
-                <Input 
-                  type="number"
-                  min="1"
-                  value={formData.maxEmployees} 
-                  onChange={(e) => setFormData(p => ({ ...p, maxEmployees: parseInt(e.target.value) || 3 }))} 
-                  className="min-h-[44px]"
-                />
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Limite de Funcionários</Label>
+                  <Input 
+                    type="number"
+                    min="1"
+                    value={formData.maxEmployees} 
+                    onChange={(e) => setFormData(p => ({ ...p, maxEmployees: parseInt(e.target.value) || 3 }))} 
+                    className="min-h-[44px]"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Limite de Instâncias WhatsApp</Label>
+                  <Input 
+                    type="number"
+                    min="1"
+                    max="10"
+                    value={formData.maxWhatsappInstances} 
+                    onChange={(e) => setFormData(p => ({ ...p, maxWhatsappInstances: parseInt(e.target.value) || 1 }))} 
+                    className="min-h-[44px]"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Número máximo de conexões WhatsApp permitidas
+                  </p>
+                </div>
               </div>
             </div>
 
