@@ -358,15 +358,55 @@ export function useEvolutionApi() {
       return null;
     }
 
-    const result = await callEvolutionApi('delete-instance', trimmedName);
-    if (result?.success) {
-      setQrCode(null);
-      setConnectionState(null);
-      toast.success('Instância excluída!');
-      await fetchInstances();
-      return result.data;
+    setIsLoading(true);
+    
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        toast.error('Você precisa estar logado para usar esta funcionalidade');
+        return null;
+      }
+
+      const response = await supabase.functions.invoke('evolution-api', {
+        body: { action: 'delete-instance', instanceName: trimmedName },
+      });
+
+      // Handle success OR 404 (instance already deleted)
+      const isNotFoundError = response.data?.data?.status === 404 || 
+        response.data?.data?.response?.message?.some?.((m: string) => m.includes('does not exist'));
+      
+      if (response.data?.success || isNotFoundError) {
+        setQrCode(null);
+        setConnectionState(null);
+        
+        // Remove instance from local state immediately
+        setInstances(prev => prev.filter(inst => inst.instanceName !== trimmedName));
+        
+        if (isNotFoundError) {
+          toast.success('Instância removida da lista!');
+        } else {
+          toast.success('Instância excluída!');
+        }
+        
+        // Refresh from server to ensure sync
+        await fetchInstances();
+        return response.data?.data || { deleted: true };
+      }
+
+      // Handle other errors
+      if (response.error) {
+        throw new Error(response.error.message);
+      }
+      
+      throw new Error('Falha ao excluir instância');
+    } catch (error) {
+      console.error('Delete instance error:', error);
+      toast.error(`Erro ao excluir: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
+      return null;
+    } finally {
+      setIsLoading(false);
     }
-    return null;
   };
 
   const updateInstanceWebhook = async (instanceName: string, webhookUrl?: string) => {
