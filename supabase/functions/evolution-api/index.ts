@@ -116,6 +116,7 @@ serve(async (req) => {
         const instances = await response.json()
         
         // Fetch connection state for each instance to get accurate status
+        // Silently ignore 404 errors for individual instances
         if (Array.isArray(instances)) {
           const instancesWithStatus = await Promise.all(
             instances.map(async (inst: Record<string, unknown>) => {
@@ -128,16 +129,31 @@ serve(async (req) => {
                     method: 'GET',
                     headers: evolutionHeaders,
                   });
-                  const statusData = await statusResponse.json();
-                  // Merge status into instance data
-                  return {
-                    ...inst,
-                    instance: {
-                      ...instData,
-                      state: statusData?.state || statusData?.instance?.state || 'close',
-                    },
-                  };
-                } catch {
+                  
+                  // Only use status if response was successful
+                  if (statusResponse.ok) {
+                    const statusData = await statusResponse.json();
+                    // Merge status into instance data
+                    return {
+                      ...inst,
+                      instance: {
+                        ...instData,
+                        state: statusData?.state || statusData?.instance?.state || 'close',
+                      },
+                    };
+                  } else {
+                    // Instance might be in inconsistent state - mark as close
+                    console.warn(`Instance ${instName} returned ${statusResponse.status} for connectionState`);
+                    return {
+                      ...inst,
+                      instance: {
+                        ...instData,
+                        state: 'close',
+                      },
+                    };
+                  }
+                } catch (e) {
+                  console.warn(`Error fetching status for instance ${instName}:`, e);
                   return inst;
                 }
               }
@@ -325,6 +341,24 @@ serve(async (req) => {
           JSON.stringify({ error: 'Invalid action' }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
+    }
+
+    // Check if it's a 404 "instance not found" error
+    const isNotFound = response.status === 404;
+    const resultData = result as Record<string, unknown>;
+    const isInstanceNotFound = isNotFound || 
+      (resultData?.response && Array.isArray((resultData.response as Record<string, unknown>)?.message) && 
+       ((resultData.response as Record<string, unknown>).message as string[]).some(m => m.includes('does not exist')));
+
+    // Return 200 with notFound flag instead of 404 to prevent frontend errors
+    if (isInstanceNotFound) {
+      return new Response(
+        JSON.stringify({ success: false, notFound: true, data: result }),
+        { 
+          status: 200, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      )
     }
 
     return new Response(
