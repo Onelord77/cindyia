@@ -86,10 +86,19 @@ Deno.serve(async (req) => {
 
     // Permission checks
     if (role === 'admin') {
-      // Only super_admin can create admins
-      if (!isSuperAdmin) {
+      // Super admins can create admins for any tenant
+      // Admins can create admins only for their own tenant
+      if (!isSuperAdmin && !isAdmin) {
         return new Response(
-          JSON.stringify({ error: 'Apenas super admins podem criar administradores' }),
+          JSON.stringify({ error: 'Apenas administradores podem criar outros administradores' }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
+      // Admins can only create admins in their own tenant
+      if (!isSuperAdmin && callerProfile?.tenant_id !== tenantId) {
+        return new Response(
+          JSON.stringify({ error: 'Você só pode criar administradores na sua própria empresa' }),
           { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
