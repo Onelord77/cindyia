@@ -558,6 +558,7 @@ export type Database = {
           id: string
           logo_url: string | null
           max_employees: number | null
+          max_whatsapp_instances: number | null
           name: string
           phone: string | null
           settings: Json | null
@@ -572,6 +573,7 @@ export type Database = {
           id?: string
           logo_url?: string | null
           max_employees?: number | null
+          max_whatsapp_instances?: number | null
           name: string
           phone?: string | null
           settings?: Json | null
@@ -586,6 +588,7 @@ export type Database = {
           id?: string
           logo_url?: string | null
           max_employees?: number | null
+          max_whatsapp_instances?: number | null
           name?: string
           phone?: string | null
           settings?: Json | null

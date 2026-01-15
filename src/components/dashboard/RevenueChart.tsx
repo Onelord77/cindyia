@@ -23,27 +23,27 @@ export function RevenueChart() {
             <AreaChart data={data}>
               <defs>
                 <linearGradient id="colorReceita" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="hsl(340, 65%, 55%)" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="hsl(340, 65%, 55%)" stopOpacity={0} />
+                  <stop offset="5%" stopColor="hsl(142, 71%, 45%)" stopOpacity={0.3} />
+                  <stop offset="95%" stopColor="hsl(142, 71%, 45%)" stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(340, 20%, 90%)" vertical={false} />
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(142, 20%, 90%)" vertical={false} />
               <XAxis 
                 dataKey="name" 
                 axisLine={false} 
                 tickLine={false}
-                tick={{ fontSize: 12, fill: 'hsl(340, 10%, 45%)' }}
+                tick={{ fontSize: 12, fill: 'hsl(142, 10%, 35%)' }}
               />
               <YAxis 
                 axisLine={false} 
                 tickLine={false}
-                tick={{ fontSize: 12, fill: 'hsl(340, 10%, 45%)' }}
+                tick={{ fontSize: 12, fill: 'hsl(142, 10%, 35%)' }}
                 tickFormatter={(value) => `R$${value}`}
               />
               <Tooltip
                 contentStyle={{
                   background: 'hsl(0, 0%, 100%)',
-                  border: '1px solid hsl(340, 20%, 90%)',
+                  border: '1px solid hsl(142, 20%, 90%)',
                   borderRadius: '8px',
                   boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)',
                 }}
@@ -52,7 +52,7 @@ export function RevenueChart() {
               <Area
                 type="monotone"
                 dataKey="receita"
-                stroke="hsl(340, 65%, 55%)"
+                stroke="hsl(142, 71%, 45%)"
                 strokeWidth={2}
                 fillOpacity={1}
                 fill="url(#colorReceita)"
