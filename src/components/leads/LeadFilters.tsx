@@ -28,6 +28,7 @@ interface LeadFiltersProps {
   tenantId: string | null;
   onTenantChange: (tenantId: string | null) => void;
   tenants: { id: string; name: string }[];
+  showTenantFilter?: boolean;
 }
 
 const statusLabels: Record<LeadStatus | 'all', string> = {
@@ -49,6 +50,7 @@ export function LeadFilters({
   tenantId,
   onTenantChange,
   tenants,
+  showTenantFilter = true,
 }: LeadFiltersProps) {
   const handleTagToggle = (tagId: string) => {
     if (selectedTagIds.includes(tagId)) {
@@ -80,23 +82,25 @@ export function LeadFilters({
         />
       </div>
 
-      {/* Tenant Filter */}
-      <Select
-        value={tenantId || 'all'}
-        onValueChange={(value) => onTenantChange(value === 'all' ? null : value)}
-      >
-        <SelectTrigger className="w-[180px]">
-          <SelectValue placeholder="Estabelecimento" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">Todos estabelecimentos</SelectItem>
-          {tenants.map((tenant) => (
-            <SelectItem key={tenant.id} value={tenant.id}>
-              {tenant.name}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      {/* Tenant Filter - Only show for super admins */}
+      {showTenantFilter && (
+        <Select
+          value={tenantId || 'all'}
+          onValueChange={(value) => onTenantChange(value === 'all' ? null : value)}
+        >
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="Estabelecimento" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos estabelecimentos</SelectItem>
+            {tenants.map((tenant) => (
+              <SelectItem key={tenant.id} value={tenant.id}>
+                {tenant.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
 
       {/* Status Filter */}
       <Select

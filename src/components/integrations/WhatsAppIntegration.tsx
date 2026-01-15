@@ -9,6 +9,8 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { useEvolutionApi } from '@/hooks/useEvolutionApi';
 import { useAuth } from '@/hooks/useAuth';
+import { useTenantLimits } from '@/hooks/useTenantLimits';
+import { toast } from 'sonner';
 import { 
   MessageCircle, 
   Plus, 
@@ -23,6 +25,7 @@ import {
   Shield,
   ExternalLink,
   Settings,
+  AlertTriangle,
 } from 'lucide-react';
 import { WhatsAppWebhookSettings } from './WhatsAppWebhookSettings';
 
@@ -33,6 +36,7 @@ export function WhatsAppIntegration() {
   const [isQRDialogOpen, setIsQRDialogOpen] = useState(false);
   
   const { isSuperAdmin, isAdmin } = useAuth();
+  const { maxWhatsappInstances, tenantName } = useTenantLimits();
   const canManageInstances = isSuperAdmin || isAdmin;
 
   const {
@@ -53,12 +57,22 @@ export function WhatsAppIntegration() {
     stopStatusPolling,
   } = useEvolutionApi();
 
+  // Count current instances
+  const currentInstanceCount = instances.length;
+  const hasReachedLimit = !isSuperAdmin && currentInstanceCount >= maxWhatsappInstances;
+
   useEffect(() => {
     fetchInstances();
   }, []);
 
   const handleCreateInstance = async () => {
     if (!newInstanceName.trim()) return;
+    
+    // Check limit for non-super admins
+    if (!isSuperAdmin && currentInstanceCount >= maxWhatsappInstances) {
+      toast.error(`Limite atingido! Sua empresa pode ter no máximo ${maxWhatsappInstances} instância(s).`);
+      return;
+    }
     
     const result = await createInstance(newInstanceName.trim());
     if (result) {
@@ -161,9 +175,28 @@ export function WhatsAppIntegration() {
                 </Badge>
               )}
             </div>
+            
+            {/* Instance Limit Info */}
+            {!isSuperAdmin && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <span>{currentInstanceCount} de {maxWhatsappInstances} instância(s)</span>
+                {hasReachedLimit && (
+                  <Badge variant="outline" className="border-warning/30 bg-warning/10 text-warning">
+                    <AlertTriangle className="h-3 w-3 mr-1" />
+                    Limite atingido
+                  </Badge>
+                )}
+              </div>
+            )}
+            
             <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
               <DialogTrigger asChild>
-                <Button size="sm" className="gap-2">
+                <Button 
+                  size="sm" 
+                  className="gap-2"
+                  disabled={hasReachedLimit}
+                  title={hasReachedLimit ? `Limite de ${maxWhatsappInstances} instância(s) atingido` : 'Criar nova instância'}
+                >
                   <Plus className="h-4 w-4" />
                   Nova Instância
                 </Button>

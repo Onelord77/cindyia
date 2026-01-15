@@ -53,10 +53,12 @@ const App = () => (
                 <Route path="/integracoes" element={<ProtectedRoute requiredRoles={['admin', 'super_admin']}><Integracoes /></ProtectedRoute>} />
                 <Route path="/configuracoes" element={<ProtectedRoute requiredRoles={['admin', 'super_admin']}><Configuracoes /></ProtectedRoute>} />
 
-                {/* Super Admin Routes */}
+                {/* Admin + Super Admin Routes */}
+                <Route path="/leads" element={<ProtectedRoute requiredRoles={['admin', 'super_admin']}><Leads /></ProtectedRoute>} />
+                
+                {/* Super Admin Only Routes */}
                 <Route path="/admin/empresas" element={<ProtectedRoute requiredRoles={['super_admin']}><SuperAdminEmpresas /></ProtectedRoute>} />
                 <Route path="/admin/configuracoes" element={<ProtectedRoute requiredRoles={['super_admin']}><AdminConfiguracoes /></ProtectedRoute>} />
-                <Route path="/leads" element={<ProtectedRoute requiredRoles={['super_admin']}><Leads /></ProtectedRoute>} />
 
                 <Route path="*" element={<NotFound />} />
               </Routes>

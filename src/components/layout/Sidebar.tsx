@@ -20,6 +20,7 @@ import {
   MessageSquare,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 interface SidebarItem {
   label: string;
@@ -39,13 +40,13 @@ const menuItems: SidebarItem[] = [
   { label: 'Serviços', icon: Sparkles, href: '/servicos' },
   { label: 'Financeiro', icon: DollarSign, href: '/financeiro', managerOnly: true },
   { label: 'Relatórios', icon: BarChart3, href: '/relatorios', managerOnly: true },
+  { label: 'Leads', icon: MessageSquare, href: '/leads', adminOnly: true },
   { label: 'Integrações', icon: Plug, href: '/integracoes', adminOnly: true },
   { label: 'Configurações', icon: Settings, href: '/configuracoes', adminOnly: true },
 ];
 
 const superAdminItems: SidebarItem[] = [
   { label: 'Empresas', icon: Building2, href: '/admin/empresas', superAdminOnly: true },
-  { label: 'Leads', icon: MessageSquare, href: '/leads', superAdminOnly: true },
   { label: 'Config. Admin', icon: Shield, href: '/admin/configuracoes', superAdminOnly: true },
 ];
 
@@ -97,35 +98,37 @@ export function Sidebar() {
       </div>
 
       {/* Navigation */}
-      <nav className="flex flex-col gap-1 p-3">
-        {isSuperAdmin && !collapsed && (
-          <span className="mb-2 px-3 text-xs font-medium uppercase tracking-wider text-sidebar-foreground/50">
-            Super Admin
-          </span>
-        )}
-        
-        {allItems.map((item) => {
-          const isActive = location.pathname === item.href;
-          const Icon = item.icon;
+      <ScrollArea className="flex-1 px-3 py-3" style={{ height: 'calc(100vh - 64px - 80px)' }}>
+        <nav className="flex flex-col gap-1">
+          {isSuperAdmin && !collapsed && (
+            <span className="mb-2 px-3 text-xs font-medium uppercase tracking-wider text-sidebar-foreground/50">
+              Super Admin
+            </span>
+          )}
+          
+          {allItems.map((item) => {
+            const isActive = location.pathname === item.href;
+            const Icon = item.icon;
 
-          return (
-            <NavLink
-              key={item.href}
-              to={item.href}
-              className={cn(
-                'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200',
-                isActive
-                  ? 'bg-sidebar-primary text-sidebar-primary-foreground shadow-glow'
-                  : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
-                collapsed && 'justify-center px-2'
-              )}
-            >
-              <Icon className={cn('h-5 w-5 flex-shrink-0', isActive && 'animate-scale-in')} />
-              {!collapsed && <span className="truncate">{item.label}</span>}
-            </NavLink>
-          );
-        })}
-      </nav>
+            return (
+              <NavLink
+                key={item.href}
+                to={item.href}
+                className={cn(
+                  'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200',
+                  isActive
+                    ? 'bg-sidebar-primary text-sidebar-primary-foreground shadow-glow'
+                    : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
+                  collapsed && 'justify-center px-2'
+                )}
+              >
+                <Icon className={cn('h-5 w-5 flex-shrink-0', isActive && 'animate-scale-in')} />
+                {!collapsed && <span className="truncate">{item.label}</span>}
+              </NavLink>
+            );
+          })}
+        </nav>
+      </ScrollArea>
 
       {/* Footer */}
       {!collapsed && (

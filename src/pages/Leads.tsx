@@ -3,6 +3,7 @@ import { MessageSquare } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { useLeads, useLeadTags, useLeadMessages, Lead, LeadStatus, LeadTag } from '@/hooks/useLeads';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import {
   LeadFilters,
@@ -15,6 +16,7 @@ import {
 
 export default function Leads() {
   const { toast } = useToast();
+  const { isSuperAdmin, profile } = useAuth();
 
   // Filters state
   const [search, setSearch] = useState('');
@@ -32,12 +34,15 @@ export default function Leads() {
   // Sending state
   const [isSending, setIsSending] = useState(false);
 
+  // For non-super admins, always filter by their tenant
+  const effectiveTenantId = isSuperAdmin ? (tenantFilter || undefined) : profile?.tenant_id || undefined;
+
   // Fetch data
   const { leads, isLoading, stats, refetch } = useLeads({
     status: statusFilter,
     tagIds: selectedTagIds,
     search,
-    tenantId: tenantFilter || undefined,
+    tenantId: effectiveTenantId,
   });
 
   const { tags, createTag, addTagToLead, removeTagFromLead } = useLeadTags();
@@ -158,6 +163,7 @@ export default function Leads() {
           tenantId={tenantFilter}
           onTenantChange={setTenantFilter}
           tenants={tenants}
+          showTenantFilter={isSuperAdmin}
         />
 
         {/* Table */}
