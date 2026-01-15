@@ -50,11 +50,11 @@ Deno.serve(async (req) => {
 
     const isSuperAdmin = callerRoles?.some(r => r.role === 'super_admin');
     const isAdmin = callerRoles?.some(r => r.role === 'admin');
-    const isManager = callerRoles?.some(r => r.role === 'manager');
 
-    if (!isSuperAdmin && !isAdmin && !isManager) {
+    // Only admins and super_admins can delete users
+    if (!isSuperAdmin && !isAdmin) {
       return new Response(
-        JSON.stringify({ error: 'Permissão negada' }),
+        JSON.stringify({ error: 'Apenas administradores podem excluir usuários' }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -115,7 +115,42 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Delete the user (cascade will handle profiles, roles, employees)
+    // Explicitly delete all related records before deleting the auth user
+    // This ensures complete cleanup even if cascades aren't configured
+    
+    // Delete employee_services first (depends on employees)
+    const { data: employeeData } = await adminClient
+      .from('employees')
+      .select('id')
+      .eq('user_id', userId);
+    
+    if (employeeData && employeeData.length > 0) {
+      const employeeIds = employeeData.map(e => e.id);
+      await adminClient
+        .from('employee_services')
+        .delete()
+        .in('employee_id', employeeIds);
+    }
+
+    // Delete employees
+    await adminClient
+      .from('employees')
+      .delete()
+      .eq('user_id', userId);
+
+    // Delete user_roles
+    await adminClient
+      .from('user_roles')
+      .delete()
+      .eq('user_id', userId);
+
+    // Delete profile
+    await adminClient
+      .from('profiles')
+      .delete()
+      .eq('id', userId);
+
+    // Finally, delete the auth user
     const { error: deleteError } = await adminClient.auth.admin.deleteUser(userId);
 
     if (deleteError) {
