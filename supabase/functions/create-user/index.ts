@@ -220,29 +220,27 @@ Deno.serve(async (req) => {
       );
     }
 
-    // For non-admin roles, also create an employee record
-    if (role !== 'admin') {
-      const { error: employeeError } = await adminClient
-        .from('employees')
-        .insert({
-          tenant_id: tenantId,
-          user_id: newUser.user.id,
-          name: fullName,
-          email: email,
-          phone: phone || null,
-          role: role === 'manager' ? 'admin' : 'employee',
-          is_active: true,
-        });
+    // Create employee record for ALL users (including admins)
+    const { error: employeeError } = await adminClient
+      .from('employees')
+      .insert({
+        tenant_id: tenantId,
+        user_id: newUser.user.id,
+        name: fullName,
+        email: email,
+        phone: phone || null,
+        role: role === 'admin' || role === 'manager' ? 'admin' : 'employee',
+        is_active: true,
+      });
 
-      if (employeeError) {
-        console.error('Error creating employee:', employeeError);
-        // Rollback
-        await adminClient.auth.admin.deleteUser(newUser.user.id);
-        return new Response(
-          JSON.stringify({ error: 'Erro ao criar funcionário' }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
+    if (employeeError) {
+      console.error('Error creating employee:', employeeError);
+      // Rollback
+      await adminClient.auth.admin.deleteUser(newUser.user.id);
+      return new Response(
+        JSON.stringify({ error: 'Erro ao criar funcionário' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     return new Response(
