@@ -157,7 +157,7 @@ const Funcionarios = () => {
         password: formData.password,
         fullName: formData.name,
         tenantId: activeTenantId,
-        role: formData.role === 'admin' ? 'manager' : 'user',
+        role: formData.role === 'admin' ? 'admin' : 'user',
         phone: formData.phone || undefined,
       });
       // Note: Services will be linked after creating employee record via separate mutation
