@@ -57,11 +57,31 @@ export function useEvolutionApi() {
   const statusPollingRef = useRef<NodeJS.Timeout | null>(null);
   const currentPollingInstanceRef = useRef<string | null>(null);
 
+  // Helper to check if response is a 404 "instance not found" error
+  const isInstanceNotFoundError = (responseData: unknown): boolean => {
+    if (!responseData || typeof responseData !== 'object') return false;
+    const data = responseData as Record<string, unknown>;
+    if (data.data && typeof data.data === 'object') {
+      const innerData = data.data as Record<string, unknown>;
+      if (innerData.status === 404) return true;
+      if (innerData.response && typeof innerData.response === 'object') {
+        const response = innerData.response as Record<string, unknown>;
+        if (Array.isArray(response.message)) {
+          return response.message.some((m: string) => 
+            typeof m === 'string' && m.includes('does not exist')
+          );
+        }
+      }
+    }
+    return false;
+  };
+
   const callEvolutionApi = async (
     action: EvolutionAction, 
     instanceName?: string,
-    webhookUrl?: string
-  ) => {
+    webhookUrl?: string,
+    options?: { silentNotFound?: boolean }
+  ): Promise<{ success: boolean; data?: unknown; notFound?: boolean } | null> => {
     // Validate instanceName for actions that require it
     const actionsRequiringInstance: EvolutionAction[] = [
       'create-instance', 'get-qrcode', 'connect', 'disconnect', 'delete-instance', 'get-status'
@@ -95,6 +115,16 @@ export function useEvolutionApi() {
       const response = await supabase.functions.invoke('evolution-api', {
         body: requestBody,
       });
+
+      // Check for 404 "instance not found" errors
+      if (isInstanceNotFoundError(response.data)) {
+        console.warn(`Instance "${instanceName}" not found in Evolution API`);
+        if (!options?.silentNotFound) {
+          // Remove instance from local state
+          setInstances(prev => prev.filter(inst => inst.instanceName !== instanceName?.trim()));
+        }
+        return { success: false, notFound: true };
+      }
 
       if (response.error) {
         console.error('Evolution API response error:', response.error);
@@ -175,15 +205,17 @@ export function useEvolutionApi() {
       toast.success('Instância criada com sucesso!');
       
       // If QR code is returned immediately, set it
-      if (result.data?.qrcode?.base64) {
-        setQrCode(result.data.qrcode.base64);
+      const data = result.data as Record<string, unknown> | undefined;
+      const qrcode = data?.qrcode as Record<string, unknown> | undefined;
+      if (qrcode?.base64) {
+        setQrCode(qrcode.base64 as string);
       }
       
       // Refresh instances list to show the new instance
       await fetchInstances();
       
       // Return the instance name for reference
-      return { ...result.data, instanceName: trimmedName };
+      return { ...(data || {}), instanceName: trimmedName };
     }
     return null;
   };
@@ -228,7 +260,14 @@ export function useEvolutionApi() {
       return null;
     }
 
-    const result = await callEvolutionApi('get-status', trimmedName);
+    const result = await callEvolutionApi('get-status', trimmedName, undefined, { silentNotFound: false });
+    
+    // If instance not found, it was already removed from local state by callEvolutionApi
+    if (result?.notFound) {
+      toast.info(`Instância "${trimmedName}" não existe mais e foi removida da lista.`);
+      return null;
+    }
+    
     if (result?.success) {
       // Update the instance status in the list
       setInstances(prev => prev.map(inst => 
