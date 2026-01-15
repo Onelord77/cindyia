@@ -37,7 +37,7 @@ const Funcionarios = () => {
   const activeTenantId = isSuperAdmin ? selectedTenantId : profile?.tenant_id;
   
   const { employees, isLoading, addEmployee, updateEmployee, deleteEmployee, toggleEmployeeActive } = useEmployees(activeTenantId || undefined);
-  const { services } = useServices();
+  const { services } = useServices(activeTenantId || undefined);
 
   // Get employee IDs for bulk services fetch
   const employeeIds = useMemo(() => employees.map(e => e.id), [employees]);
