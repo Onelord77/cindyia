@@ -15,7 +15,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Plus, Phone, Mail, Clock, Edit, Trash2, UserCog, Loader2, Building2, Scissors, Calendar } from 'lucide-react';
-import { WorkingHoursEditor, formatWorkingHoursSummary, type WorkingHours } from '@/components/employees/WorkingHoursEditor';
+import { WorkingHoursEditor, formatWorkingHoursSummary, type WorkingHours, type CompanyHours } from '@/components/employees/WorkingHoursEditor';
 import { useEmployees } from '@/hooks/useEmployees';
 import { useServices } from '@/hooks/useServices';
 import { useTenants } from '@/hooks/useTenants';
@@ -100,6 +100,13 @@ const Funcionarios = () => {
   const selectedTenant = isSuperAdmin 
     ? tenants.find(t => t.id === activeTenantId) || currentTenant
     : currentTenant;
+
+  // Extrair horários da empresa para restringir horários dos funcionários
+  const companyHours: CompanyHours | undefined = selectedTenant?.settings ? {
+    openTime: (selectedTenant.settings as Record<string, unknown>).openTime as string || '09:00',
+    closeTime: (selectedTenant.settings as Record<string, unknown>).closeTime as string || '19:00',
+    workingDays: (selectedTenant.settings as Record<string, unknown>).workingDays as string[] || ['seg', 'ter', 'qua', 'qui', 'sex', 'sab'],
+  } : undefined;
 
   const resetForm = () => {
     setFormData({ name: '', email: '', phone: '', role: 'employee', selectedServiceIds: [], workingHours: {}, password: '' });
@@ -593,6 +600,7 @@ const Funcionarios = () => {
                   <WorkingHoursEditor
                     value={formData.workingHours}
                     onChange={(value) => setFormData(p => ({ ...p, workingHours: value }))}
+                    companyHours={companyHours}
                   />
                 </TabsContent>
               </ScrollArea>

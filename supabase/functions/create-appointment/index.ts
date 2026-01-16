@@ -216,7 +216,7 @@ serve(async (req) => {
 
     const { data: tenant, error: tenantError } = await supabase
       .from('tenants')
-      .select('id, name, status')
+      .select('id, name, status, settings')
       .eq('id', tenantId)
       .single()
 
@@ -299,12 +299,75 @@ serve(async (req) => {
       )
     }
 
-    // ============ WORKING HOURS VALIDATION ============
-
-    const workingHours = normalizeWorkingHours(professional.working_hours)
+    // ============ COMPANY HOURS VALIDATION ============
+    
+    // Mapeamento de dia da semana para chave PT-BR
+    const dayMappingEnToPt: Record<string, string> = {
+      'sunday': 'dom', 'monday': 'seg', 'tuesday': 'ter', 'wednesday': 'qua',
+      'thursday': 'qui', 'friday': 'sex', 'saturday': 'sab'
+    }
+    
     const requestedDate = new Date(date + 'T12:00:00Z')
     const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
     const dayOfWeek = dayNames[requestedDate.getUTCDay()]
+    const dayKeyPt = dayMappingEnToPt[dayOfWeek]
+    
+    // Extrair configurações da empresa
+    const tenantSettings = (tenant as Record<string, unknown>)?.settings as Record<string, unknown> || {}
+    const companyOpenTime = (tenantSettings.openTime as string) || '09:00'
+    const companyCloseTime = (tenantSettings.closeTime as string) || '19:00'
+    const companyWorkingDays = (tenantSettings.workingDays as string[]) || ['seg', 'ter', 'qua', 'qui', 'sex', 'sab']
+    
+    // Verificar se empresa funciona neste dia
+    if (!companyWorkingDays.includes(dayKeyPt)) {
+      const dayLabels: Record<string, string> = {
+        'dom': 'Domingo', 'seg': 'Segunda', 'ter': 'Terça', 'qua': 'Quarta',
+        'qui': 'Quinta', 'sex': 'Sexta', 'sab': 'Sábado'
+      }
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: `Empresa não funciona neste dia (${dayLabels[dayKeyPt] || dayOfWeek})` 
+        }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+    
+    // Verificar se horário está dentro do expediente da empresa
+    const [reqHour, reqMin] = time!.split(':').map(Number)
+    const reqMinutes = reqHour * 60 + reqMin
+    
+    const [companyOpenH, companyOpenM] = companyOpenTime.split(':').map(Number)
+    const [companyCloseH, companyCloseM] = companyCloseTime.split(':').map(Number)
+    const companyOpenMins = companyOpenH * 60 + companyOpenM
+    const companyCloseMins = companyCloseH * 60 + companyCloseM
+    
+    if (reqMinutes < companyOpenMins) {
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: `Horário ${time} é antes da abertura da empresa (${companyOpenTime})` 
+        }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+    
+    // Calcular horário de término para validar contra fechamento da empresa
+    const serviceEndMinutes = reqMinutes + service.duration
+    
+    if (serviceEndMinutes > companyCloseMins) {
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: `Agendamento terminaria após fechamento da empresa (${companyCloseTime}). Duração do serviço: ${service.duration} minutos` 
+        }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // ============ WORKING HOURS VALIDATION (PROFESSIONAL) ============
+
+    const workingHours = normalizeWorkingHours(professional.working_hours)
 
     const dayHours = workingHours?.[dayOfWeek]
 
@@ -312,18 +375,16 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ 
           success: false, 
-          error: `Professional "${professional.name}" does not work on ${dayOfWeek}` 
+          error: `Profissional "${professional.name}" não trabalha neste dia` 
         }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    // Check if requested time is within working hours
-    const [reqHour, reqMin] = time!.split(':').map(Number)
+    // Check if requested time is within professional's working hours
     const [openHour, openMin] = dayHours.open.split(':').map(Number)
     const [closeHour, closeMin] = dayHours.close.split(':').map(Number)
 
-    const reqMinutes = reqHour * 60 + reqMin
     const openMinutes = openHour * 60 + openMin
     const closeMinutes = closeHour * 60 + closeMin
     const endMinutes = reqMinutes + service.duration
@@ -332,7 +393,7 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ 
           success: false, 
-          error: `Requested time ${time} is before professional's start time (${dayHours.open})` 
+          error: `Horário ${time} é antes do início do expediente do profissional (${dayHours.open})` 
         }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
@@ -342,7 +403,7 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ 
           success: false, 
-          error: `Appointment would end after professional's closing time (${dayHours.close}). Service duration: ${service.duration} minutes` 
+          error: `Agendamento terminaria após fim do expediente do profissional (${dayHours.close}). Duração do serviço: ${service.duration} minutos` 
         }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
