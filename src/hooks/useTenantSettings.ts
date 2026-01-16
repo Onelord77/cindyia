@@ -121,6 +121,100 @@ export function useTenantSettings() {
     }
   }, [user?.id]);
 
+  // Ajusta os horários dos funcionários para ficarem dentro do horário da empresa
+  const adjustEmployeeWorkingHours = useCallback(async (
+    openTime: string,
+    closeTime: string,
+    workingDays: string[]
+  ) => {
+    if (!tenantId) return 0;
+
+    try {
+      // Busca todos os funcionários do tenant
+      const { data: employees, error: fetchError } = await supabase
+        .from('employees')
+        .select('id, working_hours')
+        .eq('tenant_id', tenantId);
+
+      if (fetchError) {
+        console.error('Error fetching employees:', fetchError);
+        return 0;
+      }
+
+      if (!employees || employees.length === 0) return 0;
+
+      const [openH, openM] = openTime.split(':').map(Number);
+      const [closeH, closeM] = closeTime.split(':').map(Number);
+      const openMins = openH * 60 + openM;
+      const closeMins = closeH * 60 + closeM;
+
+      let adjustedCount = 0;
+
+      for (const employee of employees) {
+        const workingHours = (employee.working_hours as Record<string, { enabled: boolean; start: string; end: string }>) || {};
+        let needsUpdate = false;
+        const adjustedHours: Record<string, { enabled: boolean; start: string; end: string }> = {};
+
+        // Para cada dia da semana
+        const allDays = ['seg', 'ter', 'qua', 'qui', 'sex', 'sab', 'dom'];
+        for (const day of allDays) {
+          const daySchedule = workingHours[day] || { enabled: false, start: '09:00', end: '18:00' };
+          
+          // Se o dia não está nos dias de funcionamento da empresa, desabilita
+          if (!workingDays.includes(day) && daySchedule.enabled) {
+            adjustedHours[day] = { ...daySchedule, enabled: false };
+            needsUpdate = true;
+            continue;
+          }
+
+          // Se o dia está habilitado, ajusta os horários
+          if (daySchedule.enabled) {
+            const [startH, startM] = daySchedule.start.split(':').map(Number);
+            const [endH, endM] = daySchedule.end.split(':').map(Number);
+            const startMins = startH * 60 + startM;
+            const endMins = endH * 60 + endM;
+
+            let newStart = daySchedule.start;
+            let newEnd = daySchedule.end;
+
+            // Ajusta horário de início se estiver antes da abertura
+            if (startMins < openMins) {
+              newStart = openTime;
+              needsUpdate = true;
+            }
+
+            // Ajusta horário de fim se estiver depois do fechamento
+            if (endMins > closeMins) {
+              newEnd = closeTime;
+              needsUpdate = true;
+            }
+
+            adjustedHours[day] = { enabled: true, start: newStart, end: newEnd };
+          } else {
+            adjustedHours[day] = daySchedule;
+          }
+        }
+
+        // Se precisa atualizar, faz o update
+        if (needsUpdate) {
+          const { error: updateError } = await supabase
+            .from('employees')
+            .update({ working_hours: adjustedHours })
+            .eq('id', employee.id);
+
+          if (!updateError) {
+            adjustedCount++;
+          }
+        }
+      }
+
+      return adjustedCount;
+    } catch (error) {
+      console.error('Error adjusting employee hours:', error);
+      return 0;
+    }
+  }, [tenantId]);
+
   // Save settings
   const saveSettings = useCallback(async (newSettings: TenantSettings) => {
     if (!tenantId) {
@@ -152,8 +246,21 @@ export function useTenantSettings() {
         return false;
       }
 
+      // Ajusta horários dos funcionários automaticamente
+      const adjustedCount = await adjustEmployeeWorkingHours(
+        newSettings.openTime,
+        newSettings.closeTime,
+        newSettings.workingDays
+      );
+
       setSettings(newSettings);
-      toast.success('Configurações salvas com sucesso!');
+      
+      if (adjustedCount > 0) {
+        toast.success(`Configurações salvas! ${adjustedCount} funcionário(s) tiveram horários ajustados.`);
+      } else {
+        toast.success('Configurações salvas com sucesso!');
+      }
+      
       return true;
     } catch (error) {
       console.error('Error in saveSettings:', error);
@@ -162,7 +269,7 @@ export function useTenantSettings() {
     } finally {
       setSaving(false);
     }
-  }, [tenantId]);
+  }, [tenantId, adjustEmployeeWorkingHours]);
 
   // Update single setting locally
   const updateSetting = useCallback(<K extends keyof TenantSettings>(
