@@ -6,6 +6,7 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { WhatsAppIntegration } from '@/components/integrations/WhatsAppIntegration';
+import { EndpointManagement } from '@/components/integrations/EndpointManagement';
 import { useAuth } from '@/hooks/useAuth';
 import { 
   Mail, 
@@ -61,6 +62,9 @@ const Integracoes = () => {
 
         {/* WhatsApp Integration - Available for Admin and Super Admin */}
         <WhatsAppIntegration />
+
+        {/* Endpoint Management - Only for Super Admin */}
+        {isSuperAdmin && <EndpointManagement />}
 
         {/* Other Integrations - Only for Super Admin */}
         {isSuperAdmin && (
