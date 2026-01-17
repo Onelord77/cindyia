@@ -549,6 +549,57 @@ export type Database = {
           },
         ]
       }
+      system_endpoints: {
+        Row: {
+          category: string | null
+          created_at: string | null
+          description: string | null
+          display_name: string
+          expected_params: Json | null
+          id: string
+          is_active: boolean | null
+          method: string
+          name: string
+          requires_auth: boolean | null
+          response_example: Json | null
+          type: string
+          updated_at: string | null
+          url_path: string
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string | null
+          description?: string | null
+          display_name: string
+          expected_params?: Json | null
+          id?: string
+          is_active?: boolean | null
+          method?: string
+          name: string
+          requires_auth?: boolean | null
+          response_example?: Json | null
+          type?: string
+          updated_at?: string | null
+          url_path: string
+        }
+        Update: {
+          category?: string | null
+          created_at?: string | null
+          description?: string | null
+          display_name?: string
+          expected_params?: Json | null
+          id?: string
+          is_active?: boolean | null
+          method?: string
+          name?: string
+          requires_auth?: boolean | null
+          response_example?: Json | null
+          type?: string
+          updated_at?: string | null
+          url_path?: string
+        }
+        Relationships: []
+      }
       tenants: {
         Row: {
           address: string | null
