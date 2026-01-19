@@ -225,8 +225,9 @@ serve(async (req) => {
     const available: Array<{
       professionalId: string
       name: string
-      tenantId: string
+      workingHours: { start: string; end: string }
       slots: string[]
+      occupiedSlots: string[]
     }> = []
 
     for (const employee of eligibleEmployees) {
@@ -243,6 +244,10 @@ serve(async (req) => {
       let workStart = dayHours.open || '09:00'
       let workEnd = dayHours.close || '18:00'
 
+      // Store original working hours before applying filters
+      const originalWorkStart = workStart
+      const originalWorkEnd = workEnd
+
       // Apply time filters if provided
       if (startTime && startTime > workStart) {
         workStart = startTime
@@ -253,6 +258,7 @@ serve(async (req) => {
 
       // Generate time slots
       const slots: string[] = []
+      const occupiedSlots: string[] = []
       const employeeAppointments = appointmentsByEmployee[employee.id] || []
 
       // Parse work times
@@ -270,29 +276,38 @@ serve(async (req) => {
       while (currentSlot < slotEnd) {
         const slotEndTime = new Date(currentSlot.getTime() + serviceDuration * 60000)
         
+        const hours = currentSlot.getHours().toString().padStart(2, '0')
+        const minutes = currentSlot.getMinutes().toString().padStart(2, '0')
+        const slotTime = `${hours}:${minutes}`
+        
         // Check if slot overlaps with any appointment
         const isOccupied = employeeAppointments.some(apt => {
           return currentSlot < apt.end && slotEndTime > apt.start
         })
 
-        if (!isOccupied && slotEndTime <= slotEnd) {
-          const hours = currentSlot.getHours().toString().padStart(2, '0')
-          const minutes = currentSlot.getMinutes().toString().padStart(2, '0')
-          slots.push(`${hours}:${minutes}`)
+        if (slotEndTime <= slotEnd) {
+          if (isOccupied) {
+            occupiedSlots.push(slotTime)
+          } else {
+            slots.push(slotTime)
+          }
         }
 
         // Move to next slot
         currentSlot = new Date(currentSlot.getTime() + serviceDuration * 60000)
       }
 
-      if (slots.length > 0) {
-        available.push({
-          professionalId: employee.id,
-          name: employee.name,
-          tenantId: employee.tenant_id,
-          slots
-        })
-      }
+      // Always include professional, even if no slots available (for clarity)
+      available.push({
+        professionalId: employee.id,
+        name: employee.name,
+        workingHours: {
+          start: originalWorkStart,
+          end: originalWorkEnd
+        },
+        slots,
+        occupiedSlots
+      })
     }
 
     return new Response(
