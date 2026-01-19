@@ -78,99 +78,6 @@ function normalizePhone(phone: string): string {
   return '+' + digits
 }
 
-// ============ NORMALIZAÇÃO DE DATA/HORA/FUSO (NOVO) ============
-
-/**
- * Normaliza data do formato DD/MM/YYYY para YYYY-MM-DD
- */
-function normalizeDateFormat(dateStr: string): string {
-  // Se já está no formato YYYY-MM-DD, retorna como está
-  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-    return dateStr
-  }
-  
-  // Se está no formato DD/MM/YYYY, converte
-  const match = dateStr.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
-  if (match) {
-    const day = match[1].padStart(2, '0')
-    const month = match[2].padStart(2, '0')
-    const year = match[3]
-    return `${year}-${month}-${day}`
-  }
-  
-  // Retorna original se não reconhecer
-  return dateStr
-}
-
-/**
- * Normaliza hora para formato HH:mm
- * Exemplos: "9:00" → "09:00", "15:30" → "15:30"
- */
-function normalizeTimeFormat(timeStr: string): string {
-  const match = timeStr.match(/^(\d{1,2}):(\d{2})$/)
-  if (match) {
-    const hour = match[1].padStart(2, '0')
-    const minute = match[2]
-    return `${hour}:${minute}`
-  }
-  return timeStr
-}
-
-/**
- * Constrói scheduled_at ISO 8601 com offset do Brasil
- */
-function buildScheduledAt(date: string, time: string, tzOffset: string = '-03:00'): string {
-  const normalizedDate = normalizeDateFormat(date)
-  const normalizedTime = normalizeTimeFormat(time)
-  return `${normalizedDate}T${normalizedTime}:00${tzOffset}`
-}
-
-/**
- * Verifica se scheduled_at é válido e não está no passado
- * Retorna { valid: boolean, error?: string, debug?: object }
- */
-function validateScheduledAt(
-  scheduledAtIso: string,
-  originalDate?: string,
-  originalTime?: string,
-  tzOffset?: string
-): { valid: boolean; error?: string; debug?: object } {
-  const scheduledDate = new Date(scheduledAtIso)
-  
-  if (isNaN(scheduledDate.getTime())) {
-    return {
-      valid: false,
-      error: 'Invalid scheduled_at format',
-      debug: {
-        received_date: originalDate,
-        received_time: originalTime,
-        tz_offset: tzOffset,
-        normalized_scheduled_at: scheduledAtIso
-      }
-    }
-  }
-  
-  // Comparar com "agora" no mesmo contexto
-  const now = new Date()
-  
-  if (scheduledDate <= now) {
-    return {
-      valid: false,
-      error: 'Cannot schedule appointments in the past',
-      debug: {
-        received_date: originalDate,
-        received_time: originalTime,
-        tz_offset: tzOffset,
-        normalized_scheduled_at: scheduledAtIso,
-        server_now: now.toISOString(),
-        comparison: `${scheduledAtIso} <= ${now.toISOString()}`
-      }
-    }
-  }
-  
-  return { valid: true }
-}
-
 // Valida formato de data YYYY-MM-DD
 function isValidDate(dateStr: string): boolean {
   const regex = /^\d{4}-\d{2}-\d{2}$/
@@ -180,9 +87,9 @@ function isValidDate(dateStr: string): boolean {
   return !isNaN(date.getTime())
 }
 
-// Valida formato de hora HH:MM (aceita H:MM também)
+// Valida formato de hora HH:MM
 function isValidTime(timeStr: string): boolean {
-  const regex = /^([01]?\d|2[0-3]):([0-5]\d)$/
+  const regex = /^([01]\d|2[0-3]):([0-5]\d)$/
   return regex.test(timeStr)
 }
 
@@ -190,16 +97,6 @@ function isValidTime(timeStr: string): boolean {
 function isValidUUID(str: string): boolean {
   const regex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
   return regex.test(str)
-}
-
-// Extrai data YYYY-MM-DD de um ISO string
-function extractDateFromIso(isoString: string): string {
-  return isoString.slice(0, 10)
-}
-
-// Extrai hora HH:mm de um ISO string
-function extractTimeFromIso(isoString: string): string {
-  return isoString.slice(11, 16)
 }
 
 serve(async (req) => {
@@ -211,7 +108,7 @@ serve(async (req) => {
   // Only allow POST
   if (req.method !== 'POST') {
     return new Response(
-      JSON.stringify({ ok: false, error: 'Method not allowed. Use POST.' }),
+      JSON.stringify({ success: false, error: 'Method not allowed. Use POST.' }),
       { status: 405, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
@@ -223,21 +120,15 @@ serve(async (req) => {
 
     // Parse request body
     let body: {
-      // Novo formato (prioridade)
-      scheduled_at?: string
-      // Formato legado
       tenantId?: string
       client?: {
         phone?: string
         name?: string
       }
-      // Suporte a customerId (alternativa a client.phone)
-      customerId?: string
       serviceId?: string
       professionalId?: string
       date?: string
       time?: string
-      tz_offset?: string
       notes?: string
     }
 
@@ -245,48 +136,28 @@ serve(async (req) => {
       body = await req.json()
     } catch {
       return new Response(
-        JSON.stringify({ ok: false, error: 'Invalid JSON body' }),
+        JSON.stringify({ success: false, error: 'Invalid JSON body' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    const { tenantId, client, customerId, serviceId, professionalId, notes } = body
-    let { scheduled_at, date, time, tz_offset } = body
-
-    // ============ NORMALIZAÇÃO DE DATA/HORA ============
-    
-    // Default timezone: Brasil (-03:00)
-    const tzOffset = tz_offset || '-03:00'
-    
-    // Prioridade: scheduled_at > date + time
-    if (scheduled_at) {
-      // Se scheduled_at foi enviado, usar diretamente
-      // Extrair date e time para validações posteriores
-      date = extractDateFromIso(scheduled_at)
-      time = extractTimeFromIso(scheduled_at)
-    } else if (date && time) {
-      // Normalizar data (DD/MM/YYYY → YYYY-MM-DD)
-      date = normalizeDateFormat(date)
-      // Normalizar hora (9:00 → 09:00)
-      time = normalizeTimeFormat(time)
-      // Construir scheduled_at com fuso
-      scheduled_at = buildScheduledAt(date, time, tzOffset)
-    }
+    const { tenantId, client, serviceId, professionalId, date, time, notes } = body
 
     // ============ VALIDATION ============
 
     // 1. Validate required fields
     const missingFields: string[] = []
     if (!tenantId) missingFields.push('tenantId')
-    if (!client?.phone && !customerId) missingFields.push('client.phone or customerId')
+    if (!client?.phone) missingFields.push('client.phone')
     if (!serviceId) missingFields.push('serviceId')
     if (!professionalId) missingFields.push('professionalId')
-    if (!scheduled_at && (!date || !time)) missingFields.push('scheduled_at or (date + time)')
+    if (!date) missingFields.push('date')
+    if (!time) missingFields.push('time')
 
     if (missingFields.length > 0) {
       return new Response(
         JSON.stringify({ 
-          ok: false, 
+          success: false, 
           error: `Missing required fields: ${missingFields.join(', ')}` 
         }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -296,63 +167,47 @@ serve(async (req) => {
     // 2. Validate UUID formats
     if (!isValidUUID(tenantId!)) {
       return new Response(
-        JSON.stringify({ ok: false, error: 'Invalid tenantId format (must be UUID)' }),
+        JSON.stringify({ success: false, error: 'Invalid tenantId format (must be UUID)' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
     if (!isValidUUID(serviceId!)) {
       return new Response(
-        JSON.stringify({ ok: false, error: 'Invalid serviceId format (must be UUID)' }),
+        JSON.stringify({ success: false, error: 'Invalid serviceId format (must be UUID)' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
     if (!isValidUUID(professionalId!)) {
       return new Response(
-        JSON.stringify({ ok: false, error: 'Invalid professionalId format (must be UUID)' }),
+        JSON.stringify({ success: false, error: 'Invalid professionalId format (must be UUID)' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    if (customerId && !isValidUUID(customerId)) {
-      return new Response(
-        JSON.stringify({ ok: false, error: 'Invalid customerId format (must be UUID)' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
-
-    // 3. Validate date format (já normalizado)
+    // 3. Validate date format
     if (!isValidDate(date!)) {
       return new Response(
-        JSON.stringify({ ok: false, error: 'Invalid date format. Use YYYY-MM-DD or DD/MM/YYYY' }),
+        JSON.stringify({ success: false, error: 'Invalid date format. Use YYYY-MM-DD' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    // 4. Validate time format (já normalizado)
+    // 4. Validate time format
     if (!isValidTime(time!)) {
       return new Response(
-        JSON.stringify({ ok: false, error: 'Invalid time format. Use HH:mm or H:mm (24h)' }),
+        JSON.stringify({ success: false, error: 'Invalid time format. Use HH:MM (24h)' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    // 5. Validate date is not in the past (APÓS normalização)
-    const dateTimeValidation = validateScheduledAt(
-      scheduled_at!,
-      body.date, // original
-      body.time, // original
-      tzOffset
-    )
-    
-    if (!dateTimeValidation.valid) {
+    // 5. Validate date is not in the past
+    const now = new Date()
+    const requestedDateTime = new Date(`${date}T${time}:00`)
+    if (requestedDateTime < now) {
       return new Response(
-        JSON.stringify({ 
-          ok: false, 
-          error: dateTimeValidation.error,
-          debug: dateTimeValidation.debug
-        }),
+        JSON.stringify({ success: false, error: 'Cannot schedule appointments in the past' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
@@ -367,14 +222,14 @@ serve(async (req) => {
 
     if (tenantError || !tenant) {
       return new Response(
-        JSON.stringify({ ok: false, error: 'Tenant not found' }),
+        JSON.stringify({ success: false, error: 'Tenant not found' }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
     if (tenant.status !== 'active') {
       return new Response(
-        JSON.stringify({ ok: false, error: 'Tenant is not active' }),
+        JSON.stringify({ success: false, error: 'Tenant is not active' }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
@@ -390,14 +245,14 @@ serve(async (req) => {
 
     if (serviceError || !service) {
       return new Response(
-        JSON.stringify({ ok: false, error: 'Service not found for this tenant' }),
+        JSON.stringify({ success: false, error: 'Service not found for this tenant' }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
     if (!service.is_active) {
       return new Response(
-        JSON.stringify({ ok: false, error: 'Service is not active' }),
+        JSON.stringify({ success: false, error: 'Service is not active' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
@@ -413,14 +268,14 @@ serve(async (req) => {
 
     if (professionalError || !professional) {
       return new Response(
-        JSON.stringify({ ok: false, error: 'Professional not found for this tenant' }),
+        JSON.stringify({ success: false, error: 'Professional not found for this tenant' }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
     if (!professional.is_active) {
       return new Response(
-        JSON.stringify({ ok: false, error: 'Professional is not active' }),
+        JSON.stringify({ success: false, error: 'Professional is not active' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
@@ -437,7 +292,7 @@ serve(async (req) => {
     if (esError || !employeeService) {
       return new Response(
         JSON.stringify({ 
-          ok: false, 
+          success: false, 
           error: `Professional "${professional.name}" is not qualified to perform service "${service.name}"` 
         }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -471,7 +326,7 @@ serve(async (req) => {
       }
       return new Response(
         JSON.stringify({ 
-          ok: false, 
+          success: false, 
           error: `Empresa não funciona neste dia (${dayLabels[dayKeyPt] || dayOfWeek})` 
         }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -490,7 +345,7 @@ serve(async (req) => {
     if (reqMinutes < companyOpenMins) {
       return new Response(
         JSON.stringify({ 
-          ok: false, 
+          success: false, 
           error: `Horário ${time} é antes da abertura da empresa (${companyOpenTime})` 
         }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -503,7 +358,7 @@ serve(async (req) => {
     if (serviceEndMinutes > companyCloseMins) {
       return new Response(
         JSON.stringify({ 
-          ok: false, 
+          success: false, 
           error: `Agendamento terminaria após fechamento da empresa (${companyCloseTime}). Duração do serviço: ${service.duration} minutos` 
         }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -519,7 +374,7 @@ serve(async (req) => {
     if (!dayHours || !dayHours.isOpen) {
       return new Response(
         JSON.stringify({ 
-          ok: false, 
+          success: false, 
           error: `Profissional "${professional.name}" não trabalha neste dia` 
         }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -537,7 +392,7 @@ serve(async (req) => {
     if (reqMinutes < openMinutes) {
       return new Response(
         JSON.stringify({ 
-          ok: false, 
+          success: false, 
           error: `Horário ${time} é antes do início do expediente do profissional (${dayHours.open})` 
         }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -547,7 +402,7 @@ serve(async (req) => {
     if (endMinutes > closeMinutes) {
       return new Response(
         JSON.stringify({ 
-          ok: false, 
+          success: false, 
           error: `Agendamento terminaria após fim do expediente do profissional (${dayHours.close}). Duração do serviço: ${service.duration} minutos` 
         }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -556,7 +411,8 @@ serve(async (req) => {
 
     // ============ AVAILABILITY VALIDATION (CONFLICT CHECK) ============
 
-    const appointmentStart = new Date(scheduled_at!)
+    const scheduledAt = `${date}T${time}:00`
+    const appointmentStart = new Date(scheduledAt)
     const appointmentEnd = new Date(appointmentStart.getTime() + service.duration * 60000)
 
     // Get appointments for the professional on that day
@@ -575,7 +431,7 @@ serve(async (req) => {
     if (appointmentsError) {
       console.error('Error fetching appointments:', appointmentsError)
       return new Response(
-        JSON.stringify({ ok: false, error: 'Error checking availability' }),
+        JSON.stringify({ success: false, error: 'Error checking availability' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
@@ -591,7 +447,7 @@ serve(async (req) => {
         const aptEndTime = aptEnd.toTimeString().slice(0, 5)
         return new Response(
           JSON.stringify({ 
-            ok: false, 
+            success: false, 
             error: `Time slot conflicts with existing appointment (${aptStartTime} - ${aptEndTime})` 
           }),
           { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -601,89 +457,49 @@ serve(async (req) => {
 
     // ============ CLIENT LOOKUP OR CREATE ============
 
-    let clientId: string
-    let clientData: { id: string; name: string | null; phone: string | null; isNew: boolean }
+    const normalizedPhone = normalizePhone(client!.phone!)
 
-    if (customerId) {
-      // Se customerId foi enviado, usar diretamente
-      const { data: existingClient, error: clientError } = await supabase
+    // Try to find existing client
+    let { data: existingClient } = await supabase
+      .from('clients')
+      .select('id, name, phone')
+      .eq('phone', normalizedPhone)
+      .eq('tenant_id', tenantId)
+      .single()
+
+    let clientId: string
+
+    if (existingClient) {
+      clientId = existingClient.id
+      
+      // Update name if provided and client doesn't have one
+      if (client?.name && !existingClient.name) {
+        await supabase
+          .from('clients')
+          .update({ name: client.name })
+          .eq('id', clientId)
+      }
+    } else {
+      // Create new client
+      const { data: newClient, error: clientCreateError } = await supabase
         .from('clients')
-        .select('id, name, phone')
-        .eq('id', customerId)
-        .eq('tenant_id', tenantId)
+        .insert({
+          tenant_id: tenantId,
+          phone: normalizedPhone,
+          name: client?.name || null
+        })
+        .select('id')
         .single()
 
-      if (clientError || !existingClient) {
+      if (clientCreateError || !newClient) {
+        console.error('Error creating client:', clientCreateError)
         return new Response(
-          JSON.stringify({ ok: false, error: 'Customer not found for this tenant' }),
-          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          JSON.stringify({ success: false, error: 'Error creating client record' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
       }
 
-      clientId = existingClient.id
-      clientData = {
-        id: existingClient.id,
-        name: existingClient.name,
-        phone: existingClient.phone,
-        isNew: false
-      }
-    } else {
-      // Usar client.phone para buscar/criar
-      const normalizedPhone = normalizePhone(client!.phone!)
-
-      // Try to find existing client
-      let { data: existingClient } = await supabase
-        .from('clients')
-        .select('id, name, phone')
-        .eq('phone', normalizedPhone)
-        .eq('tenant_id', tenantId)
-        .single()
-
-      if (existingClient) {
-        clientId = existingClient.id
-        
-        // Update name if provided and client doesn't have one
-        if (client?.name && !existingClient.name) {
-          await supabase
-            .from('clients')
-            .update({ name: client.name })
-            .eq('id', clientId)
-        }
-
-        clientData = {
-          id: existingClient.id,
-          name: client?.name || existingClient.name,
-          phone: normalizedPhone,
-          isNew: false
-        }
-      } else {
-        // Create new client
-        const { data: newClient, error: clientCreateError } = await supabase
-          .from('clients')
-          .insert({
-            tenant_id: tenantId,
-            phone: normalizedPhone,
-            name: client?.name || null
-          })
-          .select('id')
-          .single()
-
-        if (clientCreateError || !newClient) {
-          console.error('Error creating client:', clientCreateError)
-          return new Response(
-            JSON.stringify({ ok: false, error: 'Error creating client record' }),
-            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          )
-        }
-
-        clientId = newClient.id
-        clientData = {
-          id: newClient.id,
-          name: client?.name || null,
-          phone: normalizedPhone,
-          isNew: true
-        }
-      }
+      clientId = newClient.id
     }
 
     // ============ CREATE APPOINTMENT ============
@@ -695,7 +511,7 @@ serve(async (req) => {
         client_id: clientId,
         employee_id: professionalId,
         service_id: serviceId,
-        scheduled_at: scheduled_at,
+        scheduled_at: scheduledAt,
         duration: service.duration,
         price: service.price,
         status: 'scheduled',
@@ -708,31 +524,26 @@ serve(async (req) => {
     if (createError || !appointment) {
       console.error('Error creating appointment:', createError)
       return new Response(
-        JSON.stringify({ ok: false, error: 'Error creating appointment' }),
+        JSON.stringify({ success: false, error: 'Error creating appointment' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
     // ============ SUCCESS RESPONSE ============
 
-    const endTime = new Date(new Date(scheduled_at!).getTime() + service.duration * 60000)
+    const endTime = new Date(new Date(scheduledAt).getTime() + service.duration * 60000)
       .toTimeString().slice(0, 5)
 
     return new Response(
       JSON.stringify({
-        ok: true,
+        success: true,
         appointment: {
           id: appointment.id,
-          scheduled_at: scheduled_at,
           date: date,
           time: time,
           endTime: endTime,
           duration: service.duration,
           status: appointment.status,
-          tenantId: tenantId,
-          professionalId: professionalId,
-          serviceId: serviceId,
-          customerId: clientId,
           service: {
             id: service.id,
             name: service.name,
@@ -742,9 +553,14 @@ serve(async (req) => {
             id: professional.id,
             name: professional.name
           },
-          client: clientData
+          client: {
+            id: clientId,
+            phone: normalizedPhone,
+            name: client?.name || existingClient?.name || null,
+            isNew: !existingClient
+          }
         },
-        message: `Agendamento criado com sucesso para ${date} às ${time} com ${professional.name}`
+        message: `Appointment scheduled successfully for ${date} at ${time} with ${professional.name}`
       }),
       { status: 201, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
@@ -753,7 +569,7 @@ serve(async (req) => {
     console.error('Unexpected error:', error)
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
     return new Response(
-      JSON.stringify({ ok: false, error: 'Internal server error', details: errorMessage }),
+      JSON.stringify({ success: false, error: 'Internal server error', details: errorMessage }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
