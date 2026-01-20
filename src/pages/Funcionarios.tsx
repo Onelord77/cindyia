@@ -619,8 +619,8 @@ const Funcionarios = () => {
                   <BreaksEditor
                     value={formData.breaks}
                     onChange={(value) => setFormData(p => ({ ...p, breaks: value }))}
-                    workingHoursStart={companyHours?.openTime || '09:00'}
-                    workingHoursEnd={companyHours?.closeTime || '18:00'}
+                    workingHoursStart={formData.workingHours?.default?.start || companyHours?.openTime || '09:00'}
+                    workingHoursEnd={formData.workingHours?.default?.end || companyHours?.closeTime || '18:00'}
                   />
                 </TabsContent>
               </ScrollArea>
