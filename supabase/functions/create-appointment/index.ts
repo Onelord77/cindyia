@@ -409,6 +409,32 @@ serve(async (req) => {
       )
     }
 
+    // ============ BREAK VALIDATION ============
+    
+    // Extract breaks from professional's working_hours
+    const professionalData = professional.working_hours as Record<string, unknown>
+    const breaksConfig = professionalData?.breaks as { breaks?: Array<{ start: string; end: string; label?: string }> } | undefined
+    const breaks = breaksConfig?.breaks || []
+    
+    // Check if appointment overlaps with any break
+    for (const breakPeriod of breaks) {
+      const [breakStartH, breakStartM] = breakPeriod.start.split(':').map(Number)
+      const [breakEndH, breakEndM] = breakPeriod.end.split(':').map(Number)
+      const breakStartMins = breakStartH * 60 + breakStartM
+      const breakEndMins = breakEndH * 60 + breakEndM
+      
+      // Check overlap: appointment [reqMinutes, endMinutes) vs break [breakStartMins, breakEndMins)
+      if (reqMinutes < breakEndMins && endMinutes > breakStartMins) {
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            error: `Horário conflita com intervalo do profissional (${breakPeriod.start} - ${breakPeriod.end}${breakPeriod.label ? ': ' + breakPeriod.label : ''})` 
+          }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+    }
+
     // ============ AVAILABILITY VALIDATION (CONFLICT CHECK) ============
 
     const scheduledAt = `${date}T${time}:00`

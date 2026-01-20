@@ -15,6 +15,13 @@ const DAYS_OF_WEEK = [
   { key: 'dom', label: 'Domingo' },
 ];
 
+export interface BreakPeriod {
+  id: string;
+  start: string;
+  end: string;
+  label?: string;
+}
+
 export interface DaySchedule {
   enabled: boolean;
   start: string;
@@ -23,6 +30,10 @@ export interface DaySchedule {
 
 export interface WorkingHours {
   [key: string]: DaySchedule;
+}
+
+export interface BreaksConfig {
+  breaks: BreakPeriod[];
 }
 
 // Interface para horários da empresa (opcional)
