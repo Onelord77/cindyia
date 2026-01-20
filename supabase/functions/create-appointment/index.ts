@@ -202,9 +202,10 @@ serve(async (req) => {
       )
     }
 
-    // 5. Validate date is not in the past
+    // 5. Validate date is not in the past (considerando timezone Brasil UTC-03)
+    const TIMEZONE_OFFSET_VALIDATION = '-03:00' // America/Sao_Paulo
     const now = new Date()
-    const requestedDateTime = new Date(`${date}T${time}:00`)
+    const requestedDateTime = new Date(`${date}T${time}:00${TIMEZONE_OFFSET_VALIDATION}`)
     if (requestedDateTime < now) {
       return new Response(
         JSON.stringify({ success: false, error: 'Cannot schedule appointments in the past' }),
@@ -437,13 +438,18 @@ serve(async (req) => {
 
     // ============ AVAILABILITY VALIDATION (CONFLICT CHECK) ============
 
-    const scheduledAt = `${date}T${time}:00`
+    // Interpretar date+time como horário local do Brasil (America/Sao_Paulo = UTC-03)
+    // O n8n envia date e time como horário local, não UTC
+    const TIMEZONE_OFFSET = '-03:00' // America/Sao_Paulo (UTC-03)
+    
+    // Construir datetime com timezone explícito para armazenamento correto
+    const scheduledAt = `${date}T${time}:00${TIMEZONE_OFFSET}`
     const appointmentStart = new Date(scheduledAt)
     const appointmentEnd = new Date(appointmentStart.getTime() + service.duration * 60000)
 
-    // Get appointments for the professional on that day
-    const dayStart = `${date}T00:00:00`
-    const dayEnd = `${date}T23:59:59`
+    // Get appointments for the professional on that day (usando timezone local)
+    const dayStart = `${date}T00:00:00${TIMEZONE_OFFSET}`
+    const dayEnd = `${date}T23:59:59${TIMEZONE_OFFSET}`
 
     const { data: existingAppointments, error: appointmentsError } = await supabase
       .from('appointments')
