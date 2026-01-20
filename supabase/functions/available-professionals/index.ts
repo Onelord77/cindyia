@@ -221,13 +221,20 @@ serve(async (req) => {
       appointmentsByEmployee[apt.employee_id].push({ start: aptStart, end: aptEnd })
     }
 
-    // Calculate available slots for each employee
+    // Helper function to format time as HH:MM
+    const formatTime = (d: Date): string => {
+      const hours = d.getHours().toString().padStart(2, '0')
+      const minutes = d.getMinutes().toString().padStart(2, '0')
+      return `${hours}:${minutes}`
+    }
+
+    // Calculate available time ranges for each employee
     const available: Array<{
       professionalId: string
       name: string
       workingHours: { start: string; end: string }
-      slots: string[]
-      occupiedSlots: string[]
+      availableRanges: Array<{ start: string; end: string }>
+      occupiedRanges: Array<{ start: string; end: string }>
     }> = []
 
     for (const employee of eligibleEmployees) {
@@ -235,7 +242,7 @@ serve(async (req) => {
       const workingHours = normalizeWorkingHours(employee.working_hours)
       
       // Get working hours for the day
-      let dayHours = workingHours?.[dayOfWeek]
+      const dayHours = workingHours?.[dayOfWeek]
       
       if (!dayHours || !dayHours.isOpen) {
         continue // Employee doesn't work this day
@@ -256,48 +263,72 @@ serve(async (req) => {
         workEnd = endTime
       }
 
-      // Generate time slots
-      const slots: string[] = []
-      const occupiedSlots: string[] = []
       const employeeAppointments = appointmentsByEmployee[employee.id] || []
 
       // Parse work times
       const [workStartHour, workStartMin] = workStart.split(':').map(Number)
       const [workEndHour, workEndMin] = workEnd.split(':').map(Number)
 
-      const slotStart = new Date(date + 'T00:00:00')
-      slotStart.setHours(workStartHour, workStartMin, 0, 0)
+      const workDayStart = new Date(date + 'T00:00:00')
+      workDayStart.setHours(workStartHour, workStartMin, 0, 0)
 
-      const slotEnd = new Date(date + 'T00:00:00')
-      slotEnd.setHours(workEndHour, workEndMin, 0, 0)
+      const workDayEnd = new Date(date + 'T00:00:00')
+      workDayEnd.setHours(workEndHour, workEndMin, 0, 0)
 
-      // Generate slots with serviceDuration interval
-      let currentSlot = new Date(slotStart)
-      while (currentSlot < slotEnd) {
-        const slotEndTime = new Date(currentSlot.getTime() + serviceDuration * 60000)
-        
-        const hours = currentSlot.getHours().toString().padStart(2, '0')
-        const minutes = currentSlot.getMinutes().toString().padStart(2, '0')
-        const slotTime = `${hours}:${minutes}`
-        
-        // Check if slot overlaps with any appointment
-        const isOccupied = employeeAppointments.some(apt => {
-          return currentSlot < apt.end && slotEndTime > apt.start
-        })
+      // Sort appointments by start time
+      const sortedAppointments = [...employeeAppointments].sort((a, b) => a.start.getTime() - b.start.getTime())
 
-        if (slotEndTime <= slotEnd) {
-          if (isOccupied) {
-            occupiedSlots.push(slotTime)
-          } else {
-            slots.push(slotTime)
-          }
+      // Calculate occupied ranges (from existing appointments)
+      const occupiedRanges: Array<{ start: string; end: string }> = []
+      for (const apt of sortedAppointments) {
+        // Only include if within working hours
+        if (apt.end > workDayStart && apt.start < workDayEnd) {
+          const rangeStart = apt.start < workDayStart ? workDayStart : apt.start
+          const rangeEnd = apt.end > workDayEnd ? workDayEnd : apt.end
+          occupiedRanges.push({
+            start: formatTime(rangeStart),
+            end: formatTime(rangeEnd)
+          })
         }
-
-        // Move to next slot
-        currentSlot = new Date(currentSlot.getTime() + serviceDuration * 60000)
       }
 
-      // Always include professional, even if no slots available (for clarity)
+      // Calculate available ranges (gaps between appointments)
+      const availableRanges: Array<{ start: string; end: string }> = []
+      let currentStart = new Date(workDayStart)
+
+      for (const apt of sortedAppointments) {
+        // If appointment starts after current position, we have a free gap
+        if (apt.start > currentStart && apt.start < workDayEnd) {
+          const gapEnd = apt.start < workDayEnd ? apt.start : workDayEnd
+          if (gapEnd > currentStart) {
+            // Only add if gap is at least serviceDuration minutes
+            const gapMinutes = (gapEnd.getTime() - currentStart.getTime()) / 60000
+            if (gapMinutes >= serviceDuration) {
+              availableRanges.push({
+                start: formatTime(currentStart),
+                end: formatTime(gapEnd)
+              })
+            }
+          }
+        }
+        // Move current position to end of appointment
+        if (apt.end > currentStart) {
+          currentStart = new Date(apt.end)
+        }
+      }
+
+      // Add remaining time after last appointment
+      if (currentStart < workDayEnd) {
+        const gapMinutes = (workDayEnd.getTime() - currentStart.getTime()) / 60000
+        if (gapMinutes >= serviceDuration) {
+          availableRanges.push({
+            start: formatTime(currentStart),
+            end: formatTime(workDayEnd)
+          })
+        }
+      }
+
+      // Always include professional, even if no availability (for clarity)
       available.push({
         professionalId: employee.id,
         name: employee.name,
@@ -305,8 +336,8 @@ serve(async (req) => {
           start: originalWorkStart,
           end: originalWorkEnd
         },
-        slots,
-        occupiedSlots
+        availableRanges,
+        occupiedRanges
       })
     }
 
