@@ -99,12 +99,8 @@ export function BreaksEditor({ value, onChange, workingHoursStart = '09:00', wor
     };
 
     const validationError = validateBreak(newBreak, breaks);
-    if (validationError) {
-      setError(validationError);
-      return;
-    }
+    setError(validationError);
 
-    setError(null);
     onChange({ breaks: [...breaks, newBreak] });
   };
 
