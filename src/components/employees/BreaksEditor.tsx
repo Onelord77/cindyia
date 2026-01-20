@@ -26,8 +26,17 @@ interface BreaksEditorProps {
 
 const generateId = () => Math.random().toString(36).substring(2, 9);
 
+// Validate and normalize time format HH:MM
+const isValidTimeFormat = (time: string | undefined): boolean => {
+  return !!time && /^\d{2}:\d{2}$/.test(time);
+};
+
 export function BreaksEditor({ value, onChange, workingHoursStart = '09:00', workingHoursEnd = '18:00' }: BreaksEditorProps) {
   const [error, setError] = useState<string | null>(null);
+
+  // Ensure we have valid working hours - fallback to safe defaults
+  const safeWorkingHoursStart = isValidTimeFormat(workingHoursStart) ? workingHoursStart : '09:00';
+  const safeWorkingHoursEnd = isValidTimeFormat(workingHoursEnd) ? workingHoursEnd : '18:00';
 
   const breaks = value.breaks || [];
 
@@ -43,13 +52,13 @@ export function BreaksEditor({ value, onChange, workingHoursStart = '09:00', wor
     }
 
     // Validate within working hours
-    const [whStartH, whStartM] = workingHoursStart.split(':').map(Number);
-    const [whEndH, whEndM] = workingHoursEnd.split(':').map(Number);
+    const [whStartH, whStartM] = safeWorkingHoursStart.split(':').map(Number);
+    const [whEndH, whEndM] = safeWorkingHoursEnd.split(':').map(Number);
     const whStartMins = whStartH * 60 + whStartM;
     const whEndMins = whEndH * 60 + whEndM;
 
     if (startMins < whStartMins || endMins > whEndMins) {
-      return `Intervalo deve estar dentro do horário de trabalho (${workingHoursStart} - ${workingHoursEnd})`;
+      return `Intervalo deve estar dentro do horário de trabalho (${safeWorkingHoursStart} - ${safeWorkingHoursEnd})`;
     }
 
     // Check for overlaps with other breaks
@@ -72,8 +81,8 @@ export function BreaksEditor({ value, onChange, workingHoursStart = '09:00', wor
 
   const addBreak = () => {
     // Find a reasonable default time (middle of working hours, 1 hour)
-    const [startH, startM] = workingHoursStart.split(':').map(Number);
-    const [endH, endM] = workingHoursEnd.split(':').map(Number);
+    const [startH, startM] = safeWorkingHoursStart.split(':').map(Number);
+    const [endH, endM] = safeWorkingHoursEnd.split(':').map(Number);
     const startMins = startH * 60 + startM;
     const endMins = endH * 60 + endM;
     const middleMins = Math.floor((startMins + endMins) / 2);
@@ -178,8 +187,8 @@ export function BreaksEditor({ value, onChange, workingHoursStart = '09:00', wor
                   type="time"
                   value={breakItem.start}
                   onChange={(e) => updateBreak(breakItem.id, 'start', e.target.value)}
-                  min={workingHoursStart}
-                  max={workingHoursEnd}
+                  min={safeWorkingHoursStart}
+                  max={safeWorkingHoursEnd}
                   className="w-28 h-8 text-sm"
                 />
                 <span className="text-muted-foreground text-sm">até</span>
@@ -187,8 +196,8 @@ export function BreaksEditor({ value, onChange, workingHoursStart = '09:00', wor
                   type="time"
                   value={breakItem.end}
                   onChange={(e) => updateBreak(breakItem.id, 'end', e.target.value)}
-                  min={workingHoursStart}
-                  max={workingHoursEnd}
+                  min={safeWorkingHoursStart}
+                  max={safeWorkingHoursEnd}
                   className="w-28 h-8 text-sm"
                 />
                 <Button
