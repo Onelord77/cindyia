@@ -14,8 +14,9 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, Phone, Mail, Clock, Edit, Trash2, UserCog, Loader2, Building2, Scissors, Calendar } from 'lucide-react';
-import { WorkingHoursEditor, formatWorkingHoursSummary, type WorkingHours, type CompanyHours } from '@/components/employees/WorkingHoursEditor';
+import { Plus, Phone, Mail, Clock, Edit, Trash2, UserCog, Loader2, Building2, Scissors, Calendar, Coffee } from 'lucide-react';
+import { WorkingHoursEditor, formatWorkingHoursSummary, type WorkingHours, type CompanyHours, type BreaksConfig, type BreakPeriod } from '@/components/employees/WorkingHoursEditor';
+import { BreaksEditor, formatBreaksSummary } from '@/components/employees/BreaksEditor';
 import { useEmployees } from '@/hooks/useEmployees';
 import { useServices } from '@/hooks/useServices';
 import { useTenants } from '@/hooks/useTenants';
@@ -56,6 +57,7 @@ const Funcionarios = () => {
     role: 'employee',
     selectedServiceIds: [] as string[],
     workingHours: {} as WorkingHours,
+    breaks: { breaks: [] } as BreaksConfig,
     password: '',
   });
 
@@ -74,6 +76,7 @@ const Funcionarios = () => {
       // Avoid wiping user changes if the bulk map arrives after opening the dialog
       selectedServiceIds: prev.selectedServiceIds.length ? prev.selectedServiceIds : existingServiceIds,
       workingHours: (editingEmployee.working_hours as unknown as WorkingHours) || {},
+      breaks: ((editingEmployee.working_hours as Record<string, unknown>)?.breaks as BreaksConfig) || { breaks: [] },
     }));
   }, [editingEmployee, employeeServicesMap]);
 
@@ -109,7 +112,7 @@ const Funcionarios = () => {
   } : undefined;
 
   const resetForm = () => {
-    setFormData({ name: '', email: '', phone: '', role: 'employee', selectedServiceIds: [], workingHours: {}, password: '' });
+    setFormData({ name: '', email: '', phone: '', role: 'employee', selectedServiceIds: [], workingHours: {}, breaks: { breaks: [] }, password: '' });
     setEditingEmployee(null);
     setCreateWithAuth(false);
   };
@@ -139,7 +142,7 @@ const Funcionarios = () => {
         email: formData.email,
         phone: formData.phone,
         role: formData.role,
-        working_hours: JSON.parse(JSON.stringify(formData.workingHours)),
+        working_hours: JSON.parse(JSON.stringify({ ...formData.workingHours, breaks: formData.breaks })),
       });
       employeeId = editingEmployee.id;
       
@@ -175,7 +178,7 @@ const Funcionarios = () => {
         email: formData.email,
         phone: formData.phone,
         role: formData.role,
-        working_hours: JSON.parse(JSON.stringify(formData.workingHours)),
+        working_hours: JSON.parse(JSON.stringify({ ...formData.workingHours, breaks: formData.breaks })),
       });
       
       // Link services to new employee
@@ -382,6 +385,15 @@ const Funcionarios = () => {
                       {formatWorkingHoursSummary(employee.working_hours as unknown as WorkingHours)}
                     </span>
                   </div>
+                  {/* Display breaks summary */}
+                  {((employee.working_hours as Record<string, unknown>)?.breaks as BreaksConfig)?.breaks?.length > 0 && (
+                    <div className="flex items-center gap-2 text-sm">
+                      <Coffee className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-muted-foreground">
+                        {formatBreaksSummary(((employee.working_hours as Record<string, unknown>)?.breaks as BreaksConfig)?.breaks)}
+                      </span>
+                    </div>
+                  )}
                   {/* Display linked services */}
                   {employeeServicesMap[employee.id] && employeeServicesMap[employee.id].length > 0 ? (
                     <div>
@@ -418,6 +430,7 @@ const Funcionarios = () => {
                           role: employee.role || 'employee', 
                           selectedServiceIds: existingServiceIds,
                           workingHours: (employee.working_hours as unknown as WorkingHours) || {},
+                          breaks: ((employee.working_hours as Record<string, unknown>)?.breaks as BreaksConfig) || { breaks: [] },
                           password: '',
                         });
                         setIsDialogOpen(true); 
@@ -596,11 +609,18 @@ const Funcionarios = () => {
                   </div>
                 </TabsContent>
 
-                <TabsContent value="horarios" className="mt-0 pr-4">
+                <TabsContent value="horarios" className="mt-0 pr-4 space-y-6">
                   <WorkingHoursEditor
                     value={formData.workingHours}
                     onChange={(value) => setFormData(p => ({ ...p, workingHours: value }))}
                     companyHours={companyHours}
+                  />
+                  
+                  <BreaksEditor
+                    value={formData.breaks}
+                    onChange={(value) => setFormData(p => ({ ...p, breaks: value }))}
+                    workingHoursStart={companyHours?.openTime || '09:00'}
+                    workingHoursEnd={companyHours?.closeTime || '18:00'}
                   />
                 </TabsContent>
               </ScrollArea>

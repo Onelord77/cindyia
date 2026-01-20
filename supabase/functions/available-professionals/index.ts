@@ -278,13 +278,42 @@ serve(async (req) => {
       // Sort appointments by start time
       const sortedAppointments = [...employeeAppointments].sort((a, b) => a.start.getTime() - b.start.getTime())
 
-      // Calculate occupied ranges (from existing appointments)
+      // Extract breaks from employee's working_hours
+      const employeeData = employee.working_hours as Record<string, unknown>
+      const breaksConfig = employeeData?.breaks as { breaks?: Array<{ start: string; end: string; label?: string }> } | undefined
+      const breaks = breaksConfig?.breaks || []
+
+      // Convert breaks to time ranges for the day
+      const breakRanges: Array<{ start: Date; end: Date }> = []
+      for (const breakPeriod of breaks) {
+        const [breakStartH, breakStartM] = breakPeriod.start.split(':').map(Number)
+        const [breakEndH, breakEndM] = breakPeriod.end.split(':').map(Number)
+        
+        const breakStart = new Date(date + 'T00:00:00')
+        breakStart.setHours(breakStartH, breakStartM, 0, 0)
+        
+        const breakEnd = new Date(date + 'T00:00:00')
+        breakEnd.setHours(breakEndH, breakEndM, 0, 0)
+        
+        // Only include breaks within working hours
+        if (breakEnd > workDayStart && breakStart < workDayEnd) {
+          breakRanges.push({
+            start: breakStart < workDayStart ? workDayStart : breakStart,
+            end: breakEnd > workDayEnd ? workDayEnd : breakEnd
+          })
+        }
+      }
+
+      // Combine appointments and breaks as "occupied" periods
+      const allOccupied = [...sortedAppointments, ...breakRanges].sort((a, b) => a.start.getTime() - b.start.getTime())
+
+      // Calculate occupied ranges (from existing appointments AND breaks)
       const occupiedRanges: Array<{ start: string; end: string }> = []
-      for (const apt of sortedAppointments) {
+      for (const occupied of allOccupied) {
         // Only include if within working hours
-        if (apt.end > workDayStart && apt.start < workDayEnd) {
-          const rangeStart = apt.start < workDayStart ? workDayStart : apt.start
-          const rangeEnd = apt.end > workDayEnd ? workDayEnd : apt.end
+        if (occupied.end > workDayStart && occupied.start < workDayEnd) {
+          const rangeStart = occupied.start < workDayStart ? workDayStart : occupied.start
+          const rangeEnd = occupied.end > workDayEnd ? workDayEnd : occupied.end
           occupiedRanges.push({
             start: formatTime(rangeStart),
             end: formatTime(rangeEnd)
@@ -292,14 +321,14 @@ serve(async (req) => {
         }
       }
 
-      // Calculate available ranges (gaps between appointments)
+      // Calculate available ranges (gaps between occupied periods)
       const availableRanges: Array<{ start: string; end: string }> = []
       let currentStart = new Date(workDayStart)
 
-      for (const apt of sortedAppointments) {
-        // If appointment starts after current position, we have a free gap
-        if (apt.start > currentStart && apt.start < workDayEnd) {
-          const gapEnd = apt.start < workDayEnd ? apt.start : workDayEnd
+      for (const occupied of allOccupied) {
+        // If occupied period starts after current position, we have a free gap
+        if (occupied.start > currentStart && occupied.start < workDayEnd) {
+          const gapEnd = occupied.start < workDayEnd ? occupied.start : workDayEnd
           if (gapEnd > currentStart) {
             // Only add if gap is at least serviceDuration minutes
             const gapMinutes = (gapEnd.getTime() - currentStart.getTime()) / 60000
@@ -311,13 +340,13 @@ serve(async (req) => {
             }
           }
         }
-        // Move current position to end of appointment
-        if (apt.end > currentStart) {
-          currentStart = new Date(apt.end)
+        // Move current position to end of occupied period
+        if (occupied.end > currentStart) {
+          currentStart = new Date(occupied.end)
         }
       }
 
-      // Add remaining time after last appointment
+      // Add remaining time after last occupied period
       if (currentStart < workDayEnd) {
         const gapMinutes = (workDayEnd.getTime() - currentStart.getTime()) / 60000
         if (gapMinutes >= serviceDuration) {
