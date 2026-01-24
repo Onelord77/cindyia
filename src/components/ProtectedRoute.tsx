@@ -1,5 +1,6 @@
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import { useOnboardingStatus } from '@/hooks/useOnboardingStatus';
 import { Loader2 } from 'lucide-react';
 import type { Database } from '@/integrations/supabase/types';
 
@@ -11,10 +12,11 @@ interface ProtectedRouteProps {
 }
 
 export function ProtectedRoute({ children, requiredRoles }: ProtectedRouteProps) {
-  const { user, isLoading, hasRole } = useAuth();
+  const { user, isLoading, hasRole, isSuperAdmin } = useAuth();
+  const { isOnboardingComplete, isLoading: isOnboardingLoading } = useOnboardingStatus();
   const location = useLocation();
 
-  if (isLoading) {
+  if (isLoading || isOnboardingLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
@@ -27,6 +29,26 @@ export function ProtectedRoute({ children, requiredRoles }: ProtectedRouteProps)
 
   if (!user) {
     return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  // Super admin acessando rota de tenant → redirect para /admin
+  if (isSuperAdmin && !location.pathname.startsWith('/admin')) {
+    return <Navigate to="/admin" replace />;
+  }
+
+  // Usuário comum acessando rota de admin → redirect para /
+  if (!isSuperAdmin && location.pathname.startsWith('/admin')) {
+    return <Navigate to="/" replace />;
+  }
+
+  // Onboarding check (skip for super admins)
+  if (!isSuperAdmin) {
+    if (!isOnboardingComplete && location.pathname !== '/onboarding') {
+      return <Navigate to="/onboarding" replace />;
+    }
+    if (isOnboardingComplete && location.pathname === '/onboarding') {
+      return <Navigate to="/" replace />;
+    }
   }
 
   if (requiredRoles && requiredRoles.length > 0) {

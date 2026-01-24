@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { MainLayout } from '@/components/layout/MainLayout';
+import { useState, useEffect } from 'react';
+import { AdminLayout } from '@/components/layout/AdminLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,14 +21,55 @@ import {
   AlertTriangle,
   CheckCircle,
   Server,
+  Loader2,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useSystemSetting, useUpdateSystemSetting } from '@/hooks/useSystemSettings';
+import { useWhatsappApi } from '@/hooks/useWhatsappApi';
 
 const AdminConfiguracoes = () => {
   const [showApiKey, setShowApiKey] = useState(false);
   const [showWebhookSecret, setShowWebhookSecret] = useState(false);
   const [apiKey] = useState('sk_live_51NxKjLbhDJhgT8...');
   const [webhookSecret] = useState('whsec_9x8df7gD...');
+
+  // Webhook de atendimento (WhatsApp)
+  const { data: whatsappWebhookUrl, isLoading: isLoadingWebhook } = useSystemSetting('whatsapp_webhook_url');
+  const updateSetting = useUpdateSystemSetting();
+  const { setWebhookAll } = useWhatsappApi();
+  const [webhookUrlInput, setWebhookUrlInput] = useState('');
+  const [isApplyingWebhook, setIsApplyingWebhook] = useState(false);
+
+  useEffect(() => {
+    if (whatsappWebhookUrl !== undefined) {
+      setWebhookUrlInput(whatsappWebhookUrl);
+    }
+  }, [whatsappWebhookUrl]);
+
+  const handleSaveWebhookUrl = async () => {
+    updateSetting.mutate(
+      { key: 'whatsapp_webhook_url', value: webhookUrlInput.trim() },
+      {
+        onSuccess: async () => {
+          if (webhookUrlInput.trim()) {
+            setIsApplyingWebhook(true);
+            try {
+              const result = await setWebhookAll();
+              if (result?.configured > 0) {
+                toast.success(`Webhook aplicado em ${result.configured} instância(s) conectada(s)`);
+              } else if (result?.skipped) {
+                toast.info('Nenhuma instância conectada para aplicar o webhook');
+              }
+            } catch (error) {
+              console.error('Error applying webhook to instances:', error);
+            } finally {
+              setIsApplyingWebhook(false);
+            }
+          }
+        },
+      }
+    );
+  };
 
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
@@ -40,7 +81,7 @@ const AdminConfiguracoes = () => {
   };
 
   return (
-    <MainLayout>
+    <AdminLayout>
       <div className="space-y-6">
         {/* Header */}
         <div>
@@ -194,94 +235,85 @@ const AdminConfiguracoes = () => {
             <div className="space-y-6">
               <Card>
                 <CardHeader>
-                  <CardTitle>Webhook de Agendamentos</CardTitle>
-                  <CardDescription>
-                    Receba notificações em tempo real sobre novos agendamentos
-                  </CardDescription>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle>Webhook de Atendimento (WhatsApp)</CardTitle>
+                      <CardDescription>
+                        URL que receberá eventos de mensagens e conexão de todas as instâncias WhatsApp
+                      </CardDescription>
+                    </div>
+                    {whatsappWebhookUrl && (
+                      <Badge variant="outline" className="border-success/30 bg-success/10 text-success">
+                        <CheckCircle className="mr-1 h-3 w-3" /> Configurado
+                      </Badge>
+                    )}
+                  </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="space-y-2">
-                    <Label>URL do Endpoint</Label>
-                    <Input
-                      placeholder="https://seu-servidor.com/webhook/appointments"
-                      defaultValue="https://n8n.agendai.com/webhook/appointments"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Webhook Secret</Label>
-                    <div className="flex gap-2">
-                      <div className="relative flex-1">
+                    <Label>URL do Webhook</Label>
+                    {isLoadingWebhook ? (
+                      <div className="flex items-center gap-2 h-10">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <span className="text-sm text-muted-foreground">Carregando...</span>
+                      </div>
+                    ) : (
+                      <div className="flex gap-2">
                         <Input
-                          type={showWebhookSecret ? 'text' : 'password'}
-                          value={webhookSecret}
-                          readOnly
-                          className="pr-20 font-mono text-sm"
+                          placeholder="https://seu-servidor.com/webhook/whatsapp"
+                          value={webhookUrlInput}
+                          onChange={(e) => setWebhookUrlInput(e.target.value)}
+                          className="flex-1"
                         />
                         <Button
-                          variant="ghost"
-                          size="icon"
-                          className="absolute right-10 top-1/2 -translate-y-1/2 h-7 w-7"
-                          onClick={() => setShowWebhookSecret(!showWebhookSecret)}
+                          onClick={handleSaveWebhookUrl}
+                          disabled={updateSetting.isPending || isApplyingWebhook}
+                          className="gap-2"
                         >
-                          {showWebhookSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7"
-                          onClick={() => copyToClipboard(webhookSecret, 'Webhook Secret')}
-                        >
-                          <Copy className="h-4 w-4" />
+                          {updateSetting.isPending || isApplyingWebhook ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Save className="h-4 w-4" />
+                          )}
+                          {isApplyingWebhook ? 'Aplicando...' : 'Salvar'}
                         </Button>
                       </div>
-                      <Button variant="outline" size="icon" onClick={() => regenerateKey('Webhook Secret')}>
-                        <RefreshCw className="h-4 w-4" />
-                      </Button>
-                    </div>
+                    )}
                     <p className="text-xs text-muted-foreground">
-                      Use este segredo para validar a assinatura dos webhooks
+                      Este webhook será configurado automaticamente em cada instância WhatsApp ao conectar
                     </p>
                   </div>
 
                   <Separator />
 
                   <div className="space-y-2">
-                    <Label>Eventos</Label>
+                    <Label>Eventos Monitorados</Label>
                     <div className="space-y-2">
-                      {['appointment.created', 'appointment.updated', 'appointment.cancelled', 'appointment.completed'].map((event) => (
+                      {[
+                        { event: 'messages', description: 'Novas mensagens recebidas' },
+                        { event: 'connection', description: 'Alterações no estado da conexão' },
+                      ].map(({ event, description }) => (
                         <div key={event} className="flex items-center justify-between rounded border p-3">
-                          <code className="text-sm font-mono">{event}</code>
-                          <Switch defaultChecked />
+                          <div>
+                            <code className="text-sm font-mono">{event}</code>
+                            <p className="text-xs text-muted-foreground">{description}</p>
+                          </div>
+                          <Switch checked disabled />
                         </div>
                       ))}
                     </div>
                   </div>
-                </CardContent>
-              </Card>
 
-              <Card>
-                <CardHeader>
-                  <CardTitle>Webhook Financeiro</CardTitle>
-                  <CardDescription>
-                    Receba notificações sobre transações financeiras
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <Label>URL do Endpoint</Label>
-                    <Input placeholder="https://seu-servidor.com/webhook/financial" />
-                  </div>
+                  <Separator />
 
                   <div className="space-y-2">
-                    <Label>Eventos</Label>
-                    <div className="space-y-2">
-                      {['payment.received', 'payment.refunded', 'invoice.created'].map((event) => (
-                        <div key={event} className="flex items-center justify-between rounded border p-3">
-                          <code className="text-sm font-mono">{event}</code>
-                          <Switch />
-                        </div>
-                      ))}
+                    <Label>Filtros Ativos</Label>
+                    <div className="flex items-center justify-between rounded border p-3">
+                      <div>
+                        <code className="text-sm font-mono">excludeMessages: wasSentByApi</code>
+                        <p className="text-xs text-muted-foreground">Previne loops em automações</p>
+                      </div>
+                      <Switch checked disabled />
                     </div>
                   </div>
                 </CardContent>
@@ -372,7 +404,7 @@ const AdminConfiguracoes = () => {
           </TabsContent>
         </Tabs>
       </div>
-    </MainLayout>
+    </AdminLayout>
   );
 };
 

@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -221,8 +221,8 @@ const Agenda = () => {
 
                     {/* Time Slots */}
                     {timeSlots.map((time) => (
-                      <>
-                        <div key={`time-${time}`} className="border-b p-2 text-center text-sm text-muted-foreground bg-muted/10">
+                      <React.Fragment key={`time-${time}`}>
+                        <div className="border-b p-2 text-center text-sm text-muted-foreground bg-muted/10">
                           {time}
                         </div>
                         {activeEmployees.slice(0, 4).map((employee) => {
@@ -252,7 +252,7 @@ const Agenda = () => {
                             </div>
                           );
                         })}
-                      </>
+                      </React.Fragment>
                     ))}
                   </div>
                 </ScrollArea>
@@ -291,8 +291,8 @@ const Agenda = () => {
 
                   {/* Time Slots */}
                   {timeSlots.map((time) => (
-                    <>
-                      <div key={`time-${time}`} className="border-b p-2 text-center text-sm text-muted-foreground bg-muted/10">
+                    <React.Fragment key={`time-${time}`}>
+                      <div className="border-b p-2 text-center text-sm text-muted-foreground bg-muted/10">
                         {time}
                       </div>
                       {weekDays.map((day) => {
@@ -316,7 +316,7 @@ const Agenda = () => {
                           </div>
                         );
                       })}
-                    </>
+                    </React.Fragment>
                   ))}
                 </div>
               </ScrollArea>

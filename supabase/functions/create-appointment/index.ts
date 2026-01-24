@@ -494,7 +494,7 @@ serve(async (req) => {
     // Try to find existing client
     let { data: existingClient } = await supabase
       .from('clients')
-      .select('id, name, phone')
+      .select('id, name, phone, is_lead')
       .eq('phone', normalizedPhone)
       .eq('tenant_id', tenantId)
       .single()
@@ -503,12 +503,25 @@ serve(async (req) => {
 
     if (existingClient) {
       clientId = existingClient.id
-      
+
+      // Build update object
+      const updates: Record<string, unknown> = {}
+
       // Update name if provided and client doesn't have one
       if (client?.name && !existingClient.name) {
+        updates.name = client.name
+      }
+
+      // Promote lead to client when appointment is created
+      if (existingClient.is_lead) {
+        updates.is_lead = false
+      }
+
+      // Apply updates if any
+      if (Object.keys(updates).length > 0) {
         await supabase
           .from('clients')
-          .update({ name: client.name })
+          .update(updates)
           .eq('id', clientId)
       }
     } else {

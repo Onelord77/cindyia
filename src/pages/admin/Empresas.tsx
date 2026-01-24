@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { MainLayout } from '@/components/layout/MainLayout';
+import { AdminLayout } from '@/components/layout/AdminLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -204,16 +204,16 @@ const SuperAdminEmpresas = () => {
 
   if (isLoading) {
     return (
-      <MainLayout>
+      <AdminLayout>
         <div className="flex items-center justify-center h-64">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
-      </MainLayout>
+      </AdminLayout>
     );
   }
 
   return (
-    <MainLayout>
+    <AdminLayout>
       <div className="space-y-4 sm:space-y-6">
         <div className="flex flex-col gap-4">
           <div>
@@ -770,7 +770,7 @@ const SuperAdminEmpresas = () => {
           </AlertDialogContent>
         </AlertDialog>
       </div>
-    </MainLayout>
+    </AdminLayout>
   );
 };
 

@@ -99,9 +99,9 @@ const Configuracoes = () => {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="phone">Telefone</Label>
-                    <Input 
-                      id="phone" 
+                    <Label htmlFor="phone">Telefone para contato</Label>
+                    <Input
+                      id="phone"
                       value={settings.phone}
                       onChange={(e) => updateSetting('phone', e.target.value)}
                     />
@@ -117,24 +117,14 @@ const Configuracoes = () => {
                   />
                 </div>
 
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label htmlFor="email">E-mail</Label>
-                    <Input 
-                      id="email" 
-                      type="email" 
-                      value={settings.email}
-                      onChange={(e) => updateSetting('email', e.target.value)}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="whatsapp">WhatsApp para Atendimento</Label>
-                    <Input 
-                      id="whatsapp" 
-                      value={settings.whatsapp}
-                      onChange={(e) => updateSetting('whatsapp', e.target.value)}
-                    />
-                  </div>
+                <div className="space-y-2">
+                  <Label htmlFor="email">E-mail</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={settings.email}
+                    onChange={(e) => updateSetting('email', e.target.value)}
+                  />
                 </div>
 
                 <Separator />
@@ -211,54 +201,6 @@ const Configuracoes = () => {
                 </CardContent>
               </Card>
 
-              <Card>
-                <CardHeader>
-                  <CardTitle>Regras de Cancelamento</CardTitle>
-                  <CardDescription>Configure as políticas de cancelamento</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
-                      <Label>Permitir Cancelamento</Label>
-                      <p className="text-sm text-muted-foreground">
-                        Clientes podem cancelar via WhatsApp
-                      </p>
-                    </div>
-                    <Switch 
-                      checked={settings.allowCancellation}
-                      onCheckedChange={(checked) => updateSetting('allowCancellation', checked)}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="cancelHours">Antecedência Mínima (horas)</Label>
-                    <Select 
-                      value={settings.cancelHoursMinimum}
-                      onValueChange={(value) => updateSetting('cancelHoursMinimum', value)}
-                    >
-                      <SelectTrigger id="cancelHours" className="w-[180px]">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="1">1 hora</SelectItem>
-                        <SelectItem value="2">2 horas</SelectItem>
-                        <SelectItem value="4">4 horas</SelectItem>
-                        <SelectItem value="12">12 horas</SelectItem>
-                        <SelectItem value="24">24 horas</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <Separator />
-
-                  <div className="flex justify-end">
-                    <Button className="gap-2" onClick={handleSave} disabled={saving}>
-                      {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                      Salvar Alterações
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
             </div>
           </TabsContent>
 

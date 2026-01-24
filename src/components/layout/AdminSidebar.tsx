@@ -3,17 +3,12 @@ import { NavLink, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import {
   LayoutDashboard,
-  Calendar,
-  CalendarCheck,
-  Users,
-  UserCog,
-  DollarSign,
-  BarChart3,
-  Settings,
+  Building2,
+  Server,
+  Shield,
   ChevronLeft,
   ChevronRight,
   Sparkles,
-  Plug,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -25,19 +20,13 @@ interface SidebarItem {
 }
 
 const menuItems: SidebarItem[] = [
-  { label: 'Dashboard', icon: LayoutDashboard, href: '/' },
-  { label: 'Agenda', icon: Calendar, href: '/agenda' },
-  { label: 'Agendamentos', icon: CalendarCheck, href: '/agendamentos' },
-  { label: 'Clientes', icon: Users, href: '/clientes' },
-  { label: 'Equipe', icon: UserCog, href: '/funcionarios' },
-  { label: 'Serviços', icon: Sparkles, href: '/servicos' },
-  { label: 'Financeiro', icon: DollarSign, href: '/financeiro' },
-  { label: 'Relatórios', icon: BarChart3, href: '/relatorios' },
-  { label: 'Integrações', icon: Plug, href: '/integracoes' },
-  { label: 'Configurações', icon: Settings, href: '/configuracoes' },
+  { label: 'Dashboard', icon: LayoutDashboard, href: '/admin' },
+  { label: 'Empresas', icon: Building2, href: '/admin/empresas' },
+  { label: 'Endpoints', icon: Server, href: '/admin/endpoints' },
+  { label: 'Configurações', icon: Shield, href: '/admin/configuracoes' },
 ];
 
-export function Sidebar() {
+export function AdminSidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
 
@@ -51,13 +40,18 @@ export function Sidebar() {
       {/* Logo */}
       <div className="flex h-16 items-center justify-between border-b border-sidebar-border px-4">
         <div className={cn('flex items-center gap-2 overflow-hidden', collapsed && 'justify-center')}>
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg gradient-primary">
-            <Sparkles className="h-5 w-5 text-sidebar-primary-foreground" />
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary">
+            <Shield className="h-5 w-5 text-primary-foreground" />
           </div>
           {!collapsed && (
-            <span className="text-lg font-bold text-sidebar-foreground">
-              Cindy <span className="text-sidebar-primary">IA</span>
-            </span>
+            <div className="flex flex-col">
+              <span className="text-lg font-bold text-sidebar-foreground">
+                Cindy <span className="text-sidebar-primary">IA</span>
+              </span>
+              <span className="text-[10px] font-medium uppercase tracking-wider text-sidebar-foreground/50">
+                Admin
+              </span>
+            </div>
           )}
         </div>
         <Button
@@ -102,7 +96,7 @@ export function Sidebar() {
         <div className="absolute bottom-4 left-4 right-4">
           <div className="rounded-lg bg-sidebar-accent p-3">
             <p className="text-xs text-sidebar-foreground/70">
-              powered by <span className="font-semibold text-sidebar-primary">Onelord</span>
+              <span className="font-semibold text-sidebar-primary">Super Admin</span> Panel
             </p>
           </div>
         </div>

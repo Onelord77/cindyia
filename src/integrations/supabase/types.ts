@@ -103,9 +103,10 @@ export type Database = {
           email: string | null
           id: string
           last_visit: string | null
-          name: string
+          name: string | null
           notes: string | null
           phone: string | null
+          is_lead: boolean
           tenant_id: string
           total_visits: number | null
           updated_at: string | null
@@ -118,9 +119,10 @@ export type Database = {
           email?: string | null
           id?: string
           last_visit?: string | null
-          name: string
+          name?: string | null
           notes?: string | null
           phone?: string | null
+          is_lead?: boolean
           tenant_id: string
           total_visits?: number | null
           updated_at?: string | null
@@ -133,9 +135,10 @@ export type Database = {
           email?: string | null
           id?: string
           last_visit?: string | null
-          name?: string
+          name?: string | null
           notes?: string | null
           phone?: string | null
+          is_lead?: boolean
           tenant_id?: string
           total_visits?: number | null
           updated_at?: string | null
@@ -305,162 +308,6 @@ export type Database = {
           },
         ]
       }
-      lead_messages: {
-        Row: {
-          content: string
-          created_at: string
-          direction: Database["public"]["Enums"]["message_direction"]
-          external_message_id: string | null
-          id: string
-          lead_id: string
-          sent_at: string
-        }
-        Insert: {
-          content: string
-          created_at?: string
-          direction: Database["public"]["Enums"]["message_direction"]
-          external_message_id?: string | null
-          id?: string
-          lead_id: string
-          sent_at?: string
-        }
-        Update: {
-          content?: string
-          created_at?: string
-          direction?: Database["public"]["Enums"]["message_direction"]
-          external_message_id?: string | null
-          id?: string
-          lead_id?: string
-          sent_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "lead_messages_lead_id_fkey"
-            columns: ["lead_id"]
-            isOneToOne: false
-            referencedRelation: "leads"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      lead_tag_links: {
-        Row: {
-          created_at: string
-          id: string
-          lead_id: string
-          tag_id: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          lead_id: string
-          tag_id: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          lead_id?: string
-          tag_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "lead_tag_links_lead_id_fkey"
-            columns: ["lead_id"]
-            isOneToOne: false
-            referencedRelation: "leads"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "lead_tag_links_tag_id_fkey"
-            columns: ["tag_id"]
-            isOneToOne: false
-            referencedRelation: "lead_tags"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      lead_tags: {
-        Row: {
-          color: string | null
-          created_at: string
-          id: string
-          name: string
-          tenant_id: string
-          updated_at: string
-        }
-        Insert: {
-          color?: string | null
-          created_at?: string
-          id?: string
-          name: string
-          tenant_id: string
-          updated_at?: string
-        }
-        Update: {
-          color?: string | null
-          created_at?: string
-          id?: string
-          name?: string
-          tenant_id?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "lead_tags_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      leads: {
-        Row: {
-          created_at: string
-          first_contact_at: string
-          id: string
-          last_message_at: string
-          name: string | null
-          source: string
-          status: Database["public"]["Enums"]["lead_status"]
-          tenant_id: string
-          updated_at: string
-          whatsapp_number: string
-        }
-        Insert: {
-          created_at?: string
-          first_contact_at?: string
-          id?: string
-          last_message_at?: string
-          name?: string | null
-          source?: string
-          status?: Database["public"]["Enums"]["lead_status"]
-          tenant_id: string
-          updated_at?: string
-          whatsapp_number: string
-        }
-        Update: {
-          created_at?: string
-          first_contact_at?: string
-          id?: string
-          last_message_at?: string
-          name?: string | null
-          source?: string
-          status?: Database["public"]["Enums"]["lead_status"]
-          tenant_id?: string
-          updated_at?: string
-          whatsapp_number?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "leads_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -600,6 +447,24 @@ export type Database = {
         }
         Relationships: []
       }
+      system_settings: {
+        Row: {
+          key: string
+          updated_at: string | null
+          value: string
+        }
+        Insert: {
+          key: string
+          updated_at?: string | null
+          value?: string
+        }
+        Update: {
+          key?: string
+          updated_at?: string | null
+          value?: string
+        }
+        Relationships: []
+      }
       tenants: {
         Row: {
           address: string | null
@@ -611,6 +476,7 @@ export type Database = {
           max_employees: number | null
           max_whatsapp_instances: number | null
           name: string
+          onboarding_completed: boolean
           phone: string | null
           settings: Json | null
           status: Database["public"]["Enums"]["tenant_status"] | null
@@ -626,6 +492,7 @@ export type Database = {
           max_employees?: number | null
           max_whatsapp_instances?: number | null
           name: string
+          onboarding_completed?: boolean
           phone?: string | null
           settings?: Json | null
           status?: Database["public"]["Enums"]["tenant_status"] | null
@@ -641,6 +508,7 @@ export type Database = {
           max_employees?: number | null
           max_whatsapp_instances?: number | null
           name?: string
+          onboarding_completed?: boolean
           phone?: string | null
           settings?: Json | null
           status?: Database["public"]["Enums"]["tenant_status"] | null
@@ -680,6 +548,53 @@ export type Database = {
           },
         ]
       }
+      whatsapp_instances: {
+        Row: {
+          created_at: string | null
+          id: string
+          instance_id: string | null
+          instance_name: string
+          instance_token: string
+          profile_name: string | null
+          profile_pic_url: string | null
+          status: string | null
+          tenant_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          instance_id?: string | null
+          instance_name: string
+          instance_token: string
+          profile_name?: string | null
+          profile_pic_url?: string | null
+          status?: string | null
+          tenant_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          instance_id?: string | null
+          instance_name?: string
+          instance_token?: string
+          profile_name?: string | null
+          profile_pic_url?: string | null
+          status?: string | null
+          tenant_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_instances_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -708,8 +623,6 @@ export type Database = {
         | "cancelled"
         | "no_show"
       financial_type: "income" | "expense"
-      lead_status: "new" | "in_conversation" | "not_scheduled" | "scheduled"
-      message_direction: "inbound" | "outbound"
       payment_status: "pending" | "paid" | "partial" | "refunded"
       tenant_status: "active" | "inactive" | "suspended"
     }
@@ -849,8 +762,6 @@ export const Constants = {
         "no_show",
       ],
       financial_type: ["income", "expense"],
-      lead_status: ["new", "in_conversation", "not_scheduled", "scheduled"],
-      message_direction: ["inbound", "outbound"],
       payment_status: ["pending", "paid", "partial", "refunded"],
       tenant_status: ["active", "inactive", "suspended"],
     },

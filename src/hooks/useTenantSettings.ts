@@ -9,17 +9,12 @@ export interface TenantSettings {
   phone: string;
   address: string;
   email: string;
-  whatsapp: string;
-  
+
   // Scheduling settings
   openTime: string;
   closeTime: string;
   workingDays: string[];
-  
-  // Cancellation settings
-  allowCancellation: boolean;
-  cancelHoursMinimum: string;
-  
+
   // Notification settings
   notifyOnConfirmation: boolean;
   notifyOnReminder: boolean;
@@ -32,12 +27,9 @@ const defaultSettings: TenantSettings = {
   phone: '',
   address: '',
   email: '',
-  whatsapp: '',
   openTime: '09:00',
   closeTime: '19:00',
   workingDays: ['seg', 'ter', 'qua', 'qui', 'sex', 'sab'],
-  allowCancellation: true,
-  cancelHoursMinimum: '2',
   notifyOnConfirmation: true,
   notifyOnReminder: true,
   reminderHours: '2',
@@ -196,12 +188,9 @@ export function useTenantSettings() {
         phone: tenant.phone || '',
         address: tenant.address || '',
         email: tenant.email || '',
-        whatsapp: (storedSettings.whatsapp as string) || '',
         openTime: (storedSettings.openTime as string) || '09:00',
         closeTime: (storedSettings.closeTime as string) || '19:00',
         workingDays: (storedSettings.workingDays as string[]) || ['seg', 'ter', 'qua', 'qui', 'sex', 'sab'],
-        allowCancellation: storedSettings.allowCancellation !== false,
-        cancelHoursMinimum: (storedSettings.cancelHoursMinimum as string) || '2',
         notifyOnConfirmation: storedSettings.notifyOnConfirmation !== false,
         notifyOnReminder: storedSettings.notifyOnReminder !== false,
         reminderHours: (storedSettings.reminderHours as string) || '2',

@@ -8,6 +8,7 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { NotificationProvider } from "@/components/notifications";
 import { ThemeProvider } from "@/components/theme";
 import Login from "./pages/Login";
+import Onboarding from "./pages/Onboarding";
 import Dashboard from "./pages/Dashboard";
 import Agenda from "./pages/Agenda";
 import Agendamentos from "./pages/Agendamentos";
@@ -20,7 +21,8 @@ import Configuracoes from "./pages/Configuracoes";
 import Integracoes from "./pages/Integracoes";
 import SuperAdminEmpresas from "./pages/admin/Empresas";
 import AdminConfiguracoes from "./pages/admin/Configuracoes";
-import Leads from "./pages/Leads";
+import AdminDashboard from "./pages/admin/Dashboard";
+import AdminEndpoints from "./pages/admin/Endpoints";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -41,23 +43,25 @@ const App = () => (
                 {/* Redirect old cadastro route to login */}
                 <Route path="/cadastro" element={<Navigate to="/login" replace />} />
 
-                {/* Protected Routes */}
+                {/* Onboarding */}
+                <Route path="/onboarding" element={<ProtectedRoute><Onboarding /></ProtectedRoute>} />
+
+                {/* Tenant Routes - todos os usuários do tenant veem tudo */}
                 <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
                 <Route path="/agenda" element={<ProtectedRoute><Agenda /></ProtectedRoute>} />
                 <Route path="/agendamentos" element={<ProtectedRoute><Agendamentos /></ProtectedRoute>} />
                 <Route path="/clientes" element={<ProtectedRoute><Clientes /></ProtectedRoute>} />
-                <Route path="/funcionarios" element={<ProtectedRoute requiredRoles={['admin', 'manager', 'super_admin']}><Funcionarios /></ProtectedRoute>} />
+                <Route path="/funcionarios" element={<ProtectedRoute><Funcionarios /></ProtectedRoute>} />
                 <Route path="/servicos" element={<ProtectedRoute><Servicos /></ProtectedRoute>} />
-                <Route path="/financeiro" element={<ProtectedRoute requiredRoles={['admin', 'manager', 'super_admin']}><Financeiro /></ProtectedRoute>} />
-                <Route path="/relatorios" element={<ProtectedRoute requiredRoles={['admin', 'manager', 'super_admin']}><Relatorios /></ProtectedRoute>} />
-                <Route path="/integracoes" element={<ProtectedRoute requiredRoles={['admin', 'super_admin']}><Integracoes /></ProtectedRoute>} />
-                <Route path="/configuracoes" element={<ProtectedRoute requiredRoles={['admin', 'super_admin']}><Configuracoes /></ProtectedRoute>} />
+                <Route path="/financeiro" element={<ProtectedRoute><Financeiro /></ProtectedRoute>} />
+                <Route path="/relatorios" element={<ProtectedRoute><Relatorios /></ProtectedRoute>} />
+                <Route path="/integracoes" element={<ProtectedRoute><Integracoes /></ProtectedRoute>} />
+                <Route path="/configuracoes" element={<ProtectedRoute><Configuracoes /></ProtectedRoute>} />
 
-                {/* Admin + Super Admin Routes */}
-                <Route path="/leads" element={<ProtectedRoute requiredRoles={['admin', 'super_admin']}><Leads /></ProtectedRoute>} />
-                
                 {/* Super Admin Only Routes */}
+                <Route path="/admin" element={<ProtectedRoute requiredRoles={['super_admin']}><AdminDashboard /></ProtectedRoute>} />
                 <Route path="/admin/empresas" element={<ProtectedRoute requiredRoles={['super_admin']}><SuperAdminEmpresas /></ProtectedRoute>} />
+                <Route path="/admin/endpoints" element={<ProtectedRoute requiredRoles={['super_admin']}><AdminEndpoints /></ProtectedRoute>} />
                 <Route path="/admin/configuracoes" element={<ProtectedRoute requiredRoles={['super_admin']}><AdminConfiguracoes /></ProtectedRoute>} />
 
                 <Route path="*" element={<NotFound />} />

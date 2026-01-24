@@ -8,22 +8,31 @@ type Client = Database['public']['Tables']['clients']['Row'];
 type ClientInsert = Database['public']['Tables']['clients']['Insert'];
 type ClientUpdate = Database['public']['Tables']['clients']['Update'];
 
-export function useClients() {
+export type ClientStatusFilter = 'all' | 'lead' | 'client';
+
+export function useClients(statusFilter: ClientStatusFilter = 'all') {
   const { profile } = useAuth();
   const queryClient = useQueryClient();
   const tenantId = profile?.tenant_id;
 
   const { data: clients = [], isLoading, error } = useQuery({
-    queryKey: ['clients', tenantId],
+    queryKey: ['clients', tenantId, statusFilter],
     queryFn: async () => {
       if (!tenantId) return [];
-      
-      const { data, error } = await supabase
+
+      let query = supabase
         .from('clients')
         .select('*')
         .eq('tenant_id', tenantId)
         .order('created_at', { ascending: false });
 
+      if (statusFilter === 'lead') {
+        query = query.eq('is_lead', true);
+      } else if (statusFilter === 'client') {
+        query = query.eq('is_lead', false);
+      }
+
+      const { data, error } = await query;
       if (error) throw error;
       return data;
     },
