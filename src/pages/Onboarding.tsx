@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
@@ -10,6 +9,7 @@ import { StepIndicator } from '@/components/onboarding/StepIndicator';
 import { CompanyInfoStep, type OnboardingFormData } from '@/components/onboarding/CompanyInfoStep';
 import { ScheduleStep } from '@/components/onboarding/ScheduleStep';
 import { NotificationsStep } from '@/components/onboarding/NotificationsStep';
+import { unmaskPhone } from '@/lib/utils';
 
 const STEP_LABELS = ['Empresa', 'Horários', 'Notificações'];
 const TOTAL_STEPS = 3;
@@ -30,7 +30,6 @@ const initialFormData: OnboardingFormData = {
 
 export default function Onboarding() {
   const { user } = useAuth();
-  const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState<OnboardingFormData>(initialFormData);
   const [isSaving, setIsSaving] = useState(false);
@@ -110,7 +109,7 @@ export default function Onboarding() {
         .from('tenants')
         .update({
           name: companyName,
-          phone,
+          phone: unmaskPhone(phone),
           address,
           email,
           settings: settingsData,
@@ -127,7 +126,8 @@ export default function Onboarding() {
       }
 
       toast.success('Configurações salvas com sucesso!');
-      navigate('/');
+      // Full page reload to ensure fresh onboarding status
+      window.location.href = '/';
     } catch (error) {
       console.error('Error in onboarding finish:', error);
       toast.error('Erro ao salvar configurações');

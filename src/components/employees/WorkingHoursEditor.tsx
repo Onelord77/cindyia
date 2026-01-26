@@ -132,10 +132,13 @@ export function WorkingHoursEditor({ value, onChange, companyHours }: WorkingHou
     <div className="space-y-3">
       <Label className="flex items-center gap-2">
         <Clock className="h-4 w-4" />
-        Horário de Trabalho
+        Horário de Trabalho *
       </Label>
       <p className="text-xs text-muted-foreground">
-        {enabledDaysCount} dia(s) de trabalho configurado(s)
+        {enabledDaysCount === 0
+          ? 'Configure pelo menos um dia de trabalho'
+          : `${enabledDaysCount} dia(s) de trabalho configurado(s)`
+        }
       </p>
       
       {/* Banner informativo quando há restrição da empresa */}

@@ -56,6 +56,55 @@ export function useAppointments() {
     return !!data;
   };
 
+  // Mapeamento de dias em português para inglês
+  const dayMappingPtToEn: Record<string, string> = {
+    'dom': 'sunday',
+    'seg': 'monday',
+    'ter': 'tuesday',
+    'qua': 'wednesday',
+    'qui': 'thursday',
+    'sex': 'friday',
+    'sab': 'saturday'
+  };
+
+  // Normaliza working_hours para formato padrão (inglês)
+  const normalizeWorkingHours = (workingHours: unknown): Record<string, { open: string; close: string; isOpen: boolean }> | null => {
+    if (!workingHours || typeof workingHours !== 'object') {
+      return null;
+    }
+
+    const wh = workingHours as Record<string, unknown>;
+    const normalized: Record<string, { open: string; close: string; isOpen: boolean }> = {};
+
+    for (const [key, value] of Object.entries(wh)) {
+      if (!value || typeof value !== 'object') continue;
+
+      const dayData = value as Record<string, unknown>;
+
+      // Determina o nome do dia em inglês
+      const dayName = dayMappingPtToEn[key.toLowerCase()] || key.toLowerCase();
+
+      // Detecta formato: PT-BR usa 'enabled/start/end', EN usa 'isOpen/open/close'
+      const isPortugueseFormat = 'enabled' in dayData || 'start' in dayData;
+
+      if (isPortugueseFormat) {
+        normalized[dayName] = {
+          isOpen: Boolean(dayData.enabled),
+          open: String(dayData.start || '09:00'),
+          close: String(dayData.end || '18:00')
+        };
+      } else {
+        normalized[dayName] = {
+          isOpen: Boolean(dayData.isOpen),
+          open: String(dayData.open || '09:00'),
+          close: String(dayData.close || '18:00')
+        };
+      }
+    }
+
+    return Object.keys(normalized).length > 0 ? normalized : null;
+  };
+
   // Day names for working hours lookup
   const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 
@@ -75,8 +124,9 @@ export function useAppointments() {
     if (error) throw error;
     if (!employee) throw new Error('Profissional não encontrado.');
 
-    const workingHours = employee.working_hours as Record<string, { open: string; close: string; isOpen: boolean }> | null;
-    
+    // Normaliza working_hours para formato padrão (inglês)
+    const workingHours = normalizeWorkingHours(employee.working_hours);
+
     if (!workingHours) {
       // No working hours configured - assume available
       return;

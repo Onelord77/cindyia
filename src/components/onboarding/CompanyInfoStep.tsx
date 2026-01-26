@@ -1,6 +1,7 @@
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { formatPhoneMask } from '@/lib/utils';
 
 export interface OnboardingFormData {
   companyName: string;
@@ -40,7 +41,7 @@ export function CompanyInfoStep({ data, onChange }: CompanyInfoStepProps) {
           id="phone"
           placeholder="(11) 99999-9999"
           value={data.phone}
-          onChange={(e) => onChange('phone', e.target.value)}
+          onChange={(e) => onChange('phone', formatPhoneMask(e.target.value))}
         />
       </div>
 

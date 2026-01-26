@@ -117,9 +117,23 @@ const Funcionarios = () => {
     setCreateWithAuth(false);
   };
 
+  // Valida se pelo menos um dia de trabalho está configurado
+  const hasValidWorkingHours = (): boolean => {
+    const days = ['seg', 'ter', 'qua', 'qui', 'sex', 'sab', 'dom'];
+    return days.some(day => {
+      const schedule = formData.workingHours[day];
+      return schedule?.enabled && schedule.start && schedule.end;
+    });
+  };
+
   const handleSave = async () => {
     if (!formData.name) {
       toast.error('Nome é obrigatório');
+      return;
+    }
+
+    if (!hasValidWorkingHours()) {
+      toast.error('Configure o horário de atendimento em pelo menos um dia');
       return;
     }
 

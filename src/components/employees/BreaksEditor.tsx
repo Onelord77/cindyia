@@ -141,16 +141,16 @@ export function BreaksEditor({ value, onChange, workingHoursStart = '09:00', wor
       <div className="flex items-center justify-between">
         <Label className="flex items-center gap-2">
           <Coffee className="h-4 w-4" />
-          Intervalos (Bloqueiam Agendamentos)
+          Intervalos (opcional)
         </Label>
         <Button type="button" variant="outline" size="sm" onClick={addBreak} className="gap-1">
           <Plus className="h-3 w-3" />
           Adicionar
         </Button>
       </div>
-      
+
       <p className="text-xs text-muted-foreground">
-        Configure os horários de intervalo do profissional. Durante esses períodos, nenhum agendamento poderá ser realizado.
+        Configure os horários de intervalo do profissional. Durante esses períodos, nenhum agendamento será realizado.
       </p>
 
       {error && (
