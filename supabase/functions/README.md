@@ -18,6 +18,10 @@ functions/
 ├── establishment-info/        # Info da empresa + serviços
 ├── reschedule-appointment/    # Remarcar agendamento
 │
+├── # LEMBRETES (integração n8n - autenticação via x-agent-key de sistema)
+├── pending-reminders/         # Listar lembretes pendentes de envio
+├── mark-reminder-sent/        # Marcar lembrete como enviado
+│
 ├── # FUNÇÕES INTERNAS (requerem JWT do Supabase)
 ├── create-user/               # Criar usuário (admin)
 ├── delete-user/               # Deletar usuário (admin)
@@ -41,6 +45,15 @@ Endpoints expostos para automação. Autenticação via header `x-agent-key`.
 | `establishment-info` | GET | `tenantId`, `active`, `category`, `q` | Info da empresa + lista de serviços |
 | `available-professionals` | GET | `dateTime`, `tenantId`, `serviceId` (opcional) | Retorna profissionais disponíveis a partir de uma data/hora |
 | `availability-summary` | GET | `tenantId`, `startDate`, `endDate`, `serviceId`, `professionalId`, `limit` | Resumo de disponibilidade para range de datas |
+
+### Lembretes (Integração n8n)
+
+Endpoints para sistema de lembretes automáticos. Autenticação via header `x-agent-key` (apenas chaves de sistema).
+
+| Função | Método | Parâmetros | Descrição |
+|--------|--------|------------|-----------|
+| `pending-reminders` | POST | - | Listar agendamentos pendentes de lembrete |
+| `mark-reminder-sent` | POST | `appointment_id` | Marcar lembrete como enviado |
 
 ### Funções Internas (Admin)
 
@@ -502,6 +515,98 @@ Endpoints protegidos que requerem JWT do Supabase. Não expostos para integraç�
 
 ---
 
+### pending-reminders
+
+**Endpoint:** `POST /functions/v1/pending-reminders`
+
+**Headers:**
+- `x-agent-key` (string, obrigatório) - Chave de API de **sistema** (tenant_id = null)
+
+**Descrição:**
+Retorna todos os agendamentos que precisam de lembrete, considerando as configurações de cada tenant.
+
+**Lógica:**
+1. Busca tenants ativos com `notifyOnReminder = true`
+2. Para cada tenant, calcula janela de tempo: NOW até NOW + `reminderHours`
+3. Retorna agendamentos com status `scheduled` ou `confirmed` onde `reminder_sent_at IS NULL`
+
+**Response:**
+```json
+{
+  "success": true,
+  "count": 2,
+  "reminders": [
+    {
+      "appointment_id": "uuid",
+      "tenant_id": "uuid",
+      "tenant_name": "Salão Beleza",
+      "client_name": "Maria Silva",
+      "client_phone": "5511999887766",
+      "service_name": "Corte Feminino",
+      "employee_name": "Ana Costa",
+      "scheduled_at": "2026-01-28T14:00:00-03:00",
+      "formatted_date": "28/01/2026",
+      "formatted_time": "14:00",
+      "whatsapp_token": "token_uazapi_do_tenant"
+    }
+  ]
+}
+```
+
+**Notas:**
+- `whatsapp_token` será `null` se o tenant não tiver instância WhatsApp conectada
+- Apenas chaves de sistema podem acessar (acesso a todos os tenants)
+
+---
+
+### mark-reminder-sent
+
+**Endpoint:** `POST /functions/v1/mark-reminder-sent`
+
+**Headers:**
+- `x-agent-key` (string, obrigatório) - Chave de API de **sistema** (tenant_id = null)
+
+**Body:**
+```json
+{
+  "appointment_id": "uuid"
+}
+```
+
+**Descrição:**
+Marca um agendamento como tendo o lembrete enviado. Atualiza o campo `reminder_sent_at` com o timestamp atual.
+
+**Response (sucesso):**
+```json
+{
+  "success": true,
+  "appointment_id": "uuid",
+  "reminder_sent_at": "2026-01-28T12:00:00.000Z"
+}
+```
+
+**Response (já marcado):**
+```json
+{
+  "success": true,
+  "message": "Reminder was already marked as sent",
+  "appointment_id": "uuid",
+  "reminder_sent_at": "2026-01-28T10:00:00.000Z"
+}
+```
+
+**Fluxo n8n recomendado:**
+```
+1. Schedule Trigger (*/15 * * * *)
+2. HTTP Request → pending-reminders
+3. IF count > 0
+4. Split In Batches
+5. HTTP Request → UaZapi (enviar mensagem WhatsApp)
+6. HTTP Request → mark-reminder-sent
+```
+
+---
+
 ### create-user
 
 **Endpoint:** `POST /functions/v1/create-user`
@@ -663,6 +768,15 @@ curl -X POST "https://xxx.supabase.co/functions/v1/create-appointment" \
   "message": "Missing x-agent-key header"
 }
 ```
+
+### Endpoints de Lembretes (x-agent-key de sistema)
+
+Endpoints para integração com n8n/automação. Requerem chave de **sistema** (`tenant_id = NULL`):
+
+| Endpoint | Requer x-agent-key (sistema) |
+|----------|------------------------------|
+| `pending-reminders` | Sim |
+| `mark-reminder-sent` | Sim |
 
 ### Endpoints Administrativos (Authorization)
 

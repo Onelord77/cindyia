@@ -29,6 +29,17 @@ npm i
 npm run dev
 ```
 
+## Estrutura de Pastas
+
+```
+cindyia/
+├── public/               # Assets estáticos públicos
+│   └── assets/
+│       └── images/       # Imagens (logo.png)
+├── src/                  # Código-fonte
+└── supabase/             # Backend Supabase
+```
+
 ## Scripts disponíveis
 
 ```bash

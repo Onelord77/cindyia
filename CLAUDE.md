@@ -43,7 +43,8 @@ cindyia/
 ├── supabase/               # Backend Supabase (ver supabase/README.md)
 │   ├── functions/          # Edge Functions (ver supabase/functions/README.md)
 │   └── migrations/         # Database migrations
-├── public/                 # Assets estáticos
+├── public/                 # Assets estáticos (ver public/README.md)
+│   └── assets/images/      # Imagens (logo.png)
 └── docs/                   # Documentação adicional
 ```
 
@@ -70,6 +71,7 @@ cindyia/
 | Schema do banco | `supabase/migrations/*.sql` |
 | Types do Supabase | `src/integrations/supabase/types.ts` |
 | Utilitários de data/hora | `src/lib/utils.ts` |
+| Logo da aplicação | `public/assets/images/logo.png` |
 
 ---
 
@@ -164,3 +166,4 @@ Para navegação detalhada, consulte os README.md em cada pasta:
 - [src/pages/README.md](src/pages/README.md) - Páginas
 - [supabase/README.md](supabase/README.md) - Backend
 - [supabase/functions/README.md](supabase/functions/README.md) - Edge Functions
+- [public/README.md](public/README.md) - Assets estáticos

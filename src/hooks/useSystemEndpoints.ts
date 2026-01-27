@@ -48,36 +48,58 @@ export function useSystemEndpoints() {
     return cats.sort() as string[];
   }, [endpoints]);
 
+  // Ordem de prioridade dos métodos HTTP
+  const methodOrder: Record<string, number> = {
+    'GET': 1,
+    'POST': 2,
+    'PUT': 3,
+    'PATCH': 4,
+    'DELETE': 5,
+  };
+
   const filteredEndpoints = useMemo(() => {
     if (!endpoints) return [];
 
-    return endpoints.filter(endpoint => {
-      // Filtro de busca
-      if (searchQuery) {
-        const query = searchQuery.toLowerCase();
-        const matchesName = endpoint.display_name.toLowerCase().includes(query);
-        const matchesPath = endpoint.url_path.toLowerCase().includes(query);
-        const matchesDesc = endpoint.description?.toLowerCase().includes(query);
-        if (!matchesName && !matchesPath && !matchesDesc) return false;
-      }
+    return endpoints
+      .filter(endpoint => {
+        // Filtro de busca
+        if (searchQuery) {
+          const query = searchQuery.toLowerCase();
+          const matchesName = endpoint.display_name.toLowerCase().includes(query);
+          const matchesPath = endpoint.url_path.toLowerCase().includes(query);
+          const matchesDesc = endpoint.description?.toLowerCase().includes(query);
+          if (!matchesName && !matchesPath && !matchesDesc) return false;
+        }
 
-      // Filtro de método
-      if (methodFilter !== 'all' && endpoint.method !== methodFilter) {
-        return false;
-      }
+        // Filtro de método
+        if (methodFilter !== 'all' && endpoint.method !== methodFilter) {
+          return false;
+        }
 
-      // Filtro de tipo
-      if (typeFilter !== 'all' && endpoint.type !== typeFilter) {
-        return false;
-      }
+        // Filtro de tipo
+        if (typeFilter !== 'all' && endpoint.type !== typeFilter) {
+          return false;
+        }
 
-      // Filtro de categoria
-      if (categoryFilter !== 'all' && endpoint.category !== categoryFilter) {
-        return false;
-      }
+        // Filtro de categoria
+        if (categoryFilter !== 'all' && endpoint.category !== categoryFilter) {
+          return false;
+        }
 
-      return true;
-    });
+        return true;
+      })
+      // Ordenar por método (GET primeiro, depois POST, etc.) e depois alfabeticamente
+      .sort((a, b) => {
+        const methodA = methodOrder[a.method] || 99;
+        const methodB = methodOrder[b.method] || 99;
+
+        if (methodA !== methodB) {
+          return methodA - methodB;
+        }
+
+        // Mesmo método: ordenar alfabeticamente por display_name
+        return a.display_name.localeCompare(b.display_name, 'pt-BR');
+      });
   }, [endpoints, searchQuery, methodFilter, typeFilter, categoryFilter]);
 
   const stats = useMemo(() => {

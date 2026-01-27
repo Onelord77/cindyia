@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo, Fragment } from 'react';
 import { AdminLayout } from '@/components/layout/AdminLayout';
 import { useSystemEndpoints } from '@/hooks/useSystemEndpoints';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -48,6 +48,28 @@ const AdminEndpoints = () => {
   } = useSystemEndpoints();
 
   const [selectedEndpoint, setSelectedEndpoint] = useState<SystemEndpoint | null>(null);
+
+  // Agrupar endpoints por método
+  const groupedEndpoints = useMemo(() => {
+    const groups: Record<string, SystemEndpoint[]> = {};
+    const methodOrder = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
+
+    // Inicializar grupos na ordem correta
+    methodOrder.forEach(method => {
+      groups[method] = [];
+    });
+
+    // Distribuir endpoints nos grupos
+    endpoints.forEach(endpoint => {
+      if (!groups[endpoint.method]) {
+        groups[endpoint.method] = [];
+      }
+      groups[endpoint.method].push(endpoint);
+    });
+
+    // Retornar apenas grupos não vazios
+    return Object.entries(groups).filter(([, items]) => items.length > 0);
+  }, [endpoints]);
 
   if (isLoading) {
     return (
@@ -151,38 +173,56 @@ const AdminEndpoints = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {endpoints.map((endpoint) => (
-                  <TableRow key={endpoint.id}>
-                    <TableCell className="font-medium">{endpoint.display_name}</TableCell>
-                    <TableCell className="font-mono text-xs text-muted-foreground">
-                      {endpoint.url_path}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className={methodColors[endpoint.method] || ''}>
-                        {endpoint.method}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{endpoint.category || '-'}</TableCell>
-                    <TableCell>
-                      <Badge variant={endpoint.requires_auth ? 'default' : 'secondary'}>
-                        {endpoint.requires_auth ? 'Sim' : 'Não'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={endpoint.is_active ? 'default' : 'destructive'}>
-                        {endpoint.is_active ? 'Ativo' : 'Inativo'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => setSelectedEndpoint(endpoint)}
-                      >
-                        <Eye className="h-4 w-4" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
+                {groupedEndpoints.map(([method, items]) => (
+                  <Fragment key={method}>
+                    {/* Cabeçalho do grupo de método */}
+                    <TableRow key={`header-${method}`} className="bg-muted/50 hover:bg-muted/50">
+                      <TableCell colSpan={7} className="py-2">
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className={`${methodColors[method] || ''} font-semibold`}>
+                            {method}
+                          </Badge>
+                          <span className="text-sm text-muted-foreground">
+                            ({items.length} endpoint{items.length !== 1 ? 's' : ''})
+                          </span>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                    {/* Endpoints do grupo */}
+                    {items.map((endpoint) => (
+                      <TableRow key={endpoint.id}>
+                        <TableCell className="font-medium pl-6">{endpoint.display_name}</TableCell>
+                        <TableCell className="font-mono text-xs text-muted-foreground">
+                          {endpoint.url_path}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className={methodColors[endpoint.method] || ''}>
+                            {endpoint.method}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{endpoint.category || '-'}</TableCell>
+                        <TableCell>
+                          <Badge variant={endpoint.requires_auth ? 'default' : 'secondary'}>
+                            {endpoint.requires_auth ? 'Sim' : 'Não'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={endpoint.is_active ? 'default' : 'destructive'}>
+                            {endpoint.is_active ? 'Ativo' : 'Inativo'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setSelectedEndpoint(endpoint)}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </Fragment>
                 ))}
                 {endpoints.length === 0 && (
                   <TableRow>

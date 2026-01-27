@@ -42,9 +42,11 @@ export function AdminSidebar() {
       {/* Logo */}
       <div className="flex h-16 items-center justify-between border-b border-sidebar-border px-4">
         <div className={cn('flex items-center gap-2 overflow-hidden', collapsed && 'justify-center')}>
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary">
-            <Shield className="h-5 w-5 text-primary-foreground" />
-          </div>
+          <img
+            src="/assets/images/logo.png"
+            alt="Cindy IA"
+            className="h-9 w-9 rounded-lg object-cover"
+          />
           {!collapsed && (
             <div className="flex flex-col">
               <span className="text-lg font-bold text-sidebar-foreground">
