@@ -1,10 +1,20 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Cache-Control': 'no-store, no-cache, must-revalidate',
-};
+// Domínios permitidos para CORS
+const ALLOWED_ORIGINS = [
+  'https://app.cindyia.com',
+  'https://cindyia.com',
+  Deno.env.get('ALLOWED_ORIGIN'),
+].filter(Boolean) as string[];
+
+function getCorsHeaders(origin: string | null) {
+  const allowedOrigin = origin && ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0] || '*';
+  return {
+    'Access-Control-Allow-Origin': allowedOrigin,
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Cache-Control': 'no-store, no-cache, must-revalidate',
+  };
+}
 
 interface WhatsAppRequest {
   action: 'create-instance' | 'connect' | 'disconnect' | 'delete-instance' | 'get-status' | 'fetch-instances' | 'set-webhook' | 'set-webhook-all';
@@ -12,15 +22,26 @@ interface WhatsAppRequest {
   tenantId?: string;
 }
 
-const UAZAPI_URL = Deno.env.get('UAZAPI_URL') || 'https://cindyia.uazapi.com';
-const UAZAPI_ADMIN_TOKEN = Deno.env.get('UAZAPI_ADMIN_TOKEN') || '9GibDEMCoIka9eTNWVJhmLCgmgke732t1Xle3ZcvslWm6fJeVd';
+const UAZAPI_URL = Deno.env.get('UAZAPI_URL');
+const UAZAPI_ADMIN_TOKEN = Deno.env.get('UAZAPI_ADMIN_TOKEN');
 
 Deno.serve(async (req) => {
+  const origin = req.headers.get('Origin');
+  const corsHeaders = getCorsHeaders(origin);
+
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
+    // Validar configuração de ambiente
+    if (!UAZAPI_URL || !UAZAPI_ADMIN_TOKEN) {
+      return new Response(
+        JSON.stringify({ error: 'Configuração de WhatsApp não disponível' }),
+        { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
       return new Response(

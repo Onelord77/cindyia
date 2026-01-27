@@ -1,11 +1,15 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { MainLayout } from '@/components/layout/MainLayout';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { ChevronLeft, ChevronRight, Clock, Scissors, Loader2 } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { ChevronLeft, ChevronRight, Clock, Scissors, Loader2, Plus } from 'lucide-react';
 import { useEmployees } from '@/hooks/useEmployees';
 import { useAppointments } from '@/hooks/useAppointments';
+import { useClients } from '@/hooks/useClients';
+import { useServices } from '@/hooks/useServices';
+import { useEmployeeServicesBulk } from '@/hooks/useEmployeeServices';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Select,
@@ -14,7 +18,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { cn } from '@/lib/utils';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { cn, formatTimeInSaoPaulo, isSameDayInSaoPaulo, getDateInSaoPaulo, toSaoPauloDateTime, createSaoPauloDate, getTodayInSaoPaulo } from '@/lib/utils';
+import { toast } from 'sonner';
 
 const timeSlots = [
   '08:00', '09:00', '10:00', '11:00', '12:00', '13:00',
@@ -47,9 +60,47 @@ const months = [
 const Agenda = () => {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [view, setView] = useState<'day' | 'week'>('day');
-  
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [formData, setFormData] = useState({
+    client_id: '',
+    service_id: '',
+    employee_id: '',
+    date: getTodayInSaoPaulo(),
+    time: '09:00',
+  });
+
   const { employees, isLoading: loadingEmployees } = useEmployees();
-  const { appointments, isLoading: loadingAppointments } = useAppointments();
+  const { appointments, isLoading: loadingAppointments, addAppointment } = useAppointments();
+  const { clients } = useClients();
+  const { services } = useServices();
+
+  // Get employee services for validation
+  const employeeIds = employees.map(e => e.id);
+  const { data: employeeServicesMap = {} } = useEmployeeServicesBulk(employeeIds);
+
+  // Memoize active services to avoid filtering on every render
+  const activeServices = useMemo(() => services.filter(s => s.is_active), [services]);
+
+  // Filter employees that can perform the selected service
+  const availableEmployees = useMemo(() => {
+    if (!formData.service_id) return employees.filter(e => e.is_active);
+
+    return employees.filter(e => {
+      if (!e.is_active) return false;
+      const empServices = employeeServicesMap[e.id] || [];
+      return empServices.some(es => es.serviceId === formData.service_id);
+    });
+  }, [employees, formData.service_id, employeeServicesMap]);
+
+  // Reset employee selection when service changes and employee can't perform it
+  useEffect(() => {
+    if (formData.service_id && formData.employee_id) {
+      const canPerform = availableEmployees.some(e => e.id === formData.employee_id);
+      if (!canPerform) {
+        setFormData(prev => ({ ...prev, employee_id: '' }));
+      }
+    }
+  }, [formData.service_id, availableEmployees]);
 
   const navigateDate = (direction: 'prev' | 'next') => {
     const newDate = new Date(currentDate);
@@ -83,23 +134,108 @@ const Agenda = () => {
 
   const getAppointmentsForDate = (date: Date) => {
     return appointments.filter((a) => {
-      const appointmentDate = new Date(a.scheduled_at);
-      return appointmentDate.toDateString() === date.toDateString() && a.status !== 'cancelled';
+      // Compare dates in São Paulo timezone
+      return isSameDayInSaoPaulo(a.scheduled_at, date) && a.status !== 'cancelled';
     });
   };
 
   const getAppointmentTime = (scheduledAt: string) => {
-    const date = new Date(scheduledAt);
-    return `${date.getHours().toString().padStart(2, '0')}:00`;
+    // Get hour in São Paulo timezone and round to nearest hour slot
+    const timeStr = formatTimeInSaoPaulo(scheduledAt);
+    return `${timeStr.split(':')[0]}:00`;
   };
 
   const formatAppointmentTime = (scheduledAt: string, duration: number) => {
     const start = new Date(scheduledAt);
     const end = new Date(start.getTime() + duration * 60000);
     return {
-      startTime: `${start.getHours().toString().padStart(2, '0')}:${start.getMinutes().toString().padStart(2, '0')}`,
-      endTime: `${end.getHours().toString().padStart(2, '0')}:${end.getMinutes().toString().padStart(2, '0')}`,
+      startTime: formatTimeInSaoPaulo(start),
+      endTime: formatTimeInSaoPaulo(end),
     };
+  };
+
+  const resetForm = () => {
+    setFormData({
+      client_id: '',
+      service_id: '',
+      employee_id: '',
+      date: getTodayInSaoPaulo(),
+      time: '09:00',
+    });
+  };
+
+  const handleSlotClick = (date: Date, time: string, employeeId?: string) => {
+    const dateStr = getDateInSaoPaulo(date);
+    setFormData({
+      client_id: '',
+      service_id: '',
+      employee_id: employeeId || '',
+      date: dateStr,
+      time: time,
+    });
+    setIsDialogOpen(true);
+  };
+
+  const handleSave = async () => {
+    // Validate required fields
+    if (!formData.client_id) {
+      toast.error('Selecione um cliente para criar o agendamento.');
+      return;
+    }
+    if (!formData.service_id) {
+      toast.error('Selecione um serviço para criar o agendamento.');
+      return;
+    }
+    if (!formData.employee_id) {
+      toast.error('Selecione um profissional para criar o agendamento.');
+      return;
+    }
+
+    // Validate employee can perform the service
+    const empServices = employeeServicesMap[formData.employee_id] || [];
+    const canPerform = empServices.some(es => es.serviceId === formData.service_id);
+    if (!canPerform) {
+      toast.error('Este profissional não executa o serviço selecionado.');
+      return;
+    }
+
+    const service = services.find(s => s.id === formData.service_id);
+    const duration = service?.duration || 30;
+
+    // Check for conflicts with existing appointments
+    const scheduledAt = createSaoPauloDate(formData.date, formData.time);
+    const newStart = scheduledAt.getTime();
+    const newEnd = newStart + duration * 60000;
+    const activeStatuses = ['scheduled', 'confirmed'];
+
+    const conflict = appointments.find(apt => {
+      if (apt.employee_id !== formData.employee_id) return false;
+      if (!apt.status || !activeStatuses.includes(apt.status)) return false;
+
+      const existingStart = new Date(apt.scheduled_at).getTime();
+      const existingEnd = existingStart + apt.duration * 60000;
+
+      return newStart < existingEnd && newEnd > existingStart;
+    });
+
+    if (conflict) {
+      const conflictStart = formatTimeInSaoPaulo(conflict.scheduled_at);
+      const conflictEnd = formatTimeInSaoPaulo(new Date(new Date(conflict.scheduled_at).getTime() + conflict.duration * 60000));
+      toast.error(`O profissional já possui um agendamento das ${conflictStart} às ${conflictEnd}. Selecione outro horário.`);
+      return;
+    }
+
+    await addAppointment.mutateAsync({
+      client_id: formData.client_id,
+      service_id: formData.service_id,
+      employee_id: formData.employee_id,
+      scheduled_at: toSaoPauloDateTime(formData.date, formData.time),
+      duration,
+      price: service?.price,
+    });
+
+    setIsDialogOpen(false);
+    resetForm();
   };
 
   const activeEmployees = useMemo(() => {
@@ -231,8 +367,15 @@ const Agenda = () => {
                           );
 
                           return (
-                            <div key={`${employee.id}-${time}`} className="border-b p-1 min-h-[56px] relative">
-                              {appointment && (
+                            <div
+                              key={`${employee.id}-${time}`}
+                              className={cn(
+                                'border-b p-1 min-h-[56px] relative',
+                                !appointment && 'cursor-pointer hover:bg-primary/5 transition-colors'
+                              )}
+                              onClick={() => !appointment && handleSlotClick(currentDate, time, employee.id)}
+                            >
+                              {appointment ? (
                                 <div
                                   className={cn(
                                     'rounded-lg border-l-4 p-1.5 text-xs cursor-pointer transition-all hover:shadow-md',
@@ -247,6 +390,10 @@ const Agenda = () => {
                                   <p className="text-muted-foreground text-[10px]">
                                     {formatAppointmentTime(appointment.scheduled_at, appointment.duration).startTime} - {formatAppointmentTime(appointment.scheduled_at, appointment.duration).endTime}
                                   </p>
+                                </div>
+                              ) : (
+                                <div className="h-full w-full flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                                  <Plus className="h-4 w-4 text-muted-foreground" />
                                 </div>
                               )}
                             </div>
@@ -299,20 +446,34 @@ const Agenda = () => {
                         const dayAppointments = getAppointmentsForDate(day).filter(
                           (a) => getAppointmentTime(a.scheduled_at) === time
                         );
+                        const hasAppointments = dayAppointments.length > 0;
 
                         return (
-                          <div key={`${day.toISOString()}-${time}`} className="border-b p-1 min-h-[48px]">
-                            {dayAppointments.map((appointment) => (
-                              <div
-                                key={appointment.id}
-                                className={cn(
-                                  'rounded border-l-2 p-1 text-xs mb-1 cursor-pointer',
-                                  statusColors[appointment.status || 'scheduled']
-                                )}
-                              >
-                                <p className="font-medium truncate">{appointment.clients?.name}</p>
+                          <div
+                            key={`${day.toISOString()}-${time}`}
+                            className={cn(
+                              'border-b p-1 min-h-[48px]',
+                              !hasAppointments && 'cursor-pointer hover:bg-primary/5 transition-colors'
+                            )}
+                            onClick={() => !hasAppointments && handleSlotClick(day, time)}
+                          >
+                            {hasAppointments ? (
+                              dayAppointments.map((appointment) => (
+                                <div
+                                  key={appointment.id}
+                                  className={cn(
+                                    'rounded border-l-2 p-1 text-xs mb-1 cursor-pointer',
+                                    statusColors[appointment.status || 'scheduled']
+                                  )}
+                                >
+                                  <p className="font-medium truncate">{appointment.clients?.name}</p>
+                                </div>
+                              ))
+                            ) : (
+                              <div className="h-full w-full flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                                <Plus className="h-3 w-3 text-muted-foreground" />
                               </div>
-                            ))}
+                            )}
                           </div>
                         );
                       })}
@@ -323,6 +484,79 @@ const Agenda = () => {
             </CardContent>
           </Card>
         )}
+
+        {/* Create Appointment Dialog */}
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Novo Agendamento</DialogTitle>
+              <DialogDescription>
+                Crie um agendamento para {new Date(formData.date + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })} às {formData.time}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="space-y-2">
+                <Label>Cliente *</Label>
+                <Select value={formData.client_id} onValueChange={(v) => setFormData(p => ({ ...p, client_id: v }))}>
+                  <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                  <SelectContent>
+                    {clients.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Serviço *</Label>
+                <Select value={formData.service_id} onValueChange={(v) => setFormData(p => ({ ...p, service_id: v }))}>
+                  <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                  <SelectContent>
+                    {activeServices.map(s => <SelectItem key={s.id} value={s.id}>{s.name} - R$ {Number(s.price).toFixed(2)}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Profissional *</Label>
+                <Select
+                  value={formData.employee_id}
+                  onValueChange={(v) => setFormData(p => ({ ...p, employee_id: v }))}
+                  disabled={!formData.service_id}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={formData.service_id ? "Selecione" : "Selecione o serviço primeiro"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableEmployees.length === 0 && formData.service_id ? (
+                      <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                        Nenhum profissional executa este serviço
+                      </div>
+                    ) : (
+                      availableEmployees.map(e => <SelectItem key={e.id} value={e.id}>{e.name}</SelectItem>)
+                    )}
+                  </SelectContent>
+                </Select>
+                {formData.service_id && availableEmployees.length === 0 && (
+                  <p className="text-xs text-destructive">Nenhum profissional cadastrado executa este serviço.</p>
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Data *</Label>
+                  <Input type="date" value={formData.date} onChange={(e) => setFormData(p => ({ ...p, date: e.target.value }))} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Hora *</Label>
+                  <Input type="time" value={formData.time} onChange={(e) => setFormData(p => ({ ...p, time: e.target.value }))} />
+                </div>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancelar</Button>
+              <Button onClick={handleSave} disabled={addAppointment.isPending}>
+                {addAppointment.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Criar Agendamento
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </MainLayout>
   );

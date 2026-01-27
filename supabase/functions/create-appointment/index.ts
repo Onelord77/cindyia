@@ -1,9 +1,87 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { crypto } from "https://deno.land/std@0.168.0/crypto/mod.ts"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-agent-key',
+}
+
+const TIMEZONE_OFFSET = '-03:00' // America/Sao_Paulo (UTC-3)
+
+// ============ AUTH FUNCTIONS ============
+
+// Gera hash SHA-256 da chave
+async function hashKey(key: string): Promise<string> {
+  const encoder = new TextEncoder()
+  const data = encoder.encode(key)
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data)
+  const hashArray = Array.from(new Uint8Array(hashBuffer))
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
+}
+
+// Valida a chave de API do agente
+async function validateAgentKey(supabase: ReturnType<typeof createClient>, apiKey: string, tenantId: string): Promise<{ valid: boolean; error?: string }> {
+  if (!apiKey) {
+    return { valid: false, error: 'Missing x-agent-key header' }
+  }
+
+  const keyHash = await hashKey(apiKey)
+
+  const { data: keyRecord, error } = await supabase
+    .from('agent_api_keys')
+    .select('id, tenant_id, is_active, expires_at')
+    .eq('key_hash', keyHash)
+    .single()
+
+  if (error || !keyRecord) {
+    return { valid: false, error: 'Invalid API key' }
+  }
+
+  if (keyRecord.tenant_id !== null && keyRecord.tenant_id !== tenantId) {
+    return { valid: false, error: 'API key not authorized for this tenant' }
+  }
+
+  if (!keyRecord.is_active) {
+    return { valid: false, error: 'API key is inactive' }
+  }
+
+  if (keyRecord.expires_at && new Date(keyRecord.expires_at) < new Date()) {
+    return { valid: false, error: 'API key has expired' }
+  }
+
+  // Atualiza last_used_at em background
+  supabase
+    .from('agent_api_keys')
+    .update({ last_used_at: new Date().toISOString() })
+    .eq('id', keyRecord.id)
+    .then(() => {})
+
+  return { valid: true }
+}
+
+// Parse ISO datetime string and extract date and time in São Paulo timezone
+function parseDateTimeParam(dateTimeStr: string): { date: string; time: string; isoString: string } | null {
+  try {
+    const parsedDate = new Date(dateTimeStr)
+    if (isNaN(parsedDate.getTime())) {
+      return null
+    }
+
+    // Ajustar UTC para São Paulo (UTC-3)
+    const spTime = new Date(parsedDate.getTime() - 3 * 60 * 60 * 1000)
+    const date = spTime.toISOString().split('T')[0]
+    const hours = spTime.getUTCHours().toString().padStart(2, '0')
+    const minutes = spTime.getUTCMinutes().toString().padStart(2, '0')
+    const time = `${hours}:${minutes}`
+
+    // Gera ISO string padronizada com timezone
+    const isoString = `${date}T${time}:00${TIMEZONE_OFFSET}`
+
+    return { date, time, isoString }
+  } catch {
+    return null
+  }
 }
 
 interface WorkingHours {
@@ -63,40 +141,38 @@ function normalizeWorkingHours(workingHours: unknown): WorkingHours | null {
   return Object.keys(normalized).length > 0 ? normalized : null
 }
 
-// Normaliza número de telefone para formato E.164 Brasil
+// Normaliza número de telefone para formato Brasil (sem sinal de +)
+// Apenas adiciona DDI 55 se necessário, não manipula o 9º dígito
 function normalizePhone(phone: string): string {
   const digits = phone.replace(/\D/g, '')
-  
+
+  // Já tem DDI 55 e tamanho correto
   if (digits.startsWith('55') && digits.length >= 12) {
-    return '+' + digits
+    return digits
   }
-  
+
+  // Telefone brasileiro sem DDI (10 ou 11 dígitos)
   if (digits.length === 11 || digits.length === 10) {
-    return '+55' + digits
+    return '55' + digits
   }
-  
-  return '+' + digits
-}
 
-// Valida formato de data YYYY-MM-DD
-function isValidDate(dateStr: string): boolean {
-  const regex = /^\d{4}-\d{2}-\d{2}$/
-  if (!regex.test(dateStr)) return false
-  
-  const date = new Date(dateStr + 'T12:00:00Z')
-  return !isNaN(date.getTime())
-}
-
-// Valida formato de hora HH:MM
-function isValidTime(timeStr: string): boolean {
-  const regex = /^([01]\d|2[0-3]):([0-5]\d)$/
-  return regex.test(timeStr)
+  return digits
 }
 
 // Valida formato UUID
 function isValidUUID(str: string): boolean {
   const regex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
   return regex.test(str)
+}
+
+// Formata horário em São Paulo (UTC-3) a partir de ISO string
+function formatTimeInSaoPaulo(isoString: string): string {
+  const date = new Date(isoString)
+  // Ajustar UTC para São Paulo (UTC-3)
+  const spTime = new Date(date.getTime() - 3 * 60 * 60 * 1000)
+  const hours = spTime.getUTCHours().toString().padStart(2, '0')
+  const minutes = spTime.getUTCMinutes().toString().padStart(2, '0')
+  return `${hours}:${minutes}`
 }
 
 serve(async (req) => {
@@ -118,17 +194,14 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-    // Parse request body
+    // Parse request body first to get tenantId for validation
     let body: {
       tenantId?: string
-      client?: {
-        phone?: string
-        name?: string
-      }
+      clientPhone?: string
+      clientName?: string
       serviceId?: string
       professionalId?: string
-      date?: string
-      time?: string
+      dateTime?: string
       notes?: string
     }
 
@@ -141,24 +214,23 @@ serve(async (req) => {
       )
     }
 
-    const { tenantId, client, serviceId, professionalId, date, time, notes } = body
+    const { tenantId, clientPhone, clientName, serviceId, professionalId, dateTime, notes } = body
 
     // ============ VALIDATION ============
 
     // 1. Validate required fields
     const missingFields: string[] = []
     if (!tenantId) missingFields.push('tenantId')
-    if (!client?.phone) missingFields.push('client.phone')
+    if (!clientPhone) missingFields.push('clientPhone')
     if (!serviceId) missingFields.push('serviceId')
     if (!professionalId) missingFields.push('professionalId')
-    if (!date) missingFields.push('date')
-    if (!time) missingFields.push('time')
+    if (!dateTime) missingFields.push('dateTime')
 
     if (missingFields.length > 0) {
       return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: `Missing required fields: ${missingFields.join(', ')}` 
+        JSON.stringify({
+          success: false,
+          error: `Missing required fields: ${missingFields.join(', ')}`
         }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
@@ -169,6 +241,17 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ success: false, error: 'Invalid tenantId format (must be UUID)' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // ============ API KEY VALIDATION ============
+
+    const agentKey = req.headers.get('x-agent-key')
+    const keyValidation = await validateAgentKey(supabase, agentKey || '', tenantId!)
+    if (!keyValidation.valid) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'unauthorized', message: keyValidation.error }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
@@ -186,26 +269,23 @@ serve(async (req) => {
       )
     }
 
-    // 3. Validate date format
-    if (!isValidDate(date!)) {
+    // 3. Parse and validate dateTime (ISO 8601 format)
+    const parsedDateTime = parseDateTimeParam(dateTime!)
+    if (!parsedDateTime) {
       return new Response(
-        JSON.stringify({ success: false, error: 'Invalid date format. Use YYYY-MM-DD' }),
+        JSON.stringify({
+          success: false,
+          error: 'Invalid dateTime format. Use ISO 8601 (e.g., 2026-01-27T14:00:00-03:00)'
+        }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    // 4. Validate time format
-    if (!isValidTime(time!)) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Invalid time format. Use HH:MM (24h)' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
+    const { date, time, isoString: scheduledAt } = parsedDateTime
 
-    // 5. Validate date is not in the past (considerando timezone Brasil UTC-03)
-    const TIMEZONE_OFFSET_VALIDATION = '-03:00' // America/Sao_Paulo
+    // 4. Validate date is not in the past
     const now = new Date()
-    const requestedDateTime = new Date(`${date}T${time}:00${TIMEZONE_OFFSET_VALIDATION}`)
+    const requestedDateTime = new Date(scheduledAt)
     if (requestedDateTime < now) {
       return new Response(
         JSON.stringify({ success: false, error: 'Cannot schedule appointments in the past' }),
@@ -438,12 +518,6 @@ serve(async (req) => {
 
     // ============ AVAILABILITY VALIDATION (CONFLICT CHECK) ============
 
-    // Interpretar date+time como horário local do Brasil (America/Sao_Paulo = UTC-03)
-    // O n8n envia date e time como horário local, não UTC
-    const TIMEZONE_OFFSET = '-03:00' // America/Sao_Paulo (UTC-03)
-    
-    // Construir datetime com timezone explícito para armazenamento correto
-    const scheduledAt = `${date}T${time}:00${TIMEZONE_OFFSET}`
     const appointmentStart = new Date(scheduledAt)
     const appointmentEnd = new Date(appointmentStart.getTime() + service.duration * 60000)
 
@@ -475,12 +549,13 @@ serve(async (req) => {
 
       // Check if new appointment overlaps with existing one
       if (appointmentStart < aptEnd && appointmentEnd > aptStart) {
-        const aptStartTime = aptStart.toTimeString().slice(0, 5)
-        const aptEndTime = aptEnd.toTimeString().slice(0, 5)
+        // Usar formatTimeInSaoPaulo para exibir horários corretos (UTC-3)
+        const aptStartTime = formatTimeInSaoPaulo(aptStart.toISOString())
+        const aptEndTime = formatTimeInSaoPaulo(aptEnd.toISOString())
         return new Response(
-          JSON.stringify({ 
-            success: false, 
-            error: `Time slot conflicts with existing appointment (${aptStartTime} - ${aptEndTime})` 
+          JSON.stringify({
+            success: false,
+            error: `Time slot conflicts with existing appointment (${aptStartTime} - ${aptEndTime})`
           }),
           { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
@@ -489,10 +564,10 @@ serve(async (req) => {
 
     // ============ CLIENT LOOKUP OR CREATE ============
 
-    const normalizedPhone = normalizePhone(client!.phone!)
+    const normalizedPhone = normalizePhone(clientPhone!)
 
     // Try to find existing client
-    let { data: existingClient } = await supabase
+    const { data: existingClient } = await supabase
       .from('clients')
       .select('id, name, phone, is_lead')
       .eq('phone', normalizedPhone)
@@ -508,8 +583,8 @@ serve(async (req) => {
       const updates: Record<string, unknown> = {}
 
       // Update name if provided and client doesn't have one
-      if (client?.name && !existingClient.name) {
-        updates.name = client.name
+      if (clientName && !existingClient.name) {
+        updates.name = clientName
       }
 
       // Promote lead to client when appointment is created
@@ -531,7 +606,7 @@ serve(async (req) => {
         .insert({
           tenant_id: tenantId,
           phone: normalizedPhone,
-          name: client?.name || null
+          name: clientName || null
         })
         .select('id')
         .single()
@@ -576,8 +651,8 @@ serve(async (req) => {
 
     // ============ SUCCESS RESPONSE ============
 
-    const endTime = new Date(new Date(scheduledAt).getTime() + service.duration * 60000)
-      .toTimeString().slice(0, 5)
+    const endDateTime = new Date(new Date(scheduledAt).getTime() + service.duration * 60000)
+    const endTime = formatTimeInSaoPaulo(endDateTime.toISOString())
 
     return new Response(
       JSON.stringify({
@@ -601,7 +676,7 @@ serve(async (req) => {
           client: {
             id: clientId,
             phone: normalizedPhone,
-            name: client?.name || existingClient?.name || null,
+            name: clientName || existingClient?.name || null,
             isNew: !existingClient
           }
         },

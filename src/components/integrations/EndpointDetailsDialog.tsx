@@ -10,10 +10,12 @@ import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { CheckCircle, XCircle, Lock, Unlock, Copy, Check } from 'lucide-react';
+import { CheckCircle, XCircle, Lock, Unlock, Copy, Check, Terminal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useState } from 'react';
 import type { SystemEndpoint } from '@/hooks/useSystemEndpoints';
+
+const SUPABASE_PROJECT_URL = 'https://thdwtvjbbdclgddjiedz.supabase.co';
 
 interface EndpointDetailsDialogProps {
   endpoint: SystemEndpoint | null;
@@ -31,15 +33,52 @@ const methodColors: Record<string, string> = {
 
 export function EndpointDetailsDialog({ endpoint, open, onOpenChange }: EndpointDetailsDialogProps) {
   const [copied, setCopied] = useState(false);
+  const [copiedCurl, setCopiedCurl] = useState(false);
 
   if (!endpoint) return null;
 
-  const fullUrl = `https://pyqkcfgkwdisabklrxfl.supabase.co${endpoint.url_path}`;
+  const fullUrl = `${SUPABASE_PROJECT_URL}${endpoint.url_path}`;
 
   const handleCopyUrl = async () => {
     await navigator.clipboard.writeText(fullUrl);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  // Gera o comando curl baseado no endpoint
+  const generateCurl = () => {
+    const headers = [
+      '-H "Content-Type: application/json"',
+      '-H "x-agent-key: YOUR_API_KEY"',
+    ];
+
+    // Monta os query params de exemplo
+    let urlWithParams = fullUrl;
+    if (endpoint.expected_params && endpoint.method === 'GET') {
+      const params = Object.keys(endpoint.expected_params)
+        .map(key => `${key}=VALOR`)
+        .join('&');
+      urlWithParams = `${fullUrl}?${params}`;
+    }
+
+    // Para POST/PUT/PATCH, adiciona body de exemplo
+    let bodyPart = '';
+    if (['POST', 'PUT', 'PATCH'].includes(endpoint.method) && endpoint.expected_params) {
+      const exampleBody = Object.fromEntries(
+        Object.keys(endpoint.expected_params).map(key => [key, 'VALOR'])
+      );
+      bodyPart = ` \\\n  -d '${JSON.stringify(exampleBody, null, 2)}'`;
+    }
+
+    return `curl -X ${endpoint.method} "${urlWithParams}" \\\n  ${headers.join(' \\\n  ')}${bodyPart}`;
+  };
+
+  const curlCommand = generateCurl();
+
+  const handleCopyCurl = async () => {
+    await navigator.clipboard.writeText(curlCommand);
+    setCopiedCurl(true);
+    setTimeout(() => setCopiedCurl(false), 2000);
   };
 
   const formatJson = (obj: unknown) => {
@@ -53,8 +92,8 @@ export function EndpointDetailsDialog({ endpoint, open, onOpenChange }: Endpoint
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh]">
-        <DialogHeader>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+        <DialogHeader className="shrink-0">
           <div className="flex items-center gap-3">
             <Badge variant="outline" className={methodColors[endpoint.method] || ''}>
               {endpoint.method}
@@ -64,19 +103,50 @@ export function EndpointDetailsDialog({ endpoint, open, onOpenChange }: Endpoint
           <DialogDescription>{endpoint.description}</DialogDescription>
         </DialogHeader>
 
-        <ScrollArea className="max-h-[60vh] pr-4">
+        <ScrollArea className="flex-1 min-h-0 pr-4">
           <div className="space-y-6">
             {/* URL */}
             <div className="space-y-2">
               <h4 className="text-sm font-medium text-muted-foreground">URL do Endpoint</h4>
-              <div className="flex items-center gap-2">
-                <code className="flex-1 rounded-md bg-muted px-3 py-2 text-sm font-mono break-all">
+              <div className="flex items-center gap-2 min-w-0">
+                <code className="flex-1 min-w-0 rounded-md bg-muted px-3 py-2 text-sm font-mono break-all overflow-hidden">
                   {fullUrl}
                 </code>
-                <Button variant="outline" size="icon" onClick={handleCopyUrl}>
+                <Button variant="outline" size="icon" className="shrink-0" onClick={handleCopyUrl}>
                   {copied ? <Check className="h-4 w-4 text-success" /> : <Copy className="h-4 w-4" />}
                 </Button>
               </div>
+            </div>
+
+            <Separator />
+
+            {/* cURL */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between min-w-0">
+                <div className="flex items-center gap-2 shrink-0">
+                  <Terminal className="h-4 w-4 text-muted-foreground" />
+                  <h4 className="text-sm font-medium text-muted-foreground">Exemplo cURL</h4>
+                </div>
+                <Button variant="outline" size="sm" onClick={handleCopyCurl} className="h-7 text-xs shrink-0">
+                  {copiedCurl ? (
+                    <>
+                      <Check className="h-3 w-3 mr-1 text-success" />
+                      Copiado!
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="h-3 w-3 mr-1" />
+                      Copiar cURL
+                    </>
+                  )}
+                </Button>
+              </div>
+              <pre className="rounded-md bg-zinc-900 text-zinc-100 p-3 text-xs font-mono overflow-x-auto whitespace-pre-wrap max-h-[200px]">
+                {curlCommand}
+              </pre>
+              <p className="text-xs text-muted-foreground">
+                Substitua <code className="bg-muted px-1 rounded">YOUR_API_KEY</code> pela sua chave de API e <code className="bg-muted px-1 rounded">VALOR</code> pelos valores reais.
+              </p>
             </div>
 
             <Separator />
@@ -131,7 +201,7 @@ export function EndpointDetailsDialog({ endpoint, open, onOpenChange }: Endpoint
             {endpoint.expected_params && (
               <div className="space-y-2">
                 <h4 className="text-sm font-medium text-muted-foreground">Parâmetros Esperados</h4>
-                <pre className="rounded-md bg-muted p-3 text-xs font-mono overflow-x-auto">
+                <pre className="rounded-md bg-muted p-3 text-xs font-mono overflow-x-auto overflow-y-auto max-h-[200px]">
                   {formatJson(endpoint.expected_params)}
                 </pre>
               </div>
@@ -141,7 +211,7 @@ export function EndpointDetailsDialog({ endpoint, open, onOpenChange }: Endpoint
             {endpoint.response_example && (
               <div className="space-y-2">
                 <h4 className="text-sm font-medium text-muted-foreground">Exemplo de Resposta</h4>
-                <pre className="rounded-md bg-muted p-3 text-xs font-mono overflow-x-auto">
+                <pre className="rounded-md bg-muted p-3 text-xs font-mono overflow-x-auto overflow-y-auto max-h-[300px]">
                   {formatJson(endpoint.response_example)}
                 </pre>
               </div>

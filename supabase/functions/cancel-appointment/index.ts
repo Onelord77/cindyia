@@ -1,9 +1,61 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { crypto } from "https://deno.land/std@0.168.0/crypto/mod.ts"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-agent-key',
+}
+
+// ============ AUTH FUNCTIONS ============
+
+// Gera hash SHA-256 da chave
+async function hashKey(key: string): Promise<string> {
+  const encoder = new TextEncoder()
+  const data = encoder.encode(key)
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data)
+  const hashArray = Array.from(new Uint8Array(hashBuffer))
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
+}
+
+// Valida a chave de API do agente
+async function validateAgentKey(supabase: ReturnType<typeof createClient>, apiKey: string, tenantId: string): Promise<{ valid: boolean; error?: string }> {
+  if (!apiKey) {
+    return { valid: false, error: 'Missing x-agent-key header' }
+  }
+
+  const keyHash = await hashKey(apiKey)
+
+  const { data: keyRecord, error } = await supabase
+    .from('agent_api_keys')
+    .select('id, tenant_id, is_active, expires_at')
+    .eq('key_hash', keyHash)
+    .single()
+
+  if (error || !keyRecord) {
+    return { valid: false, error: 'Invalid API key' }
+  }
+
+  if (keyRecord.tenant_id !== null && keyRecord.tenant_id !== tenantId) {
+    return { valid: false, error: 'API key not authorized for this tenant' }
+  }
+
+  if (!keyRecord.is_active) {
+    return { valid: false, error: 'API key is inactive' }
+  }
+
+  if (keyRecord.expires_at && new Date(keyRecord.expires_at) < new Date()) {
+    return { valid: false, error: 'API key has expired' }
+  }
+
+  // Atualiza last_used_at em background
+  supabase
+    .from('agent_api_keys')
+    .update({ last_used_at: new Date().toISOString() })
+    .eq('id', keyRecord.id)
+    .then(() => {})
+
+  return { valid: true }
 }
 
 // ============ UTILITY FUNCTIONS ============
@@ -11,6 +63,24 @@ const corsHeaders = {
 function isValidUUID(str: string): boolean {
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
   return uuidRegex.test(str)
+}
+
+// Extrai a data (YYYY-MM-DD) de uma ISO string no timezone de São Paulo
+function getDateInSaoPaulo(isoString: string): string {
+  const date = new Date(isoString)
+  // Ajustar UTC para São Paulo (UTC-3)
+  const spTime = new Date(date.getTime() - 3 * 60 * 60 * 1000)
+  return spTime.toISOString().split('T')[0]
+}
+
+// Formata horário de uma ISO string para HH:MM no timezone de São Paulo
+function formatTimeInSaoPaulo(isoString: string): string {
+  const date = new Date(isoString)
+  // Ajustar UTC para São Paulo (UTC-3)
+  const spTime = new Date(date.getTime() - 3 * 60 * 60 * 1000)
+  const hours = spTime.getUTCHours().toString().padStart(2, '0')
+  const minutes = spTime.getUTCMinutes().toString().padStart(2, '0')
+  return `${hours}:${minutes}`
 }
 
 serve(async (req) => {
@@ -65,6 +135,17 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
+    // ============ API KEY VALIDATION ============
+
+    const agentKey = req.headers.get('x-agent-key')
+    const keyValidation = await validateAgentKey(supabase, agentKey || '', tenantId)
+    if (!keyValidation.valid) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'unauthorized', message: keyValidation.error }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
     // ============ FETCH APPOINTMENT ============
 
     const { data: appointment, error: appointmentError } = await supabase
@@ -105,8 +186,8 @@ serve(async (req) => {
     if (reason) {
       const timestamp = new Date().toISOString()
       const cancellationNote = `[Cancelado em ${timestamp}] Motivo: ${reason}`
-      updatedNotes = updatedNotes 
-        ? `${updatedNotes}\n\n${cancellationNote}` 
+      updatedNotes = updatedNotes
+        ? `${updatedNotes}\n\n${cancellationNote}`
         : cancellationNote
     }
 
@@ -132,10 +213,9 @@ serve(async (req) => {
 
     // ============ SUCCESS RESPONSE ============
 
-    // Extract date and time from scheduled_at
-    const scheduledAt = new Date(appointment.scheduled_at)
-    const date = scheduledAt.toISOString().slice(0, 10)
-    const time = scheduledAt.toISOString().slice(11, 16)
+    // Extract date and time from scheduled_at in São Paulo timezone
+    const date = getDateInSaoPaulo(appointment.scheduled_at)
+    const time = formatTimeInSaoPaulo(appointment.scheduled_at)
 
     return new Response(
       JSON.stringify({

@@ -97,7 +97,7 @@ const SuperAdminEmpresas = () => {
       address: tenant.address || '',
       cnpj: tenant.cnpj || '',
       maxEmployees: tenant.max_employees || 3,
-      maxWhatsappInstances: (tenant as any).max_whatsapp_instances || 1,
+      maxWhatsappInstances: (tenant as { max_whatsapp_instances?: number }).max_whatsapp_instances || 1,
     });
     setIsDialogOpen(true);
   };

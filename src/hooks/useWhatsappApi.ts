@@ -60,7 +60,7 @@ export function useWhatsappApi() {
         setInstances(data);
       }
       return data;
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error fetching instances:', error);
       toast.error('Erro ao buscar instâncias');
       return [];
@@ -77,8 +77,8 @@ export function useWhatsappApi() {
         await fetchInstances();
       }
       return data;
-    } catch (error: any) {
-      toast.error(error.message || 'Erro ao criar instância');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Erro ao criar instância');
       throw error;
     }
   }, [callWhatsappApi, fetchInstances]);
@@ -91,8 +91,8 @@ export function useWhatsappApi() {
       }
       setConnectionState('connecting');
       return data;
-    } catch (error: any) {
-      toast.error(error.message || 'Erro ao conectar instância');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Erro ao conectar instância');
       throw error;
     }
   }, [callWhatsappApi]);
@@ -107,7 +107,7 @@ export function useWhatsappApi() {
         }
       }
       return data;
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error getting status:', error);
       return null;
     }
@@ -119,8 +119,8 @@ export function useWhatsappApi() {
       toast.success('Instância desconectada');
       setConnectionState('disconnected');
       await fetchInstances();
-    } catch (error: any) {
-      toast.error(error.message || 'Erro ao desconectar');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Erro ao desconectar');
       throw error;
     }
   }, [callWhatsappApi, fetchInstances]);
@@ -130,8 +130,8 @@ export function useWhatsappApi() {
       await callWhatsappApi('delete-instance', instanceName);
       toast.success('Instância removida');
       await fetchInstances();
-    } catch (error: any) {
-      toast.error(error.message || 'Erro ao remover instância');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Erro ao remover instância');
       throw error;
     }
   }, [callWhatsappApi, fetchInstances]);
@@ -139,7 +139,7 @@ export function useWhatsappApi() {
   const setWebhook = useCallback(async (instanceName: string) => {
     try {
       await callWhatsappApi('set-webhook', instanceName);
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error setting webhook:', error);
     }
   }, [callWhatsappApi]);
@@ -148,7 +148,7 @@ export function useWhatsappApi() {
     try {
       const data = await callWhatsappApi('set-webhook-all');
       return data;
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error setting webhook for all instances:', error);
       return null;
     }

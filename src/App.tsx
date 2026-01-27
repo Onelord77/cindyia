@@ -19,10 +19,12 @@ import Financeiro from "./pages/Financeiro";
 import Relatorios from "./pages/Relatorios";
 import Configuracoes from "./pages/Configuracoes";
 import Integracoes from "./pages/Integracoes";
+import Notificacoes from "./pages/Notificacoes";
 import SuperAdminEmpresas from "./pages/admin/Empresas";
 import AdminConfiguracoes from "./pages/admin/Configuracoes";
 import AdminDashboard from "./pages/admin/Dashboard";
 import AdminEndpoints from "./pages/admin/Endpoints";
+import AdminNotificacoes from "./pages/admin/Notificacoes";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -56,11 +58,13 @@ const App = () => (
                 <Route path="/financeiro" element={<ProtectedRoute><Financeiro /></ProtectedRoute>} />
                 <Route path="/relatorios" element={<ProtectedRoute><Relatorios /></ProtectedRoute>} />
                 <Route path="/integracoes" element={<ProtectedRoute><Integracoes /></ProtectedRoute>} />
+                <Route path="/notificacoes" element={<ProtectedRoute><Notificacoes /></ProtectedRoute>} />
                 <Route path="/configuracoes" element={<ProtectedRoute><Configuracoes /></ProtectedRoute>} />
 
                 {/* Super Admin Only Routes */}
                 <Route path="/admin" element={<ProtectedRoute requiredRoles={['super_admin']}><AdminDashboard /></ProtectedRoute>} />
                 <Route path="/admin/empresas" element={<ProtectedRoute requiredRoles={['super_admin']}><SuperAdminEmpresas /></ProtectedRoute>} />
+                <Route path="/admin/notificacoes" element={<ProtectedRoute requiredRoles={['super_admin']}><AdminNotificacoes /></ProtectedRoute>} />
                 <Route path="/admin/endpoints" element={<ProtectedRoute requiredRoles={['super_admin']}><AdminEndpoints /></ProtectedRoute>} />
                 <Route path="/admin/configuracoes" element={<ProtectedRoute requiredRoles={['super_admin']}><AdminConfiguracoes /></ProtectedRoute>} />
 

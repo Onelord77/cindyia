@@ -23,7 +23,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Search, Filter, Plus, MoreVertical, Eye, Edit, Calendar, X, Loader2, CheckCircle } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, toSaoPauloDateTime, createSaoPauloDate, formatTimeInSaoPaulo, getTodayInSaoPaulo, getDateInSaoPaulo } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useAppointments } from '@/hooks/useAppointments';
 import { useClients } from '@/hooks/useClients';
@@ -35,7 +35,6 @@ import { isWithinInterval, startOfDay, endOfDay } from 'date-fns';
 import type { Database } from '@/integrations/supabase/types';
 
 type AppointmentStatus = Database['public']['Enums']['appointment_status'];
-type PaymentStatus = Database['public']['Enums']['payment_status'];
 
 const statusConfig: Record<string, { label: string; class: string }> = {
   scheduled: { label: 'Pendente', class: 'status-pending' },
@@ -53,7 +52,7 @@ const paymentConfig: Record<string, { label: string; class: string }> = {
 };
 
 const Agendamentos = () => {
-  const { appointments, isLoading, addAppointment, updateStatus, markAsCompleted, deleteAppointment } = useAppointments();
+  const { appointments, isLoading, addAppointment, updateAppointment, updateStatus, markAsCompleted, deleteAppointment } = useAppointments();
   const { clients } = useClients();
   const { employees } = useEmployees();
   const { services } = useServices();
@@ -62,10 +61,15 @@ const Agendamentos = () => {
   const employeeIds = employees.map(e => e.id);
   const { data: employeeServicesMap = {} } = useEmployeeServicesBulk(employeeIds);
 
+  // Memoize active services to avoid filtering on every render
+  const activeServices = useMemo(() => services.filter(s => s.is_active), [services]);
+
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editingAppointmentId, setEditingAppointmentId] = useState<string | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [deletingAppointmentId, setDeletingAppointmentId] = useState<string | null>(null);
 
@@ -73,20 +77,39 @@ const Agendamentos = () => {
     client_id: '',
     service_id: '',
     employee_id: '',
-    date: new Date().toISOString().split('T')[0],
+    date: getTodayInSaoPaulo(),
     time: '09:00',
   });
 
-  // Filter employees that can perform the selected service
+  const [editFormData, setEditFormData] = useState({
+    client_id: '',
+    service_id: '',
+    employee_id: '',
+    date: '',
+    time: '',
+  });
+
+  // Filter employees that can perform the selected service (for create form)
   const availableEmployees = useMemo(() => {
     if (!formData.service_id) return employees.filter(e => e.is_active);
-    
+
     return employees.filter(e => {
       if (!e.is_active) return false;
       const empServices = employeeServicesMap[e.id] || [];
       return empServices.some(es => es.serviceId === formData.service_id);
     });
   }, [employees, formData.service_id, employeeServicesMap]);
+
+  // Filter employees that can perform the selected service (for edit form)
+  const availableEmployeesEdit = useMemo(() => {
+    if (!editFormData.service_id) return employees.filter(e => e.is_active);
+
+    return employees.filter(e => {
+      if (!e.is_active) return false;
+      const empServices = employeeServicesMap[e.id] || [];
+      return empServices.some(es => es.serviceId === editFormData.service_id);
+    });
+  }, [employees, editFormData.service_id, employeeServicesMap]);
 
   // Reset employee selection when service changes and employee can't perform it
   useEffect(() => {
@@ -97,6 +120,16 @@ const Agendamentos = () => {
       }
     }
   }, [formData.service_id, availableEmployees]);
+
+  // Reset employee selection when service changes in edit form
+  useEffect(() => {
+    if (editFormData.service_id && editFormData.employee_id) {
+      const canPerform = availableEmployeesEdit.some(e => e.id === editFormData.employee_id);
+      if (!canPerform) {
+        setEditFormData(prev => ({ ...prev, employee_id: '' }));
+      }
+    }
+  }, [editFormData.service_id, availableEmployeesEdit]);
 
   const filteredAppointments = useMemo(() => {
     return appointments.filter((appointment) => {
@@ -123,7 +156,7 @@ const Agendamentos = () => {
       client_id: '',
       service_id: '',
       employee_id: '',
-      date: new Date().toISOString().split('T')[0],
+      date: getTodayInSaoPaulo(),
       time: '09:00',
     });
   };
@@ -152,38 +185,45 @@ const Agendamentos = () => {
     }
 
     const service = services.find(s => s.id === formData.service_id);
-    const scheduledAt = new Date(`${formData.date}T${formData.time}:00`);
+    const scheduledAt = createSaoPauloDate(formData.date, formData.time);
     const duration = service?.duration || 30;
 
-    // Frontend validation for working day
+    // Frontend validation for working day (using PT-BR format as saved in DB)
     const selectedEmployee = employees.find(e => e.id === formData.employee_id);
     if (selectedEmployee?.working_hours) {
-      const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-      const dayLabels: Record<string, string> = {
-        sunday: 'domingo',
-        monday: 'segunda-feira',
-        tuesday: 'terça-feira',
-        wednesday: 'quarta-feira',
-        thursday: 'quinta-feira',
-        friday: 'sexta-feira',
-        saturday: 'sábado',
+      // Map day index to Portuguese key (0=Sunday, 1=Monday, etc.)
+      const dayKeysPt = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab'];
+      const dayLabelsPt: Record<string, string> = {
+        dom: 'domingo',
+        seg: 'segunda-feira',
+        ter: 'terça-feira',
+        qua: 'quarta-feira',
+        qui: 'quinta-feira',
+        sex: 'sexta-feira',
+        sab: 'sábado',
       };
-      const dayOfWeek = dayNames[scheduledAt.getDay()];
-      const workingHours = selectedEmployee.working_hours as Record<string, { open: string; close: string; isOpen: boolean }>;
+
+      const dayOfWeek = dayKeysPt[scheduledAt.getDay()];
+      const workingHours = selectedEmployee.working_hours as Record<string, { enabled?: boolean; isOpen?: boolean; start?: string; end?: string; open?: string; close?: string }>;
       const daySchedule = workingHours[dayOfWeek];
 
-      if (!daySchedule || !daySchedule.isOpen) {
-        toast.error(`${selectedEmployee.name} não trabalha ${dayLabels[dayOfWeek]}. Selecione outro dia.`);
+      // Check enabled (PT-BR format) or isOpen (EN format)
+      const isEnabled = daySchedule?.enabled ?? daySchedule?.isOpen ?? false;
+      const startTime = daySchedule?.start ?? daySchedule?.open ?? '09:00';
+      const endTime = daySchedule?.end ?? daySchedule?.close ?? '18:00';
+
+      if (!daySchedule || !isEnabled) {
+        toast.error(`${selectedEmployee.name} não trabalha ${dayLabelsPt[dayOfWeek]}. Selecione outro dia.`);
         return;
       }
 
       // Check if time is within working hours
       const appointmentTime = formData.time;
       const appointmentEndTime = new Date(scheduledAt.getTime() + duration * 60000);
-      const endTimeStr = `${appointmentEndTime.getHours().toString().padStart(2, '0')}:${appointmentEndTime.getMinutes().toString().padStart(2, '0')}`;
+      const endTimeStr = formatTimeInSaoPaulo(appointmentEndTime);
 
-      if (appointmentTime < daySchedule.open || endTimeStr > daySchedule.close) {
-        toast.error(`${selectedEmployee.name} só atende das ${daySchedule.open} às ${daySchedule.close} neste dia. Selecione outro horário.`);
+      if (appointmentTime < startTime || endTimeStr > endTime) {
+        toast.error(`${selectedEmployee.name} só atende das ${startTime} às ${endTime} neste dia. Selecione outro horário.`);
         return;
       }
     }
@@ -204,8 +244,8 @@ const Agendamentos = () => {
     });
 
     if (conflict) {
-      const conflictStart = new Date(conflict.scheduled_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-      const conflictEnd = new Date(new Date(conflict.scheduled_at).getTime() + conflict.duration * 60000).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+      const conflictStart = formatTimeInSaoPaulo(conflict.scheduled_at);
+      const conflictEnd = formatTimeInSaoPaulo(new Date(new Date(conflict.scheduled_at).getTime() + conflict.duration * 60000));
       toast.error(`O profissional já possui um agendamento das ${conflictStart} às ${conflictEnd}. Selecione outro horário.`);
       return;
     }
@@ -214,7 +254,7 @@ const Agendamentos = () => {
       client_id: formData.client_id,
       service_id: formData.service_id,
       employee_id: formData.employee_id,
-      scheduled_at: scheduledAt.toISOString(),
+      scheduled_at: toSaoPauloDateTime(formData.date, formData.time),
       duration,
       price: service?.price,
     });
@@ -224,8 +264,7 @@ const Agendamentos = () => {
   };
 
   const handleStatusChange = async (id: string, status: AppointmentStatus) => {
-    const payment_status: PaymentStatus | undefined = status === 'completed' ? 'paid' : undefined;
-    await updateStatus.mutateAsync({ id, status, payment_status });
+    await updateStatus.mutateAsync({ id, status });
     toast.success(`Status atualizado para ${statusConfig[status]?.label}`);
   };
 
@@ -241,12 +280,135 @@ const Agendamentos = () => {
     }
   };
 
+  const handleOpenEdit = (appointmentId: string) => {
+    const appointment = appointments.find(a => a.id === appointmentId);
+    if (!appointment) return;
+
+    const appointmentDate = new Date(appointment.scheduled_at);
+    const dateStr = getDateInSaoPaulo(appointmentDate);
+    const timeStr = formatTimeInSaoPaulo(appointmentDate);
+
+    setEditFormData({
+      client_id: appointment.client_id || '',
+      service_id: appointment.service_id || '',
+      employee_id: appointment.employee_id || '',
+      date: dateStr,
+      time: timeStr,
+    });
+    setEditingAppointmentId(appointmentId);
+    setIsEditDialogOpen(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingAppointmentId) return;
+
+    // Validate required fields with specific messages
+    if (!editFormData.client_id) {
+      toast.error('Selecione um cliente para o agendamento.');
+      return;
+    }
+    if (!editFormData.service_id) {
+      toast.error('Selecione um serviço para o agendamento.');
+      return;
+    }
+    if (!editFormData.employee_id) {
+      toast.error('Selecione um profissional para o agendamento.');
+      return;
+    }
+
+    // Validate employee can perform the service (frontend validation)
+    const empServices = employeeServicesMap[editFormData.employee_id] || [];
+    const canPerform = empServices.some(es => es.serviceId === editFormData.service_id);
+    if (!canPerform) {
+      toast.error('Este profissional não executa o serviço selecionado.');
+      return;
+    }
+
+    const service = services.find(s => s.id === editFormData.service_id);
+    const scheduledAt = createSaoPauloDate(editFormData.date, editFormData.time);
+    const duration = service?.duration || 30;
+
+    // Frontend validation for working day (using PT-BR format as saved in DB)
+    const selectedEmployee = employees.find(e => e.id === editFormData.employee_id);
+    if (selectedEmployee?.working_hours) {
+      const dayKeysPt = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab'];
+      const dayLabelsPt: Record<string, string> = {
+        dom: 'domingo',
+        seg: 'segunda-feira',
+        ter: 'terça-feira',
+        qua: 'quarta-feira',
+        qui: 'quinta-feira',
+        sex: 'sexta-feira',
+        sab: 'sábado',
+      };
+
+      const dayOfWeek = dayKeysPt[scheduledAt.getDay()];
+      const workingHours = selectedEmployee.working_hours as Record<string, { enabled?: boolean; isOpen?: boolean; start?: string; end?: string; open?: string; close?: string }>;
+      const daySchedule = workingHours[dayOfWeek];
+
+      const isEnabled = daySchedule?.enabled ?? daySchedule?.isOpen ?? false;
+      const startTime = daySchedule?.start ?? daySchedule?.open ?? '09:00';
+      const endTime = daySchedule?.end ?? daySchedule?.close ?? '18:00';
+
+      if (!daySchedule || !isEnabled) {
+        toast.error(`${selectedEmployee.name} não trabalha ${dayLabelsPt[dayOfWeek]}. Selecione outro dia.`);
+        return;
+      }
+
+      const appointmentTime = editFormData.time;
+      const appointmentEndTime = new Date(scheduledAt.getTime() + duration * 60000);
+      const endTimeStr = formatTimeInSaoPaulo(appointmentEndTime);
+
+      if (appointmentTime < startTime || endTimeStr > endTime) {
+        toast.error(`${selectedEmployee.name} só atende das ${startTime} às ${endTime} neste dia. Selecione outro horário.`);
+        return;
+      }
+    }
+
+    // Frontend validation for time conflict (excluding current appointment)
+    const newStart = scheduledAt.getTime();
+    const newEnd = newStart + duration * 60000;
+    const activeStatuses = ['scheduled', 'confirmed', 'in_progress'];
+
+    const conflict = appointments.find(apt => {
+      if (apt.id === editingAppointmentId) return false; // Exclude current appointment
+      if (apt.employee_id !== editFormData.employee_id) return false;
+      if (!apt.status || !activeStatuses.includes(apt.status)) return false;
+
+      const existingStart = new Date(apt.scheduled_at).getTime();
+      const existingEnd = existingStart + apt.duration * 60000;
+
+      return newStart < existingEnd && newEnd > existingStart;
+    });
+
+    if (conflict) {
+      const conflictStart = formatTimeInSaoPaulo(conflict.scheduled_at);
+      const conflictEnd = formatTimeInSaoPaulo(new Date(new Date(conflict.scheduled_at).getTime() + conflict.duration * 60000));
+      toast.error(`O profissional já possui um agendamento das ${conflictStart} às ${conflictEnd}. Selecione outro horário.`);
+      return;
+    }
+
+    await updateAppointment.mutateAsync({
+      id: editingAppointmentId,
+      client_id: editFormData.client_id,
+      service_id: editFormData.service_id,
+      employee_id: editFormData.employee_id,
+      scheduled_at: toSaoPauloDateTime(editFormData.date, editFormData.time),
+      duration,
+      price: service?.price,
+    });
+
+    setIsEditDialogOpen(false);
+    setEditingAppointmentId(null);
+    toast.success('Agendamento atualizado com sucesso!');
+  };
+
   const formatTime = (scheduledAt: string, duration: number) => {
     const start = new Date(scheduledAt);
     const end = new Date(start.getTime() + duration * 60000);
     return {
-      startTime: `${start.getHours().toString().padStart(2, '0')}:${start.getMinutes().toString().padStart(2, '0')}`,
-      endTime: `${end.getHours().toString().padStart(2, '0')}:${end.getMinutes().toString().padStart(2, '0')}`,
+      startTime: formatTimeInSaoPaulo(start),
+      endTime: formatTimeInSaoPaulo(end),
     };
   };
 
@@ -384,7 +546,7 @@ const Agendamentos = () => {
                             <DropdownMenuContent align="end">
                               {canComplete && (
                                 <>
-                                  <DropdownMenuItem 
+                                  <DropdownMenuItem
                                     className="text-success"
                                     onClick={() => handleMarkAsCompleted(appointment.id, Number(appointment.price || 0))}
                                   >
@@ -393,6 +555,12 @@ const Agendamentos = () => {
                                   </DropdownMenuItem>
                                   <DropdownMenuSeparator />
                                 </>
+                              )}
+                              {!isCompleted && appointment.status !== 'cancelled' && (
+                                <DropdownMenuItem onClick={() => handleOpenEdit(appointment.id)}>
+                                  <Edit className="mr-2 h-4 w-4" />
+                                  Editar Agendamento
+                                </DropdownMenuItem>
                               )}
                               <DropdownMenuItem className="text-destructive" onClick={() => { setDeletingAppointmentId(appointment.id); setIsDeleteDialogOpen(true); }}>
                                 Cancelar Agendamento
@@ -430,7 +598,7 @@ const Agendamentos = () => {
                 <Select value={formData.service_id} onValueChange={(v) => setFormData(p => ({ ...p, service_id: v }))}>
                   <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                   <SelectContent>
-                    {services.filter(s => s.is_active).map(s => <SelectItem key={s.id} value={s.id}>{s.name} - R$ {Number(s.price).toFixed(2)}</SelectItem>)}
+                    {activeServices.map(s => <SelectItem key={s.id} value={s.id}>{s.name} - R$ {Number(s.price).toFixed(2)}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
@@ -474,6 +642,76 @@ const Agendamentos = () => {
               <Button onClick={handleSave} disabled={addAppointment.isPending}>
                 {addAppointment.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Criar Agendamento
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Editar Agendamento</DialogTitle>
+              <DialogDescription>Altere os dados do agendamento</DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="space-y-2">
+                <Label>Cliente *</Label>
+                <Select value={editFormData.client_id} onValueChange={(v) => setEditFormData(p => ({ ...p, client_id: v }))}>
+                  <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                  <SelectContent>
+                    {clients.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Serviço *</Label>
+                <Select value={editFormData.service_id} onValueChange={(v) => setEditFormData(p => ({ ...p, service_id: v }))}>
+                  <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                  <SelectContent>
+                    {activeServices.map(s => <SelectItem key={s.id} value={s.id}>{s.name} - R$ {Number(s.price).toFixed(2)}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Profissional *</Label>
+                <Select
+                  value={editFormData.employee_id}
+                  onValueChange={(v) => setEditFormData(p => ({ ...p, employee_id: v }))}
+                  disabled={!editFormData.service_id}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={editFormData.service_id ? "Selecione" : "Selecione o serviço primeiro"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableEmployeesEdit.length === 0 && editFormData.service_id ? (
+                      <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                        Nenhum profissional executa este serviço
+                      </div>
+                    ) : (
+                      availableEmployeesEdit.map(e => <SelectItem key={e.id} value={e.id}>{e.name}</SelectItem>)
+                    )}
+                  </SelectContent>
+                </Select>
+                {editFormData.service_id && availableEmployeesEdit.length === 0 && (
+                  <p className="text-xs text-destructive">Nenhum profissional cadastrado executa este serviço.</p>
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Data *</Label>
+                  <Input type="date" value={editFormData.date} onChange={(e) => setEditFormData(p => ({ ...p, date: e.target.value }))} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Hora *</Label>
+                  <Input type="time" value={editFormData.time} onChange={(e) => setEditFormData(p => ({ ...p, time: e.target.value }))} />
+                </div>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>Cancelar</Button>
+              <Button onClick={handleSaveEdit} disabled={updateAppointment.isPending}>
+                {updateAppointment.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Salvar Alterações
               </Button>
             </DialogFooter>
           </DialogContent>

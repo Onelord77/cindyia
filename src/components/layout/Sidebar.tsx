@@ -14,6 +14,7 @@ import {
   ChevronRight,
   Sparkles,
   Plug,
+  Bell,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -33,6 +34,7 @@ const menuItems: SidebarItem[] = [
   { label: 'Serviços', icon: Sparkles, href: '/servicos' },
   { label: 'Financeiro', icon: DollarSign, href: '/financeiro' },
   { label: 'Relatórios', icon: BarChart3, href: '/relatorios' },
+  { label: 'Notificações', icon: Bell, href: '/notificacoes' },
   { label: 'Integrações', icon: Plug, href: '/integracoes' },
   { label: 'Configurações', icon: Settings, href: '/configuracoes' },
 ];

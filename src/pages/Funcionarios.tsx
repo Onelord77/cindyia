@@ -44,6 +44,10 @@ const Funcionarios = () => {
   const employeeIds = useMemo(() => employees.map(e => e.id), [employees]);
   const { data: employeeServicesMap = {} } = useEmployeeServicesBulk(employeeIds);
 
+  // Memoize filtered data to avoid filtering on every render
+  const activeTenants = useMemo(() => tenants.filter(t => t.status === 'active'), [tenants]);
+  const activeServices = useMemo(() => services.filter(s => s.is_active), [services]);
+
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<typeof employees[0] | null>(null);
@@ -242,7 +246,7 @@ const Funcionarios = () => {
                   <SelectValue placeholder="Selecione uma empresa..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {tenants.filter(t => t.status === 'active').map((tenant) => (
+                  {activeTenants.map((tenant) => (
                     <SelectItem key={tenant.id} value={tenant.id}>
                       {tenant.name}
                     </SelectItem>
@@ -588,7 +592,7 @@ const Funcionarios = () => {
                       {services.length === 0 ? (
                         <p className="text-sm text-muted-foreground py-4 text-center">Nenhum serviço cadastrado</p>
                       ) : (
-                        services.filter(s => s.is_active).map((service) => (
+                        activeServices.map((service) => (
                           <div key={service.id} className="flex items-start space-x-3">
                             <Checkbox
                               id={`service-${service.id}`}

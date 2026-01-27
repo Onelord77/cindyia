@@ -1,13 +1,66 @@
+// @ts-nocheck
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { crypto } from "https://deno.land/std@0.168.0/crypto/mod.ts"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-agent-key',
 }
 
-// Timezone Brasil (America/Sao_Paulo = UTC-03)
-const TIMEZONE_OFFSET = '-03:00'
+const TIMEZONE_OFFSET = '-03:00' // America/Sao_Paulo (UTC-3)
+
+// ============ AUTH FUNCTIONS ============
+
+// Gera hash SHA-256 da chave
+async function hashKey(key: string): Promise<string> {
+  const encoder = new TextEncoder()
+  const data = encoder.encode(key)
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data)
+  const hashArray = Array.from(new Uint8Array(hashBuffer))
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
+}
+
+// Valida a chave de API do agente
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function validateAgentKey(supabase: any, apiKey: string, tenantId: string): Promise<{ valid: boolean; error?: string }> {
+  if (!apiKey) {
+    return { valid: false, error: 'Missing x-agent-key header' }
+  }
+
+  const keyHash = await hashKey(apiKey)
+
+  const { data: keyRecord, error } = await supabase
+    .from('agent_api_keys')
+    .select('id, tenant_id, is_active, expires_at')
+    .eq('key_hash', keyHash)
+    .single()
+
+  if (error || !keyRecord) {
+    return { valid: false, error: 'Invalid API key' }
+  }
+
+  if (keyRecord.tenant_id !== null && keyRecord.tenant_id !== tenantId) {
+    return { valid: false, error: 'API key not authorized for this tenant' }
+  }
+
+  if (!keyRecord.is_active) {
+    return { valid: false, error: 'API key is inactive' }
+  }
+
+  if (keyRecord.expires_at && new Date(keyRecord.expires_at) < new Date()) {
+    return { valid: false, error: 'API key has expired' }
+  }
+
+  // Atualiza last_used_at em background
+  supabase
+    .from('agent_api_keys')
+    .update({ last_used_at: new Date().toISOString() })
+    .eq('id', keyRecord.id)
+    .then(() => {})
+
+  return { valid: true }
+}
 
 // ============ UTILITY FUNCTIONS ============
 
@@ -16,10 +69,43 @@ interface WorkingHours {
     open: string
     close: string
     isOpen: boolean
-    breaks?: Array<{ start: string; end: string }>
   }
 }
 
+// Mapeamento de dias em português para inglês
+const dayMappingPtToEn: Record<string, string> = {
+  'dom': 'sunday',
+  'seg': 'monday',
+  'ter': 'tuesday',
+  'qua': 'wednesday',
+  'qui': 'thursday',
+  'sex': 'friday',
+  'sab': 'saturday'
+}
+
+// Mapeamento de dias em inglês para português
+const dayMappingEnToPt: Record<string, string> = {
+  'sunday': 'dom',
+  'monday': 'seg',
+  'tuesday': 'ter',
+  'wednesday': 'qua',
+  'thursday': 'qui',
+  'friday': 'sex',
+  'saturday': 'sab'
+}
+
+// Labels de dias para mensagens de erro
+const dayLabels: Record<string, string> = {
+  'dom': 'Domingo',
+  'seg': 'Segunda',
+  'ter': 'Terça',
+  'qua': 'Quarta',
+  'qui': 'Quinta',
+  'sex': 'Sexta',
+  'sab': 'Sábado'
+}
+
+// Normaliza working_hours para formato padrão (inglês)
 function normalizeWorkingHours(workingHours: unknown): WorkingHours | null {
   if (!workingHours || typeof workingHours !== 'object') {
     return null
@@ -28,41 +114,30 @@ function normalizeWorkingHours(workingHours: unknown): WorkingHours | null {
   const wh = workingHours as Record<string, unknown>
   const normalized: WorkingHours = {}
 
-  // Map PT-BR day names to EN
-  const dayMapping: Record<string, string> = {
-    'domingo': 'sunday',
-    'segunda': 'monday',
-    'terca': 'tuesday',
-    'terça': 'tuesday',
-    'quarta': 'wednesday',
-    'quinta': 'thursday',
-    'sexta': 'friday',
-    'sabado': 'saturday',
-    'sábado': 'saturday',
-    'sunday': 'sunday',
-    'monday': 'monday',
-    'tuesday': 'tuesday',
-    'wednesday': 'wednesday',
-    'thursday': 'thursday',
-    'friday': 'friday',
-    'saturday': 'saturday',
-  }
-
   for (const [key, value] of Object.entries(wh)) {
     if (!value || typeof value !== 'object') continue
 
-    const dayValue = value as Record<string, unknown>
-    const normalizedDay = dayMapping[key.toLowerCase()]
+    const dayData = value as Record<string, unknown>
 
-    if (!normalizedDay) continue
+    // Determina o nome do dia em inglês
+    const dayName = dayMappingPtToEn[key.toLowerCase()] || key.toLowerCase()
 
-    // Handle both formats: enabled/start/end AND isOpen/open/close
-    const isOpen = dayValue.enabled === true || dayValue.isOpen === true
-    const open = (dayValue.start as string) || (dayValue.open as string) || '09:00'
-    const close = (dayValue.end as string) || (dayValue.close as string) || '18:00'
-    const breaks = dayValue.breaks as Array<{ start: string; end: string }> | undefined
+    // Detecta formato: PT-BR usa 'enabled/start/end', EN usa 'isOpen/open/close'
+    const isPortugueseFormat = 'enabled' in dayData || 'start' in dayData
 
-    normalized[normalizedDay] = { open, close, isOpen, breaks }
+    if (isPortugueseFormat) {
+      normalized[dayName] = {
+        isOpen: Boolean(dayData.enabled),
+        open: String(dayData.start || '09:00'),
+        close: String(dayData.end || '18:00')
+      }
+    } else {
+      normalized[dayName] = {
+        isOpen: Boolean(dayData.isOpen),
+        open: String(dayData.open || '09:00'),
+        close: String(dayData.close || '18:00')
+      }
+    }
   }
 
   return Object.keys(normalized).length > 0 ? normalized : null
@@ -73,26 +148,47 @@ function isValidUUID(str: string): boolean {
   return uuidRegex.test(str)
 }
 
-function isValidDate(dateStr: string): boolean {
-  const dateRegex = /^\d{4}-\d{2}-\d{2}$/
-  if (!dateRegex.test(dateStr)) return false
-  const date = new Date(dateStr)
-  return !isNaN(date.getTime())
-}
+// Parse ISO datetime string and extract date and time in São Paulo timezone
+function parseDateTimeParam(dateTimeStr: string): { date: string; time: string; isoString: string } | null {
+  try {
+    const parsedDate = new Date(dateTimeStr)
+    if (isNaN(parsedDate.getTime())) {
+      return null
+    }
 
-function isValidTime(timeStr: string): boolean {
-  const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/
-  return timeRegex.test(timeStr)
-}
+    // Convert to São Paulo time (UTC-3)
+    const utcTime = parsedDate.getTime()
+    const spTime = new Date(utcTime - 3 * 60 * 60 * 1000)
 
-function getDayName(date: Date): string {
-  const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
-  return days[date.getUTCDay()]
+    // Extract date (YYYY-MM-DD)
+    const date = spTime.toISOString().split('T')[0]
+
+    // Extract time (HH:MM)
+    const hours = spTime.getUTCHours().toString().padStart(2, '0')
+    const minutes = spTime.getUTCMinutes().toString().padStart(2, '0')
+    const time = `${hours}:${minutes}`
+
+    // Build ISO string with São Paulo timezone for storage
+    const isoString = `${date}T${time}:00${TIMEZONE_OFFSET}`
+
+    return { date, time, isoString }
+  } catch {
+    return null
+  }
 }
 
 function timeToMinutes(time: string): number {
   const [hours, minutes] = time.split(':').map(Number)
   return hours * 60 + minutes
+}
+
+// Formata horário em São Paulo (UTC-3) a partir de ISO string ou Date
+function formatTimeInSaoPaulo(isoString: string): string {
+  const date = new Date(isoString)
+  const spTime = new Date(date.getTime() - 3 * 60 * 60 * 1000)
+  const hours = spTime.getUTCHours().toString().padStart(2, '0')
+  const minutes = spTime.getUTCMinutes().toString().padStart(2, '0')
+  return `${hours}:${minutes}`
 }
 
 serve(async (req) => {
@@ -111,16 +207,16 @@ serve(async (req) => {
 
   try {
     const body = await req.json()
-    const { tenantId, appointmentId, date, time, notes } = body
+    const { tenantId, appointmentId, dateTime, employeeId: newEmployeeId, notes } = body
 
     // ============ VALIDATION ============
 
     // 1. Required fields
-    if (!tenantId || !appointmentId || !date || !time) {
+    if (!tenantId || !appointmentId || !dateTime) {
       return new Response(
         JSON.stringify({
           success: false,
-          error: 'Missing required fields: tenantId, appointmentId, date, time'
+          error: 'Missing required fields: tenantId, appointmentId, dateTime'
         }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
@@ -141,24 +237,30 @@ serve(async (req) => {
       )
     }
 
-    // 3. Date/Time format validation
-    if (!isValidDate(date)) {
+    if (newEmployeeId && !isValidUUID(newEmployeeId)) {
       return new Response(
-        JSON.stringify({ success: false, error: 'Invalid date format. Use YYYY-MM-DD' }),
+        JSON.stringify({ success: false, error: 'Invalid employeeId format' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    if (!isValidTime(time)) {
+    // 3. Parse dateTime
+    const parsedDateTime = parseDateTimeParam(dateTime)
+    if (!parsedDateTime) {
       return new Response(
-        JSON.stringify({ success: false, error: 'Invalid time format. Use HH:MM' }),
+        JSON.stringify({
+          success: false,
+          error: 'Invalid dateTime format. Use ISO 8601 format (e.g., 2026-01-26T13:38:14.085-03:00)'
+        }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    // 4. Date not in the past (timezone Brasil)
+    const { date, time, isoString: newScheduledAt } = parsedDateTime
+
+    // 4. Date not in the past
     const now = new Date()
-    const requestedDateTime = new Date(`${date}T${time}:00${TIMEZONE_OFFSET}`)
+    const requestedDateTime = new Date(newScheduledAt)
     if (requestedDateTime < now) {
       return new Response(
         JSON.stringify({ success: false, error: 'Cannot reschedule to a past date/time' }),
@@ -171,6 +273,17 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
+
+    // ============ API KEY VALIDATION ============
+
+    const agentKey = req.headers.get('x-agent-key')
+    const keyValidation = await validateAgentKey(supabase, agentKey || '', tenantId)
+    if (!keyValidation.valid) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'unauthorized', message: keyValidation.error }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
 
     // ============ FETCH APPOINTMENT ============
 
@@ -205,21 +318,69 @@ serve(async (req) => {
       )
     }
 
-    const employee = appointment.employees
     const service = appointment.services
-
-    if (!employee || !employee.is_active) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Professional is no longer active' }),
-        { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
-
     if (!service || !service.is_active) {
       return new Response(
         JSON.stringify({ success: false, error: 'Service is no longer active' }),
         { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
+    }
+
+    // ============ DETERMINE EMPLOYEE (current or new) ============
+
+    let employee = appointment.employees
+    const isChangingEmployee = newEmployeeId && newEmployeeId !== appointment.employee_id
+
+    if (isChangingEmployee) {
+      // Fetch the new employee
+      const { data: newEmployee, error: newEmployeeError } = await supabase
+        .from('employees')
+        .select('id, name, working_hours, is_active, tenant_id')
+        .eq('id', newEmployeeId)
+        .eq('tenant_id', tenantId)
+        .single()
+
+      if (newEmployeeError || !newEmployee) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'New professional not found for this tenant' }),
+          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      if (!newEmployee.is_active) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'New professional is not active' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      // Check if new employee can perform the service
+      const { data: employeeService, error: esError } = await supabase
+        .from('employee_services')
+        .select('id')
+        .eq('employee_id', newEmployeeId)
+        .eq('service_id', service.id)
+        .single()
+
+      if (esError || !employeeService) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: `Professional "${newEmployee.name}" is not qualified to perform service "${service.name}"`
+          }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      employee = newEmployee
+    } else {
+      // Using current employee - validate they are still active
+      if (!employee || !employee.is_active) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Professional is no longer active' }),
+          { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
     }
 
     // ============ FETCH TENANT SETTINGS ============
@@ -244,98 +405,119 @@ serve(async (req) => {
       )
     }
 
+    // ============ DATE/DAY CALCULATION ============
+
+    const requestedDate = new Date(date + 'T12:00:00Z')
+    const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
+    const dayOfWeek = dayNames[requestedDate.getUTCDay()]
+    const dayKeyPt = dayMappingEnToPt[dayOfWeek]
+
     // ============ COMPANY WORKING HOURS VALIDATION ============
 
-    const settings = tenant.settings as Record<string, unknown> | null
-    const requestedDate = new Date(`${date}T12:00:00${TIMEZONE_OFFSET}`)
-    const dayOfWeek = requestedDate.getUTCDay()
-    const dayName = getDayName(requestedDate)
+    const tenantSettings = (tenant as Record<string, unknown>)?.settings as Record<string, unknown> || {}
+    const companyOpenTime = (tenantSettings.openTime as string) || '09:00'
+    const companyCloseTime = (tenantSettings.closeTime as string) || '19:00'
+    const companyWorkingDays = (tenantSettings.workingDays as string[]) || ['seg', 'ter', 'qua', 'qui', 'sex', 'sab']
 
-    if (settings) {
-      const workingDays = settings.workingDays as number[] | undefined
-      if (workingDays && !workingDays.includes(dayOfWeek)) {
-        return new Response(
-          JSON.stringify({ success: false, error: 'Company is closed on this day' }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        )
-      }
+    // Check if company works on this day
+    if (!companyWorkingDays.includes(dayKeyPt)) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: `Empresa não funciona neste dia (${dayLabels[dayKeyPt] || dayOfWeek})`
+        }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
 
-      const openTime = settings.openTime as string | undefined
-      const closeTime = settings.closeTime as string | undefined
+    // Check company hours
+    const reqMinutes = timeToMinutes(time)
+    const companyOpenMins = timeToMinutes(companyOpenTime)
+    const companyCloseMins = timeToMinutes(companyCloseTime)
+    const serviceEndMinutes = reqMinutes + service.duration
 
-      if (openTime && closeTime) {
-        const requestedMinutes = timeToMinutes(time)
-        const openMinutes = timeToMinutes(openTime)
-        const closeMinutes = timeToMinutes(closeTime)
-        const endMinutes = requestedMinutes + service.duration
+    if (reqMinutes < companyOpenMins) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: `Horário ${time} é antes da abertura da empresa (${companyOpenTime})`
+        }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
 
-        if (requestedMinutes < openMinutes || endMinutes > closeMinutes) {
-          return new Response(
-            JSON.stringify({
-              success: false,
-              error: `Company operating hours are ${openTime} to ${closeTime}`
-            }),
-            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          )
-        }
-      }
+    if (serviceEndMinutes > companyCloseMins) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: `Agendamento terminaria após fechamento da empresa (${companyCloseTime}). Duração do serviço: ${service.duration} minutos`
+        }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
     }
 
     // ============ PROFESSIONAL WORKING HOURS VALIDATION ============
 
-    const normalizedHours = normalizeWorkingHours(employee.working_hours)
+    const workingHours = normalizeWorkingHours(employee.working_hours)
+    const dayHours = workingHours?.[dayOfWeek]
 
-    if (normalizedHours) {
-      const daySchedule = normalizedHours[dayName]
+    if (!dayHours || !dayHours.isOpen) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: `Profissional "${employee.name}" não trabalha neste dia (${dayLabels[dayKeyPt] || dayOfWeek})`
+        }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
 
-      if (!daySchedule || !daySchedule.isOpen) {
-        return new Response(
-          JSON.stringify({ success: false, error: 'Professional does not work on this day' }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        )
-      }
+    const openMinutes = timeToMinutes(dayHours.open)
+    const closeMinutes = timeToMinutes(dayHours.close)
 
-      const requestedMinutes = timeToMinutes(time)
-      const openMinutes = timeToMinutes(daySchedule.open)
-      const closeMinutes = timeToMinutes(daySchedule.close)
-      const endMinutes = requestedMinutes + service.duration
+    if (reqMinutes < openMinutes) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: `Horário ${time} é antes do início do expediente do profissional (${dayHours.open})`
+        }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
 
-      if (requestedMinutes < openMinutes || endMinutes > closeMinutes) {
+    if (serviceEndMinutes > closeMinutes) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: `Agendamento terminaria após fim do expediente do profissional (${dayHours.close}). Duração do serviço: ${service.duration} minutos`
+        }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // ============ BREAK VALIDATION ============
+
+    const employeeData = employee.working_hours as Record<string, unknown>
+    const breaksConfig = employeeData?.breaks as { breaks?: Array<{ start: string; end: string; label?: string }> } | undefined
+    const breaks = breaksConfig?.breaks || []
+
+    for (const breakPeriod of breaks) {
+      const breakStartMins = timeToMinutes(breakPeriod.start)
+      const breakEndMins = timeToMinutes(breakPeriod.end)
+
+      // Check overlap
+      if (reqMinutes < breakEndMins && serviceEndMinutes > breakStartMins) {
         return new Response(
           JSON.stringify({
             success: false,
-            error: `Professional works from ${daySchedule.open} to ${daySchedule.close}`
+            error: `Horário conflita com intervalo do profissional (${breakPeriod.start} - ${breakPeriod.end}${breakPeriod.label ? ': ' + breakPeriod.label : ''})`
           }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
-      }
-
-      // Check breaks
-      if (daySchedule.breaks && daySchedule.breaks.length > 0) {
-        for (const breakPeriod of daySchedule.breaks) {
-          const breakStart = timeToMinutes(breakPeriod.start)
-          const breakEnd = timeToMinutes(breakPeriod.end)
-
-          if (
-            (requestedMinutes >= breakStart && requestedMinutes < breakEnd) ||
-            (endMinutes > breakStart && endMinutes <= breakEnd) ||
-            (requestedMinutes <= breakStart && endMinutes >= breakEnd)
-          ) {
-            return new Response(
-              JSON.stringify({
-                success: false,
-                error: `Professional has a break from ${breakPeriod.start} to ${breakPeriod.end}`
-              }),
-              { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-            )
-          }
-        }
       }
     }
 
     // ============ CONFLICT CHECK ============
 
-    const newScheduledAt = `${date}T${time}:00${TIMEZONE_OFFSET}`
     const appointmentStart = new Date(newScheduledAt)
     const appointmentEnd = new Date(appointmentStart.getTime() + service.duration * 60000)
 
@@ -350,7 +532,7 @@ serve(async (req) => {
       .neq('id', appointmentId) // Exclude current appointment
       .gte('scheduled_at', dayStart)
       .lte('scheduled_at', dayEnd)
-      .not('status', 'in', '("cancelled","no_show")')
+      .in('status', ['scheduled', 'confirmed', 'in_progress'])
 
     if (conflictError) {
       console.error('Error checking conflicts:', conflictError)
@@ -366,10 +548,12 @@ serve(async (req) => {
         const existingEnd = new Date(existingStart.getTime() + existing.duration * 60000)
 
         if (appointmentStart < existingEnd && appointmentEnd > existingStart) {
+          const existingStartTime = formatTimeInSaoPaulo(existingStart.toISOString())
+          const existingEndTime = formatTimeInSaoPaulo(existingEnd.toISOString())
           return new Response(
             JSON.stringify({
               success: false,
-              error: 'Time slot conflicts with another appointment'
+              error: `Time slot conflicts with existing appointment (${existingStartTime} - ${existingEndTime})`
             }),
             { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           )
@@ -380,9 +564,14 @@ serve(async (req) => {
     // ============ UPDATE APPOINTMENT ============
 
     const previousScheduledAt = appointment.scheduled_at
+    const previousEmployeeId = appointment.employee_id
     const updateData: Record<string, unknown> = {
       scheduled_at: newScheduledAt,
       updated_at: new Date().toISOString()
+    }
+
+    if (isChangingEmployee) {
+      updateData.employee_id = employee.id
     }
 
     if (notes !== undefined) {
@@ -407,9 +596,8 @@ serve(async (req) => {
 
     // ============ SUCCESS RESPONSE ============
 
-    const endTime = new Date(appointmentStart.getTime() + service.duration * 60000)
-      .toISOString()
-      .slice(11, 16)
+    const endDateTime = new Date(appointmentStart.getTime() + service.duration * 60000)
+    const endTime = formatTimeInSaoPaulo(endDateTime.toISOString())
 
     return new Response(
       JSON.stringify({
@@ -423,6 +611,8 @@ serve(async (req) => {
           endTime,
           duration: service.duration,
           status: updatedAppointment.status,
+          professionalChanged: isChangingEmployee,
+          previousProfessionalId: isChangingEmployee ? previousEmployeeId : null,
           professional: {
             id: employee.id,
             name: employee.name
@@ -439,7 +629,9 @@ serve(async (req) => {
             price: service.price
           }
         },
-        message: 'Agendamento reagendado com sucesso'
+        message: isChangingEmployee
+          ? `Agendamento reagendado com sucesso para ${date} às ${time} com ${employee.name}`
+          : `Agendamento reagendado com sucesso para ${date} às ${time}`
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )

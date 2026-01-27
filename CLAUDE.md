@@ -1,61 +1,166 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Instruções para Claude Code (claude.ai/code) ao trabalhar com este repositório.
 
-## Project Overview
+---
 
-CindyIA is a SaaS appointment scheduling and management platform for beauty salons, targeting the Brazilian market (pt-BR UI, UTC-3 timezone). It uses a multi-tenant architecture with role-based access control (super_admin, admin, manager, employee).
+## REGRAS OBRIGATÓRIAS
 
-## Commands
+### Comandos Proibidos
+- **NUNCA** execute `npm run dev` - o servidor de desenvolvimento é gerenciado pelo usuário
+- **NUNCA** execute `npm run lint` ou `npm run build` sem autorização prévia do usuário
 
-```bash
-npm run dev          # Start dev server (Vite, port 8080)
-npm run build        # Production build
-npm run build:dev    # Development build
-npm run lint         # ESLint
-npm run preview      # Preview production build
+### Manutenção da Documentação
+- **SEMPRE** atualize os arquivos README.md das pastas ao criar ou deletar arquivos
+- Os índices devem refletir a estrutura atual do projeto em tempo real
+- Arquivos de índice que referenciam arquivos/pastas modificados devem ser atualizados
+
+### Banco de Dados
+- **SEMPRE** use o MCP Server do Supabase (supabase-cindyia) para operações de banco de dados
+- **NÃO HÁ** banco de dados rodando localmente - todas as queries devem usar o MCP
+- Use as ferramentas `mcp__supabase-cindyia__*` para: listar tabelas, executar SQL, aplicar migrations, etc.
+
+---
+
+## Visão Geral do Projeto
+
+CindyIA é uma plataforma SaaS de agendamento para salões de beleza, focada no mercado brasileiro (UI pt-BR, timezone UTC-3). Usa arquitetura multi-tenant com controle de acesso por roles (super_admin, admin, manager, employee).
+
+---
+
+## Estrutura de Diretórios
+
+```
+cindyia/
+├── src/                    # Código-fonte React (ver src/README.md)
+│   ├── components/         # Componentes React (ver src/components/README.md)
+│   ├── hooks/              # Custom hooks (ver src/hooks/README.md)
+│   ├── pages/              # Páginas/Rotas (ver src/pages/README.md)
+│   ├── integrations/       # Integrações externas
+│   ├── lib/                # Utilitários
+│   ├── types/              # Type definitions
+│   └── utils/              # Utilidades gerais
+├── supabase/               # Backend Supabase (ver supabase/README.md)
+│   ├── functions/          # Edge Functions (ver supabase/functions/README.md)
+│   └── migrations/         # Database migrations
+├── public/                 # Assets estáticos
+└── docs/                   # Documentação adicional
 ```
 
-## Architecture
+---
 
-**Frontend:** React 18 + TypeScript + Vite + Tailwind CSS + Shadcn/UI
+## Navegação Rápida por Arquivo
 
-**Backend:** Supabase (PostgreSQL + Auth + Edge Functions in Deno)
+### Quando precisar modificar...
 
-**State Management:**
-- Server state: TanStack React Query (via custom hooks in `src/hooks/`)
-- Client state: Zustand
+| Funcionalidade | Arquivo(s) |
+|----------------|------------|
+| Rotas da aplicação | `src/App.tsx` |
+| Layout principal | `src/components/layout/MainLayout.tsx` |
+| Autenticação | `src/hooks/useAuth.tsx` |
+| Agendamentos | `src/hooks/useAppointments.ts`, `src/pages/Agendamentos.tsx` |
+| Clientes | `src/hooks/useClients.ts`, `src/pages/Clientes.tsx` |
+| Funcionários | `src/hooks/useEmployees.ts`, `src/pages/Funcionarios.tsx` |
+| Serviços | `src/hooks/useServices.ts`, `src/pages/Servicos.tsx` |
+| Dashboard | `src/pages/Dashboard.tsx`, `src/components/dashboard/*` |
+| Financeiro | `src/hooks/useFinancialEntries.ts`, `src/pages/Financeiro.tsx` |
+| Configurações | `src/hooks/useTenantSettings.ts`, `src/pages/Configuracoes.tsx` |
+| Componentes UI base | `src/components/ui/*` |
+| Edge Functions | `supabase/functions/*/index.ts` |
+| Schema do banco | `supabase/migrations/*.sql` |
+| Types do Supabase | `src/integrations/supabase/types.ts` |
+| Utilitários de data/hora | `src/lib/utils.ts` |
 
-**Routing:** React Router DOM with role-based route protection in `src/App.tsx`
+---
 
-### Key Directories
+## Comandos Disponíveis
 
-- `src/pages/` — Page components matching routes (Dashboard, Agenda, Agendamentos, Clientes, etc.)
-- `src/components/ui/` — Shadcn/UI base components (configured via `components.json`)
-- `src/components/` — Feature-specific components grouped by domain (leads/, employees/, dashboard/, etc.)
-- `src/hooks/` — Custom hooks wrapping Supabase queries with React Query (useAppointments, useClients, useServices, etc.)
-- `src/integrations/supabase/` — Supabase client initialization and auto-generated types
-- `supabase/functions/` — Edge Functions (Deno runtime) for backend logic (create-appointment, evolution-api, etc.)
+```bash
+npm run dev          # Iniciar servidor dev (porta 8080) - NÃO EXECUTAR
+npm run build        # Build de produção - REQUER AUTORIZAÇÃO
+npm run build:dev    # Build de desenvolvimento
+npm run lint         # ESLint - REQUER AUTORIZAÇÃO
+npm run preview      # Preview do build
+```
 
-### Patterns
+---
 
-- **Path alias:** `@/*` maps to `src/*`
-- **Data fetching:** Custom hooks use `useQuery`/`useMutation` from React Query wrapping Supabase client calls
-- **Forms:** React Hook Form + Zod for validation
-- **Theming:** CSS variables with HSL colors, dark mode via `next-themes` class strategy
-- **Multi-tenancy:** All database records are scoped by `tenant_id`
-- **Auth context:** `src/hooks/useAuth.tsx` provides AuthProvider wrapping Supabase Auth
-- **Notifications:** Sonner toast library
-- **WhatsApp integration:** Evolution API connected via Supabase Edge Functions
+## Arquitetura
 
-### TypeScript Configuration
+### Stack
 
-The project uses a loose TypeScript config (no strict mode, allows implicit any). Path resolution uses bundler module resolution targeting ES2020.
+| Camada | Tecnologia |
+|--------|------------|
+| Frontend | React 18 + TypeScript + Vite |
+| UI | Tailwind CSS + Shadcn/UI |
+| State (Server) | TanStack React Query |
+| State (Client) | Zustand |
+| Backend | Supabase (PostgreSQL + Auth + Edge Functions) |
+| Routing | React Router DOM |
 
-### Supabase Edge Functions
+### Padrões
 
-Located in `supabase/functions/`. Each function is a directory with an `index.ts` entry point running on Deno. Most functions have JWT verification disabled in `supabase/config.toml`.
+| Padrão | Implementação |
+|--------|---------------|
+| Path alias | `@/*` → `src/*` |
+| Data fetching | React Query via hooks em `src/hooks/` |
+| Forms | React Hook Form + Zod |
+| Multi-tenancy | Filtro por `tenant_id` em todas as queries |
+| Autenticação | Supabase Auth via `useAuth.tsx` |
+| Notificações | Sonner toast |
+| Tema | next-themes (light/dark) |
 
-## Timezone Handling
+### Fluxo de Dados
 
-The app operates in UTC-3 (Brazilian timezone). When working with dates/times for appointments and schedules, ensure proper timezone conversion.
+```
+Componente (pages/*)
+    → Hook (hooks/use*)
+    → Supabase Client
+    → PostgreSQL / Edge Functions
+```
+
+---
+
+## Timezone
+
+A aplicação opera em **UTC-3 (São Paulo)**.
+
+Helpers disponíveis em `src/lib/utils.ts`:
+- `toSaoPauloDateTime()` - Converter para horário SP
+- `createSaoPauloDate()` - Criar data em SP
+- `getTimeInSaoPaulo()` - Obter hora atual em SP
+- `formatTimeInSaoPaulo()` - Formatar hora
+- `getDayOfWeekInSaoPaulo()` - Dia da semana
+- `getDateInSaoPaulo()` - Data formatada
+- `isSameDayInSaoPaulo()` - Comparar datas
+- `getTodayInSaoPaulo()` - Data de hoje
+
+---
+
+## TypeScript
+
+Configuração loose (sem strict mode, permite implicit any). Módulos ES2020 com bundler resolution.
+
+---
+
+## Roles e Permissões
+
+| Role | Acesso |
+|------|--------|
+| super_admin | Todas as rotas + `/admin/*` |
+| admin | Rotas do tenant + configurações |
+| manager | Rotas operacionais do tenant |
+| employee | Acesso limitado (agenda, clientes) |
+
+---
+
+## Índices de Documentação
+
+Para navegação detalhada, consulte os README.md em cada pasta:
+
+- [src/README.md](src/README.md) - Código-fonte principal
+- [src/components/README.md](src/components/README.md) - Componentes
+- [src/hooks/README.md](src/hooks/README.md) - Custom hooks
+- [src/pages/README.md](src/pages/README.md) - Páginas
+- [supabase/README.md](supabase/README.md) - Backend
+- [supabase/functions/README.md](supabase/functions/README.md) - Edge Functions

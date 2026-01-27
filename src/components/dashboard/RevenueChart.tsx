@@ -1,17 +1,11 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
-const data = [
-  { name: 'Seg', receita: 520 },
-  { name: 'Ter', receita: 480 },
-  { name: 'Qua', receita: 620 },
-  { name: 'Qui', receita: 550 },
-  { name: 'Sex', receita: 780 },
-  { name: 'Sáb', receita: 990 },
-  { name: 'Dom', receita: 0 },
-];
+interface RevenueChartProps {
+  data: { name: string; receita: number }[];
+}
 
-export function RevenueChart() {
+export function RevenueChart({ data }: RevenueChartProps) {
   return (
     <Card className="animate-slide-up">
       <CardHeader className="pb-2">

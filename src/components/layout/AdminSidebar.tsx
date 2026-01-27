@@ -9,6 +9,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Sparkles,
+  Bell,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -22,6 +23,7 @@ interface SidebarItem {
 const menuItems: SidebarItem[] = [
   { label: 'Dashboard', icon: LayoutDashboard, href: '/admin' },
   { label: 'Empresas', icon: Building2, href: '/admin/empresas' },
+  { label: 'Notificações', icon: Bell, href: '/admin/notificacoes' },
   { label: 'Endpoints', icon: Server, href: '/admin/endpoints' },
   { label: 'Configurações', icon: Shield, href: '/admin/configuracoes' },
 ];

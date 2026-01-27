@@ -69,6 +69,20 @@ const Dashboard = () => {
       .sort((a, b) => b.count - a.count)
       .slice(0, 4);
 
+    // Calculate weekly revenue by day for chart
+    const dayNames = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+    const weeklyRevenueByDay = dayNames.map((name, dayIndex) => {
+      const dayRevenue = financialEntries
+        .filter(e => {
+          const date = new Date(e.date);
+          return date >= startOfWeek &&
+                 date.getDay() === dayIndex &&
+                 e.type === 'income';
+        })
+        .reduce((sum, e) => sum + Number(e.amount), 0);
+      return { name, receita: dayRevenue };
+    });
+
     return {
       todayAppointments: todayAppointments.length,
       pendingAppointments: pendingAppointments.length,
@@ -77,6 +91,7 @@ const Dashboard = () => {
       weeklyRevenue,
       monthlyRevenue,
       topServices,
+      weeklyRevenueByDay,
     };
   }, [appointments, financialEntries]);
 
@@ -209,7 +224,7 @@ const Dashboard = () => {
 
         {/* Charts Row */}
         <div className="grid gap-6 lg:grid-cols-2">
-          <RevenueChart />
+          <RevenueChart data={stats.weeklyRevenueByDay} />
           <TopServicesChart data={stats.topServices} />
         </div>
       </div>

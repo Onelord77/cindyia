@@ -67,7 +67,8 @@ Deno.serve(async (req) => {
       .single();
 
     const body: CreateUserRequest = await req.json();
-    let { email, password, fullName, tenantId, role, phone } = body;
+    const { email: rawEmail, password, fullName, tenantId, role, phone } = body;
+    let email = rawEmail;
 
     // Validate required fields
     if (!password || !fullName || !tenantId || !role) {

@@ -18,16 +18,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Search, Server, Loader2, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { StatsCard } from '@/components/dashboard/StatsCard';
+import { EndpointDetailsDialog } from '@/components/integrations/EndpointDetailsDialog';
 import type { SystemEndpoint } from '@/hooks/useSystemEndpoints';
 
 const methodColors: Record<string, string> = {
@@ -109,7 +104,7 @@ const AdminEndpoints = () => {
                   className="pl-10"
                 />
               </div>
-              <Select value={methodFilter} onValueChange={(v) => setMethodFilter(v as any)}>
+              <Select value={methodFilter} onValueChange={(v) => setMethodFilter(v as 'all' | 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH')}>
                 <SelectTrigger className="w-full sm:w-[130px]">
                   <SelectValue placeholder="Método" />
                 </SelectTrigger>
@@ -202,52 +197,11 @@ const AdminEndpoints = () => {
         </Card>
 
         {/* Detail Dialog */}
-        <Dialog open={!!selectedEndpoint} onOpenChange={() => setSelectedEndpoint(null)}>
-          <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <Badge variant="outline" className={methodColors[selectedEndpoint?.method || ''] || ''}>
-                  {selectedEndpoint?.method}
-                </Badge>
-                {selectedEndpoint?.display_name}
-              </DialogTitle>
-            </DialogHeader>
-            {selectedEndpoint && (
-              <div className="space-y-4">
-                <div>
-                  <p className="text-sm text-muted-foreground">{selectedEndpoint.description}</p>
-                  <p className="font-mono text-sm mt-1 bg-muted p-2 rounded">
-                    {selectedEndpoint.url_path}
-                  </p>
-                </div>
-
-                {selectedEndpoint.expected_params && (
-                  <div>
-                    <h4 className="font-medium mb-2">Parâmetros Esperados</h4>
-                    <pre className="bg-muted p-3 rounded text-xs overflow-x-auto">
-                      {JSON.stringify(selectedEndpoint.expected_params, null, 2)}
-                    </pre>
-                  </div>
-                )}
-
-                {selectedEndpoint.response_example && (
-                  <div>
-                    <h4 className="font-medium mb-2">Exemplo de Resposta</h4>
-                    <pre className="bg-muted p-3 rounded text-xs overflow-x-auto">
-                      {JSON.stringify(selectedEndpoint.response_example, null, 2)}
-                    </pre>
-                  </div>
-                )}
-
-                <div className="flex gap-4 text-sm text-muted-foreground">
-                  <span>Tipo: {selectedEndpoint.type}</span>
-                  <span>Categoria: {selectedEndpoint.category}</span>
-                  <span>Auth: {selectedEndpoint.requires_auth ? 'Sim' : 'Não'}</span>
-                </div>
-              </div>
-            )}
-          </DialogContent>
-        </Dialog>
+        <EndpointDetailsDialog
+          endpoint={selectedEndpoint}
+          open={!!selectedEndpoint}
+          onOpenChange={() => setSelectedEndpoint(null)}
+        />
       </div>
     </AdminLayout>
   );

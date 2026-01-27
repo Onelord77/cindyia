@@ -1,27 +1,24 @@
-project_id = "pyqkcfgkwdisabklrxfl"
+project_id = "thdwtvjbbdclgddjiedz"
 
-[functions.lead-broadcast]
-verify_jwt = false
-
-[functions.evolution-api]
-verify_jwt = false
+# ===========================================
+# FUNÇÕES INTERNAS (requerem JWT do Supabase)
+# ===========================================
 
 [functions.create-user]
-verify_jwt = false
+verify_jwt = true
 
 [functions.delete-user]
-verify_jwt = false
+verify_jwt = true
 
-[functions.client-lookup]
-verify_jwt = false
+[functions.whatsapp-api]
+verify_jwt = true
+
+# ===========================================
+# API PÚBLICA (autenticação via x-agent-key)
+# Endpoints expostos para integração n8n
+# ===========================================
 
 [functions.available-professionals]
-verify_jwt = false
-
-[functions.client-identify]
-verify_jwt = false
-
-[functions.services]
 verify_jwt = false
 
 [functions.establishment-info]
@@ -34,4 +31,10 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.cancel-appointment]
+verify_jwt = false
+
+[functions.client-appointments]
+verify_jwt = false
+
+[functions.availability-summary]
 verify_jwt = false

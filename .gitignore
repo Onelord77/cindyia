@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# n8n workflows and prompts (internal)
+n8n/

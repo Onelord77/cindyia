@@ -1,9 +1,90 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { crypto } from "https://deno.land/std@0.168.0/crypto/mod.ts"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-agent-key',
+}
+
+const TIMEZONE_OFFSET = '-03:00' // America/Sao_Paulo (UTC-3)
+
+// ============ AUTH FUNCTIONS ============
+
+// Gera hash SHA-256 da chave
+async function hashKey(key: string): Promise<string> {
+  const encoder = new TextEncoder()
+  const data = encoder.encode(key)
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data)
+  const hashArray = Array.from(new Uint8Array(hashBuffer))
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
+}
+
+// Valida a chave de API do agente
+async function validateAgentKey(supabase: ReturnType<typeof createClient>, apiKey: string, tenantId: string): Promise<{ valid: boolean; error?: string }> {
+  if (!apiKey) {
+    return { valid: false, error: 'Missing x-agent-key header' }
+  }
+
+  const keyHash = await hashKey(apiKey)
+
+  const { data: keyRecord, error } = await supabase
+    .from('agent_api_keys')
+    .select('id, tenant_id, is_active, expires_at')
+    .eq('key_hash', keyHash)
+    .single()
+
+  if (error || !keyRecord) {
+    return { valid: false, error: 'Invalid API key' }
+  }
+
+  if (keyRecord.tenant_id !== null && keyRecord.tenant_id !== tenantId) {
+    return { valid: false, error: 'API key not authorized for this tenant' }
+  }
+
+  if (!keyRecord.is_active) {
+    return { valid: false, error: 'API key is inactive' }
+  }
+
+  if (keyRecord.expires_at && new Date(keyRecord.expires_at) < new Date()) {
+    return { valid: false, error: 'API key has expired' }
+  }
+
+  // Atualiza last_used_at em background
+  supabase
+    .from('agent_api_keys')
+    .update({ last_used_at: new Date().toISOString() })
+    .eq('id', keyRecord.id)
+    .then(() => {})
+
+  return { valid: true }
+}
+
+// Parse ISO datetime string and extract date and time in São Paulo timezone
+function parseDateTimeParam(dateTimeStr: string): { date: string; time: string } | null {
+  try {
+    // Parse the ISO string
+    const parsedDate = new Date(dateTimeStr)
+    if (isNaN(parsedDate.getTime())) {
+      return null
+    }
+
+    // Convert to São Paulo time (UTC-3)
+    const utcTime = parsedDate.getTime()
+    const spTime = new Date(utcTime - 3 * 60 * 60 * 1000)
+
+    // Extract date (YYYY-MM-DD)
+    const date = spTime.toISOString().split('T')[0]
+
+    // Extract time (HH:MM) from the original parsed date adjusted to SP
+    const hours = spTime.getUTCHours().toString().padStart(2, '0')
+    const minutes = spTime.getUTCMinutes().toString().padStart(2, '0')
+    const time = `${hours}:${minutes}`
+
+    return { date, time }
+  } catch {
+    return null
+  }
 }
 
 interface TimeSlot {
@@ -82,9 +163,7 @@ serve(async (req) => {
 
     // Parse query params
     const url = new URL(req.url)
-    const date = url.searchParams.get('date')
-    const startTime = url.searchParams.get('start')
-    const endTime = url.searchParams.get('end')
+    const dateTimeParam = url.searchParams.get('dateTime')
     const serviceId = url.searchParams.get('serviceId')
     const tenantId = url.searchParams.get('tenantId')
 
@@ -96,21 +175,36 @@ serve(async (req) => {
       )
     }
 
-    if (!date) {
+    // ============ API KEY VALIDATION ============
+
+    const agentKey = req.headers.get('x-agent-key')
+    const keyValidation = await validateAgentKey(supabase, agentKey || '', tenantId)
+    if (!keyValidation.valid) {
       return new Response(
-        JSON.stringify({ error: 'Parameter "date" is required (YYYY-MM-DD)' }),
+        JSON.stringify({ success: false, error: 'unauthorized', message: keyValidation.error }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    if (!dateTimeParam) {
+      return new Response(
+        JSON.stringify({ error: 'Parameter "dateTime" is required (ISO 8601 format, e.g., 2026-01-26T13:38:14.085-03:00)' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    // Validate date format
-    const dateRegex = /^\d{4}-\d{2}-\d{2}$/
-    if (!dateRegex.test(date)) {
+    // Parse dateTime parameter
+    const parsedDateTime = parseDateTimeParam(dateTimeParam)
+    if (!parsedDateTime) {
       return new Response(
-        JSON.stringify({ error: 'Invalid date format. Use YYYY-MM-DD' }),
+        JSON.stringify({ error: 'Invalid dateTime format. Use ISO 8601 format (e.g., 2026-01-26T13:38:14.085-03:00)' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
+
+    const { date, time: startTime } = parsedDateTime
+    // No end time filter - show all available slots from the given time onwards
+    const endTime: string | null = null
 
     // Build employees query
     let employeesQuery = supabase
@@ -132,7 +226,7 @@ serve(async (req) => {
 
     if (!employees || employees.length === 0) {
       return new Response(
-        JSON.stringify({ date, available: [] }),
+        JSON.stringify({ date, requestedTime: startTime, available: [] }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
@@ -161,7 +255,7 @@ serve(async (req) => {
 
     if (eligibleEmployees.length === 0) {
       return new Response(
-        JSON.stringify({ date, available: [] }),
+        JSON.stringify({ date, requestedTime: startTime, available: [] }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
@@ -171,9 +265,9 @@ serve(async (req) => {
     const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
     const dayOfWeek = dayNames[requestedDate.getUTCDay()]
 
-    // Get start and end of day for appointments query
-    const dayStart = `${date}T00:00:00`
-    const dayEnd = `${date}T23:59:59`
+    // Get start and end of day for appointments query (São Paulo timezone)
+    const dayStart = `${date}T00:00:00${TIMEZONE_OFFSET}`
+    const dayEnd = `${date}T23:59:59${TIMEZONE_OFFSET}`
 
     // Fetch appointments for the date
     let appointmentsQuery = supabase
@@ -221,11 +315,22 @@ serve(async (req) => {
       appointmentsByEmployee[apt.employee_id].push({ start: aptStart, end: aptEnd })
     }
 
-    // Helper function to format time as HH:MM
-    const formatTime = (d: Date): string => {
-      const hours = d.getHours().toString().padStart(2, '0')
-      const minutes = d.getMinutes().toString().padStart(2, '0')
+    // Helper function to format time as HH:MM in São Paulo timezone (UTC-3)
+    const formatTimeInSaoPaulo = (d: Date): string => {
+      // Ajustar UTC para São Paulo (UTC-3)
+      const spTime = new Date(d.getTime() - 3 * 60 * 60 * 1000)
+      const hours = spTime.getUTCHours().toString().padStart(2, '0')
+      const minutes = spTime.getUTCMinutes().toString().padStart(2, '0')
       return `${hours}:${minutes}`
+    }
+
+    // Helper function to create a Date object for a given date and time in São Paulo timezone
+    // Input: date "YYYY-MM-DD", time "HH:MM" (São Paulo local time)
+    // Output: Date object representing that moment in UTC
+    const createSaoPauloDateTime = (dateStr: string, timeStr: string): Date => {
+      // Create ISO string with São Paulo offset
+      const isoString = `${dateStr}T${timeStr}:00-03:00`
+      return new Date(isoString)
     }
 
     // Calculate available time ranges for each employee
@@ -265,15 +370,9 @@ serve(async (req) => {
 
       const employeeAppointments = appointmentsByEmployee[employee.id] || []
 
-      // Parse work times
-      const [workStartHour, workStartMin] = workStart.split(':').map(Number)
-      const [workEndHour, workEndMin] = workEnd.split(':').map(Number)
-
-      const workDayStart = new Date(date + 'T00:00:00')
-      workDayStart.setHours(workStartHour, workStartMin, 0, 0)
-
-      const workDayEnd = new Date(date + 'T00:00:00')
-      workDayEnd.setHours(workEndHour, workEndMin, 0, 0)
+      // Create work day boundaries using São Paulo timezone
+      const workDayStart = createSaoPauloDateTime(date, workStart)
+      const workDayEnd = createSaoPauloDateTime(date, workEnd)
 
       // Sort appointments by start time
       const sortedAppointments = [...employeeAppointments].sort((a, b) => a.start.getTime() - b.start.getTime())
@@ -283,18 +382,12 @@ serve(async (req) => {
       const breaksConfig = employeeData?.breaks as { breaks?: Array<{ start: string; end: string; label?: string }> } | undefined
       const breaks = breaksConfig?.breaks || []
 
-      // Convert breaks to time ranges for the day
+      // Convert breaks to time ranges for the day (using São Paulo timezone)
       const breakRanges: Array<{ start: Date; end: Date }> = []
       for (const breakPeriod of breaks) {
-        const [breakStartH, breakStartM] = breakPeriod.start.split(':').map(Number)
-        const [breakEndH, breakEndM] = breakPeriod.end.split(':').map(Number)
-        
-        const breakStart = new Date(date + 'T00:00:00')
-        breakStart.setHours(breakStartH, breakStartM, 0, 0)
-        
-        const breakEnd = new Date(date + 'T00:00:00')
-        breakEnd.setHours(breakEndH, breakEndM, 0, 0)
-        
+        const breakStart = createSaoPauloDateTime(date, breakPeriod.start)
+        const breakEnd = createSaoPauloDateTime(date, breakPeriod.end)
+
         // Only include breaks within working hours
         if (breakEnd > workDayStart && breakStart < workDayEnd) {
           breakRanges.push({
@@ -315,8 +408,8 @@ serve(async (req) => {
           const rangeStart = occupied.start < workDayStart ? workDayStart : occupied.start
           const rangeEnd = occupied.end > workDayEnd ? workDayEnd : occupied.end
           occupiedRanges.push({
-            start: formatTime(rangeStart),
-            end: formatTime(rangeEnd)
+            start: formatTimeInSaoPaulo(rangeStart),
+            end: formatTimeInSaoPaulo(rangeEnd)
           })
         }
       }
@@ -334,8 +427,8 @@ serve(async (req) => {
             const gapMinutes = (gapEnd.getTime() - currentStart.getTime()) / 60000
             if (gapMinutes >= serviceDuration) {
               availableRanges.push({
-                start: formatTime(currentStart),
-                end: formatTime(gapEnd)
+                start: formatTimeInSaoPaulo(currentStart),
+                end: formatTimeInSaoPaulo(gapEnd)
               })
             }
           }
@@ -351,8 +444,8 @@ serve(async (req) => {
         const gapMinutes = (workDayEnd.getTime() - currentStart.getTime()) / 60000
         if (gapMinutes >= serviceDuration) {
           availableRanges.push({
-            start: formatTime(currentStart),
-            end: formatTime(workDayEnd)
+            start: formatTimeInSaoPaulo(currentStart),
+            end: formatTimeInSaoPaulo(workDayEnd)
           })
         }
       }
@@ -371,7 +464,11 @@ serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({ date, available }),
+      JSON.stringify({
+        date,
+        requestedTime: startTime,
+        available
+      }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
 

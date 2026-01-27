@@ -1,10 +1,62 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { crypto } from "https://deno.land/std@0.190.0/crypto/mod.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-agent-key',
 };
+
+// ============ AUTH FUNCTIONS ============
+
+// Gera hash SHA-256 da chave
+async function hashKey(key: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(key);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+// Valida a chave de API do agente
+async function validateAgentKey(supabase: ReturnType<typeof createClient>, apiKey: string, tenantId: string): Promise<{ valid: boolean; error?: string }> {
+  if (!apiKey) {
+    return { valid: false, error: 'Missing x-agent-key header' };
+  }
+
+  const keyHash = await hashKey(apiKey);
+
+  const { data: keyRecord, error } = await supabase
+    .from('agent_api_keys')
+    .select('id, tenant_id, is_active, expires_at')
+    .eq('key_hash', keyHash)
+    .single();
+
+  if (error || !keyRecord) {
+    return { valid: false, error: 'Invalid API key' };
+  }
+
+  if (keyRecord.tenant_id !== null && keyRecord.tenant_id !== tenantId) {
+    return { valid: false, error: 'API key not authorized for this tenant' };
+  }
+
+  if (!keyRecord.is_active) {
+    return { valid: false, error: 'API key is inactive' };
+  }
+
+  if (keyRecord.expires_at && new Date(keyRecord.expires_at) < new Date()) {
+    return { valid: false, error: 'API key has expired' };
+  }
+
+  // Atualiza last_used_at em background
+  supabase
+    .from('agent_api_keys')
+    .update({ last_used_at: new Date().toISOString() })
+    .eq('id', keyRecord.id)
+    .then(() => {});
+
+  return { valid: true };
+}
 
 // Working hours type
 type DayHours = { open: string | null; close: string | null; isOpen: boolean };
@@ -95,6 +147,17 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // ============ API KEY VALIDATION ============
+
+    const agentKey = req.headers.get('x-agent-key');
+    const keyValidation = await validateAgentKey(supabase, agentKey || '', tenantId);
+    if (!keyValidation.valid) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'unauthorized', message: keyValidation.error }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     // Fetch tenant data
     const { data: tenant, error: tenantError } = await supabase
@@ -212,6 +275,55 @@ serve(async (req) => {
       if (!latestClose) latestClose = fallbackHours.latestClose;
     }
 
+    // Fetch services for this tenant
+    // Optional filters from query params
+    const activeParam = url.searchParams.get('active');
+    const category = url.searchParams.get('category');
+    const q = url.searchParams.get('q');
+
+    // Build services query
+    let servicesQuery = supabase
+      .from('services')
+      .select('id, name, duration, price, category, is_active')
+      .eq('tenant_id', tenantId);
+
+    // Filter by active status (default: true - only active services)
+    const filterActive = activeParam !== 'false';
+    if (filterActive) {
+      servicesQuery = servicesQuery.eq('is_active', true);
+    }
+
+    // Filter by category if provided
+    if (category) {
+      servicesQuery = servicesQuery.eq('category', category);
+    }
+
+    // Filter by name (search) if provided
+    if (q) {
+      servicesQuery = servicesQuery.ilike('name', `%${q}%`);
+    }
+
+    // Order by category and name
+    servicesQuery = servicesQuery.order('category', { ascending: true, nullsFirst: false })
+                                 .order('name', { ascending: true });
+
+    const { data: servicesData, error: servicesError } = await servicesQuery;
+
+    if (servicesError) {
+      console.error('Error fetching services:', servicesError);
+      // Don't fail the whole request, just return empty services
+    }
+
+    // Map services to response format
+    const services = (servicesData || []).map(service => ({
+      id: service.id,
+      name: service.name,
+      durationMin: service.duration,
+      price: Number(service.price),
+      category: service.category,
+      isActive: service.is_active
+    }));
+
     // Build response (excluding sensitive data)
     const response = {
       tenantId: tenant.id,
@@ -224,13 +336,14 @@ serve(async (req) => {
       latestClose,
       workingHours,
       policies,
+      services,
     };
 
     return new Response(
       JSON.stringify(response),
-      { 
-        status: 200, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       }
     );
 

@@ -1,6 +1,14 @@
 import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
 
-export type NotificationType = 'instance_disconnected' | 'appointment_created' | 'appointment_rescheduled' | 'appointment_cancelled';
+export type NotificationType =
+  | 'instance_disconnected'
+  | 'appointment_created'
+  | 'appointment_rescheduled'
+  | 'appointment_cancelled'
+  | 'info'
+  | 'warning'
+  | 'success'
+  | 'error';
 
 export interface Notification {
   id: string;

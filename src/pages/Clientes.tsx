@@ -42,7 +42,14 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { useClients, type ClientStatusFilter } from '@/hooks/useClients';
-import { phoneToWhatsAppLink, formatPhone } from '@/lib/utils';
+import { phoneToWhatsAppLink, formatPhone, formatPhoneMask, unmaskPhone, extractNationalNumber, extractDDI } from '@/lib/utils';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { toast } from 'sonner';
 
 const Clientes = () => {
@@ -57,6 +64,7 @@ const Clientes = () => {
 
   const [formData, setFormData] = useState({
     name: '',
+    ddi: '55',
     phone: '',
     email: '',
     notes: '',
@@ -91,7 +99,7 @@ const Clientes = () => {
   }, [allClients]);
 
   const resetForm = () => {
-    setFormData({ name: '', phone: '', email: '', notes: '' });
+    setFormData({ name: '', ddi: '55', phone: '', email: '', notes: '' });
     setEditingClient(null);
   };
 
@@ -104,7 +112,8 @@ const Clientes = () => {
     setEditingClient(client);
     setFormData({
       name: client.name || '',
-      phone: client.phone || '',
+      ddi: client.phone ? extractDDI(client.phone) : '55',
+      phone: client.phone ? formatPhoneMask(extractNationalNumber(client.phone)) : '',
       email: client.email || '',
       notes: client.notes || '',
     });
@@ -117,18 +126,21 @@ const Clientes = () => {
       return;
     }
 
+    // Remove mask from phone and add DDI before saving
+    const phoneWithDDI = unmaskPhone(formData.phone, formData.ddi);
+
     if (editingClient) {
       await updateClient.mutateAsync({
         id: editingClient.id,
         name: formData.name,
-        phone: formData.phone,
+        phone: phoneWithDDI,
         email: formData.email || null,
         notes: formData.notes || null,
       });
     } else {
       await addClient.mutateAsync({
         name: formData.name,
-        phone: formData.phone,
+        phone: phoneWithDDI,
         email: formData.email || null,
         notes: formData.notes || null,
       });
@@ -405,12 +417,35 @@ const Clientes = () => {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="phone">Telefone (WhatsApp) *</Label>
-                <Input 
-                  id="phone" 
-                  placeholder="(11) 99999-9999"
-                  value={formData.phone}
-                  onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
-                />
+                <div className="flex gap-2">
+                  <Select
+                    value={formData.ddi}
+                    onValueChange={(value) => setFormData(prev => ({ ...prev, ddi: value }))}
+                  >
+                    <SelectTrigger className="w-24">
+                      <SelectValue placeholder="DDI" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="55">+55</SelectItem>
+                      <SelectItem value="1">+1</SelectItem>
+                      <SelectItem value="351">+351</SelectItem>
+                      <SelectItem value="34">+34</SelectItem>
+                      <SelectItem value="33">+33</SelectItem>
+                      <SelectItem value="44">+44</SelectItem>
+                      <SelectItem value="49">+49</SelectItem>
+                      <SelectItem value="39">+39</SelectItem>
+                      <SelectItem value="81">+81</SelectItem>
+                      <SelectItem value="86">+86</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Input
+                    id="phone"
+                    placeholder="(85) 99766-7750"
+                    value={formData.phone}
+                    onChange={(e) => setFormData(prev => ({ ...prev, phone: formatPhoneMask(e.target.value) }))}
+                    className="flex-1"
+                  />
+                </div>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="email">E-mail (opcional)</Label>

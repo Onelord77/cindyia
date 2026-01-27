@@ -20,7 +20,11 @@
       "mcp__supabase-cindyia__list_edge_functions",
       "mcp__supabase-cindyia__get_logs",
       "Bash(dir:*)",
-      "Bash(findstr:*)"
+      "Bash(findstr:*)",
+      "mcp__supabase-cindyia__list_organizations",
+      "mcp__supabase-cindyia__get_organization",
+      "mcp__supabase-cindyia__search_docs",
+      "Bash(npm run lint)"
     ]
   }
 }
