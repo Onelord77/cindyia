@@ -28,26 +28,41 @@ const menuItems: SidebarItem[] = [
   { label: 'Configurações', icon: Shield, href: '/admin/configuracoes' },
 ];
 
-export function AdminSidebar() {
+interface AdminSidebarProps {
+  mobile?: boolean;
+  onNavigate?: () => void;
+}
+
+export function AdminSidebar({ mobile, onNavigate }: AdminSidebarProps = {}) {
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
+
+  const handleNavClick = () => {
+    if (mobile && onNavigate) {
+      onNavigate();
+    }
+  };
+
+  // Em mobile, nunca fica colapsada
+  const isCollapsed = mobile ? false : collapsed;
 
   return (
     <aside
       className={cn(
-        'fixed left-0 top-0 z-40 h-screen bg-sidebar transition-all duration-300 ease-in-out',
-        collapsed ? 'w-[70px]' : 'w-[260px]'
+        'h-screen bg-sidebar transition-all duration-300 ease-in-out',
+        mobile ? 'w-full' : 'fixed left-0 top-0 z-40',
+        !mobile && (isCollapsed ? 'w-[70px]' : 'w-[260px]')
       )}
     >
       {/* Logo */}
       <div className="flex h-16 items-center justify-between border-b border-sidebar-border px-4">
-        <div className={cn('flex items-center gap-2 overflow-hidden', collapsed && 'justify-center')}>
+        <div className={cn('flex items-center gap-2 overflow-hidden', isCollapsed && !mobile && 'justify-center')}>
           <img
             src="/assets/images/logo.png"
             alt="Cindy IA"
             className="h-9 w-9 rounded-lg object-cover"
           />
-          {!collapsed && (
+          {!isCollapsed && (
             <div className="flex flex-col">
               <span className="text-lg font-bold text-sidebar-foreground">
                 Cindy <span className="text-sidebar-primary">IA</span>
@@ -58,14 +73,16 @@ export function AdminSidebar() {
             </div>
           )}
         </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => setCollapsed(!collapsed)}
-          className="h-8 w-8 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-        >
-          {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
-        </Button>
+        {!mobile && (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setCollapsed(!collapsed)}
+            className="h-8 w-8 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+          >
+            {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+          </Button>
+        )}
       </div>
 
       {/* Navigation */}
@@ -79,16 +96,17 @@ export function AdminSidebar() {
               <NavLink
                 key={item.href}
                 to={item.href}
+                onClick={handleNavClick}
                 className={cn(
-                  'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200',
+                  'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200 min-h-[44px]',
                   isActive
                     ? 'bg-sidebar-primary text-sidebar-primary-foreground shadow-glow'
                     : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
-                  collapsed && 'justify-center px-2'
+                  isCollapsed && !mobile && 'justify-center px-2'
                 )}
               >
                 <Icon className={cn('h-5 w-5 flex-shrink-0', isActive && 'animate-scale-in')} />
-                {!collapsed && <span className="truncate">{item.label}</span>}
+                {!isCollapsed && <span className="truncate">{item.label}</span>}
               </NavLink>
             );
           })}
@@ -96,7 +114,7 @@ export function AdminSidebar() {
       </ScrollArea>
 
       {/* Footer */}
-      {!collapsed && (
+      {!isCollapsed && (
         <div className="absolute bottom-4 left-4 right-4">
           <div className="rounded-lg bg-sidebar-accent p-3">
             <p className="text-xs text-sidebar-foreground/70">

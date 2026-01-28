@@ -85,14 +85,14 @@ const AdminEndpoints = () => {
     <AdminLayout>
       <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Endpoints do Sistema</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Endpoints do Sistema</h1>
+          <p className="text-sm text-muted-foreground">
             Catálogo de endpoints e Edge Functions da plataforma
           </p>
         </div>
 
         {/* Stats */}
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-3">
           <StatsCard
             title="Total de Endpoints"
             value={stats.total}
@@ -159,7 +159,7 @@ const AdminEndpoints = () => {
           <CardHeader>
             <CardTitle className="text-lg">Endpoints ({endpoints.length})</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>

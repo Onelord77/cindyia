@@ -603,11 +603,13 @@ export type Database = {
           logo_url: string | null
           max_employees: number | null
           max_whatsapp_instances: number | null
+          monthly_fee: number | null
           name: string
           onboarding_completed: boolean
           phone: string | null
           settings: Json | null
           status: Database["public"]["Enums"]["tenant_status"] | null
+          subscription_started_at: string | null
           updated_at: string | null
         }
         Insert: {
@@ -619,11 +621,13 @@ export type Database = {
           logo_url?: string | null
           max_employees?: number | null
           max_whatsapp_instances?: number | null
+          monthly_fee?: number | null
           name: string
           onboarding_completed?: boolean
           phone?: string | null
           settings?: Json | null
           status?: Database["public"]["Enums"]["tenant_status"] | null
+          subscription_started_at?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -635,14 +639,87 @@ export type Database = {
           logo_url?: string | null
           max_employees?: number | null
           max_whatsapp_instances?: number | null
+          monthly_fee?: number | null
           name?: string
           onboarding_completed?: boolean
           phone?: string | null
           settings?: Json | null
           status?: Database["public"]["Enums"]["tenant_status"] | null
+          subscription_started_at?: string | null
           updated_at?: string | null
         }
         Relationships: []
+      }
+      mrr_snapshots: {
+        Row: {
+          id: string
+          snapshot_date: string
+          total_mrr: number
+          active_tenants: number
+          new_tenants: number
+          churned_tenants: number
+          mrr_from_new: number
+          mrr_churned: number
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          snapshot_date: string
+          total_mrr: number
+          active_tenants: number
+          new_tenants?: number
+          churned_tenants?: number
+          mrr_from_new?: number
+          mrr_churned?: number
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          snapshot_date?: string
+          total_mrr?: number
+          active_tenants?: number
+          new_tenants?: number
+          churned_tenants?: number
+          mrr_from_new?: number
+          mrr_churned?: number
+          created_at?: string | null
+        }
+        Relationships: []
+      }
+      tenant_status_history: {
+        Row: {
+          id: string
+          tenant_id: string
+          old_status: Database["public"]["Enums"]["tenant_status"] | null
+          new_status: Database["public"]["Enums"]["tenant_status"]
+          changed_at: string | null
+          changed_by: string | null
+        }
+        Insert: {
+          id?: string
+          tenant_id: string
+          old_status?: Database["public"]["Enums"]["tenant_status"] | null
+          new_status: Database["public"]["Enums"]["tenant_status"]
+          changed_at?: string | null
+          changed_by?: string | null
+        }
+        Update: {
+          id?: string
+          tenant_id?: string
+          old_status?: Database["public"]["Enums"]["tenant_status"] | null
+          new_status?: Database["public"]["Enums"]["tenant_status"]
+          changed_at?: string | null
+          changed_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenant_status_history_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_notification_receipts: {
         Row: {
@@ -763,6 +840,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      generate_mrr_snapshot: {
+        Args: { target_date?: string }
+        Returns: undefined
+      }
       get_user_tenant_id: { Args: { _user_id: string }; Returns: string }
       has_role: {
         Args: {

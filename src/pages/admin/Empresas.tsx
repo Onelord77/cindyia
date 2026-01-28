@@ -62,6 +62,7 @@ const SuperAdminEmpresas = () => {
     cnpj: '',
     maxEmployees: 3,
     maxWhatsappInstances: 1,
+    monthlyFee: 0,
   });
 
   const [adminFormData, setAdminFormData] = useState({
@@ -82,7 +83,7 @@ const SuperAdminEmpresas = () => {
   const activeTenants = tenants.filter((t) => t.status === 'active').length;
 
   const resetForm = () => {
-    setFormData({ name: '', email: '', phone: '', address: '', cnpj: '', maxEmployees: 3, maxWhatsappInstances: 1 });
+    setFormData({ name: '', email: '', phone: '', address: '', cnpj: '', maxEmployees: 3, maxWhatsappInstances: 1, monthlyFee: 0 });
     setEditingTenant(null);
   };
 
@@ -90,14 +91,15 @@ const SuperAdminEmpresas = () => {
   
   const openEditDialog = (tenant: typeof tenants[0]) => {
     setEditingTenant(tenant);
-    setFormData({ 
-      name: tenant.name, 
-      email: tenant.email || '', 
+    setFormData({
+      name: tenant.name,
+      email: tenant.email || '',
       phone: tenant.phone || '',
       address: tenant.address || '',
       cnpj: tenant.cnpj || '',
       maxEmployees: tenant.max_employees || 3,
-      maxWhatsappInstances: (tenant as { max_whatsapp_instances?: number }).max_whatsapp_instances || 1,
+      maxWhatsappInstances: tenant.max_whatsapp_instances || 1,
+      monthlyFee: tenant.monthly_fee || 0,
     });
     setIsDialogOpen(true);
   };
@@ -153,11 +155,11 @@ const SuperAdminEmpresas = () => {
   };
 
   const handleSave = async () => {
-    if (!formData.name) { 
-      toast.error('Nome é obrigatório'); 
-      return; 
+    if (!formData.name) {
+      toast.error('Nome é obrigatório');
+      return;
     }
-    
+
     if (editingTenant) {
       await updateTenant.mutateAsync({
         id: editingTenant.id,
@@ -168,6 +170,7 @@ const SuperAdminEmpresas = () => {
         cnpj: formData.cnpj || null,
         max_employees: formData.maxEmployees,
         max_whatsapp_instances: formData.maxWhatsappInstances,
+        monthly_fee: formData.monthlyFee,
       });
     } else {
       await addTenant.mutateAsync({
@@ -178,10 +181,12 @@ const SuperAdminEmpresas = () => {
         cnpj: formData.cnpj || null,
         max_employees: formData.maxEmployees,
         max_whatsapp_instances: formData.maxWhatsappInstances,
+        monthly_fee: formData.monthlyFee,
+        subscription_started_at: new Date().toISOString(),
       });
     }
-    
-    setIsDialogOpen(false); 
+
+    setIsDialogOpen(false);
     resetForm();
   };
 
@@ -315,7 +320,8 @@ const SuperAdminEmpresas = () => {
                 <TableRow>
                   <TableHead>Empresa</TableHead>
                   <TableHead>Contato</TableHead>
-                  <TableHead className="text-center">Limite Funcionários</TableHead>
+                  <TableHead className="text-center">Limite Func.</TableHead>
+                  <TableHead className="text-right">Mensalidade</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
@@ -323,7 +329,7 @@ const SuperAdminEmpresas = () => {
               <TableBody>
                 {filteredTenants.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                       Nenhuma empresa encontrada
                     </TableCell>
                   </TableRow>
@@ -359,6 +365,9 @@ const SuperAdminEmpresas = () => {
                       </TableCell>
                       <TableCell className="text-center">
                         <span className="font-medium">{tenant.max_employees || 10}</span>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <span className="font-medium">{formatCurrency(tenant.monthly_fee || 0)}</span>
                       </TableCell>
                       <TableCell>
                         <Badge 
@@ -480,28 +489,44 @@ const SuperAdminEmpresas = () => {
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label>Limite de Funcionários</Label>
-                  <Input 
+                  <Input
                     type="number"
                     min="1"
-                    value={formData.maxEmployees} 
-                    onChange={(e) => setFormData(p => ({ ...p, maxEmployees: parseInt(e.target.value) || 3 }))} 
+                    value={formData.maxEmployees}
+                    onChange={(e) => setFormData(p => ({ ...p, maxEmployees: parseInt(e.target.value) || 3 }))}
                     className="min-h-[44px]"
                   />
                 </div>
                 <div className="space-y-2">
                   <Label>Limite de Instâncias WhatsApp</Label>
-                  <Input 
+                  <Input
                     type="number"
                     min="1"
                     max="10"
-                    value={formData.maxWhatsappInstances} 
-                    onChange={(e) => setFormData(p => ({ ...p, maxWhatsappInstances: parseInt(e.target.value) || 1 }))} 
+                    value={formData.maxWhatsappInstances}
+                    onChange={(e) => setFormData(p => ({ ...p, maxWhatsappInstances: parseInt(e.target.value) || 1 }))}
                     className="min-h-[44px]"
                   />
                   <p className="text-xs text-muted-foreground">
                     Número máximo de conexões WhatsApp permitidas
                   </p>
                 </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Mensalidade (R$)</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={formData.monthlyFee}
+                  onChange={(e) => setFormData(p => ({ ...p, monthlyFee: parseFloat(e.target.value) || 0 }))}
+                  className="min-h-[44px]"
+                  placeholder="0,00"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Valor mensal cobrado pela plataforma
+                </p>
               </div>
             </div>
 
@@ -566,6 +591,10 @@ const SuperAdminEmpresas = () => {
                   <div>
                     <p className="text-sm text-muted-foreground">Limite Funcionários</p>
                     <p className="font-medium">{viewingTenant.max_employees || 10}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Mensalidade</p>
+                    <p className="font-medium">{formatCurrency(viewingTenant.monthly_fee || 0)}</p>
                   </div>
                   {viewingTenant.address && (
                     <div className="col-span-2">

@@ -14,6 +14,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { MobileCard } from '@/components/ui/mobile-card';
+import { useIsMobile } from '@/hooks/use-mobile';
 import {
   Dialog,
   DialogContent,
@@ -53,6 +55,7 @@ import {
 import { toast } from 'sonner';
 
 const Clientes = () => {
+  const isMobile = useIsMobile();
   const [statusFilter, setStatusFilter] = useState<ClientStatusFilter>('all');
   const { clients, isLoading, addClient, updateClient, deleteClient } = useClients(statusFilter);
   const { clients: allClients = [] } = useClients('all');
@@ -199,49 +202,53 @@ const Clientes = () => {
         </Tabs>
 
         {/* Stats Cards */}
-        <div className="grid gap-4 sm:grid-cols-4">
+        <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
           <Card>
-            <CardContent className="flex items-center gap-4 p-6">
-              <div className="rounded-full bg-primary/10 p-3">
-                <UserCheck className="h-6 w-6 text-primary" />
+            <CardContent className="flex items-center gap-3 p-4 sm:p-6">
+              <div className="rounded-full bg-primary/10 p-2 sm:p-3 hidden sm:flex">
+                <UserCheck className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
               </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Clientes</p>
-                <p className="text-2xl font-bold">{totalClients}</p>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs sm:text-sm text-muted-foreground truncate">Clientes</p>
+                <p className="text-xl sm:text-2xl font-bold">{totalClients}</p>
               </div>
+              <UserCheck className="h-5 w-5 text-primary/30 sm:hidden flex-shrink-0" />
             </CardContent>
           </Card>
           <Card>
-            <CardContent className="flex items-center gap-4 p-6">
-              <div className="rounded-full bg-yellow-500/10 p-3">
-                <Users className="h-6 w-6 text-yellow-600" />
+            <CardContent className="flex items-center gap-3 p-4 sm:p-6">
+              <div className="rounded-full bg-yellow-500/10 p-2 sm:p-3 hidden sm:flex">
+                <Users className="h-5 w-5 sm:h-6 sm:w-6 text-yellow-600" />
               </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Leads</p>
-                <p className="text-2xl font-bold">{totalLeads}</p>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs sm:text-sm text-muted-foreground truncate">Leads</p>
+                <p className="text-xl sm:text-2xl font-bold">{totalLeads}</p>
               </div>
+              <Users className="h-5 w-5 text-yellow-600/30 sm:hidden flex-shrink-0" />
             </CardContent>
           </Card>
           <Card>
-            <CardContent className="flex items-center gap-4 p-6">
-              <div className="rounded-full bg-success/10 p-3">
-                <Calendar className="h-6 w-6 text-success" />
+            <CardContent className="flex items-center gap-3 p-4 sm:p-6">
+              <div className="rounded-full bg-success/10 p-2 sm:p-3 hidden sm:flex">
+                <Calendar className="h-5 w-5 sm:h-6 sm:w-6 text-success" />
               </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Ativos este mês</p>
-                <p className="text-2xl font-bold">{activeThisMonth}</p>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs sm:text-sm text-muted-foreground truncate">Ativos este mês</p>
+                <p className="text-xl sm:text-2xl font-bold">{activeThisMonth}</p>
               </div>
+              <Calendar className="h-5 w-5 text-success/30 sm:hidden flex-shrink-0" />
             </CardContent>
           </Card>
           <Card>
-            <CardContent className="flex items-center gap-4 p-6">
-              <div className="rounded-full bg-warning/10 p-3">
-                <User className="h-6 w-6 text-warning" />
+            <CardContent className="flex items-center gap-3 p-4 sm:p-6">
+              <div className="rounded-full bg-warning/10 p-2 sm:p-3 hidden sm:flex">
+                <User className="h-5 w-5 sm:h-6 sm:w-6 text-warning" />
               </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Novos este mês</p>
-                <p className="text-2xl font-bold">{newThisMonth}</p>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs sm:text-sm text-muted-foreground truncate">Novos este mês</p>
+                <p className="text-xl sm:text-2xl font-bold">{newThisMonth}</p>
               </div>
+              <User className="h-5 w-5 text-warning/30 sm:hidden flex-shrink-0" />
             </CardContent>
           </Card>
         </div>
@@ -261,140 +268,243 @@ const Clientes = () => {
           </CardContent>
         </Card>
 
-        {/* Table */}
-        <Card>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Cliente</TableHead>
-                  <TableHead>Contato</TableHead>
-                  <TableHead>Última Visita</TableHead>
-                  <TableHead>Total Agendamentos</TableHead>
-                  <TableHead className="text-right">Ações</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredClients.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                      Nenhum cliente encontrado
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  filteredClients.map((client) => {
-                    const displayName = client.name || (client.phone ? formatPhone(client.phone) : 'Sem nome');
-                    const initials = client.name
-                      ? client.name.split(' ').map(n => n[0]).join('').slice(0, 2)
-                      : (client.phone ? client.phone.slice(-2) : '??');
+        {/* Client List */}
+        {isMobile ? (
+          /* Mobile: Cards */
+          <div className="space-y-3">
+            {filteredClients.length === 0 ? (
+              <Card className="p-8 text-center text-muted-foreground">
+                Nenhum cliente encontrado
+              </Card>
+            ) : (
+              filteredClients.map((client) => {
+                const displayName = client.name || (client.phone ? formatPhone(client.phone) : 'Sem nome');
+                const initials = client.name
+                  ? client.name.split(' ').map(n => n[0]).join('').slice(0, 2)
+                  : (client.phone ? client.phone.slice(-2) : '??');
 
-                    return (
-                      <TableRow key={client.id} className="group">
-                        <TableCell>
-                          <div className="flex items-center gap-3">
-                            <Avatar className="h-10 w-10">
-                              <AvatarFallback className={client.is_lead
-                                ? "bg-yellow-100 text-yellow-700 font-semibold"
-                                : "bg-primary/10 text-primary font-semibold"
-                              }>
-                                {initials}
-                              </AvatarFallback>
-                            </Avatar>
-                            <div>
-                              <div className="flex items-center gap-2">
-                                <p className="font-medium">{displayName}</p>
-                                <Badge
-                                  variant={client.is_lead ? 'outline' : 'secondary'}
-                                  className={client.is_lead
-                                    ? 'border-yellow-500 text-yellow-700 text-xs'
-                                    : 'text-xs'
-                                  }
-                                >
-                                  {client.is_lead ? 'Lead' : 'Cliente'}
-                                </Badge>
-                              </div>
-                              <p className="text-sm text-muted-foreground">
-                                {client.is_lead ? 'Lead' : 'Cliente'} desde {new Date(client.created_at || '').toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' })}
-                              </p>
-                            </div>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-2 text-sm">
-                              <Phone className="h-3.5 w-3.5 text-muted-foreground" />
-                              {client.phone ? formatPhone(client.phone) : '-'}
-                              {client.phone && (
-                                <a
-                                  href={phoneToWhatsAppLink(client.phone)}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-green-600 hover:text-green-700"
-                                  title="Abrir WhatsApp"
-                                >
-                                  <MessageSquare className="h-3.5 w-3.5" />
-                                </a>
-                              )}
-                            </div>
-                            {client.email && (
-                              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                <Mail className="h-3.5 w-3.5" />
-                                {client.email}
-                              </div>
+                return (
+                  <MobileCard
+                    key={client.id}
+                    title={displayName}
+                    subtitle={`${client.is_lead ? 'Lead' : 'Cliente'} desde ${new Date(client.created_at || '').toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' })}`}
+                    avatar={
+                      <Avatar className="h-10 w-10">
+                        <AvatarFallback className={client.is_lead
+                          ? "bg-yellow-100 text-yellow-700 font-semibold"
+                          : "bg-primary/10 text-primary font-semibold"
+                        }>
+                          {initials}
+                        </AvatarFallback>
+                      </Avatar>
+                    }
+                    badge={
+                      <Badge
+                        variant={client.is_lead ? 'outline' : 'secondary'}
+                        className={client.is_lead
+                          ? 'border-yellow-500 text-yellow-700 text-xs'
+                          : 'text-xs'
+                        }
+                      >
+                        {client.is_lead ? 'Lead' : 'Cliente'}
+                      </Badge>
+                    }
+                    fields={[
+                      { label: 'Telefone', value: client.phone ? formatPhone(client.phone) : '-' },
+                      { label: 'Última Visita', value: client.last_visit ? new Date(client.last_visit).toLocaleDateString('pt-BR') : '-' },
+                      { label: 'Agendamentos', value: `${client.total_visits || 0}` },
+                    ]}
+                    actions={
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="flex-1 min-h-[44px]"
+                          onClick={() => openEditDialog(client)}
+                        >
+                          <Edit className="h-4 w-4 mr-1" /> Editar
+                        </Button>
+                        {client.phone && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="min-h-[44px]"
+                            asChild
+                          >
+                            <a
+                              href={phoneToWhatsAppLink(client.phone)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              <MessageSquare className="h-4 w-4 text-green-600" />
+                            </a>
+                          </Button>
+                        )}
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="outline" size="sm" className="min-h-[44px]">
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            {client.is_lead && (
+                              <DropdownMenuItem onClick={() => updateClient.mutate({ id: client.id, is_lead: false })}>
+                                <UserCheck className="mr-2 h-4 w-4" />
+                                Converter para Cliente
+                              </DropdownMenuItem>
                             )}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          {client.last_visit ? (
-                            <div className="flex items-center gap-2">
-                              <Calendar className="h-4 w-4 text-muted-foreground" />
-                              {new Date(client.last_visit).toLocaleDateString('pt-BR')}
+                            <DropdownMenuItem
+                              className="text-destructive"
+                              onClick={() => openDeleteDialog(client.id)}
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Excluir
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    }
+                  />
+                );
+              })
+            )}
+          </div>
+        ) : (
+          /* Desktop: Table */
+          <Card>
+            <CardContent className="p-0 overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Cliente</TableHead>
+                    <TableHead>Contato</TableHead>
+                    <TableHead>Última Visita</TableHead>
+                    <TableHead>Total Agendamentos</TableHead>
+                    <TableHead className="text-right">Ações</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredClients.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                        Nenhum cliente encontrado
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredClients.map((client) => {
+                      const displayName = client.name || (client.phone ? formatPhone(client.phone) : 'Sem nome');
+                      const initials = client.name
+                        ? client.name.split(' ').map(n => n[0]).join('').slice(0, 2)
+                        : (client.phone ? client.phone.slice(-2) : '??');
+
+                      return (
+                        <TableRow key={client.id} className="group">
+                          <TableCell>
+                            <div className="flex items-center gap-3">
+                              <Avatar className="h-10 w-10">
+                                <AvatarFallback className={client.is_lead
+                                  ? "bg-yellow-100 text-yellow-700 font-semibold"
+                                  : "bg-primary/10 text-primary font-semibold"
+                                }>
+                                  {initials}
+                                </AvatarFallback>
+                              </Avatar>
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <p className="font-medium">{displayName}</p>
+                                  <Badge
+                                    variant={client.is_lead ? 'outline' : 'secondary'}
+                                    className={client.is_lead
+                                      ? 'border-yellow-500 text-yellow-700 text-xs'
+                                      : 'text-xs'
+                                    }
+                                  >
+                                    {client.is_lead ? 'Lead' : 'Cliente'}
+                                  </Badge>
+                                </div>
+                                <p className="text-sm text-muted-foreground">
+                                  {client.is_lead ? 'Lead' : 'Cliente'} desde {new Date(client.created_at || '').toLocaleDateString('pt-BR', { month: 'short', year: 'numeric' })}
+                                </p>
+                              </div>
                             </div>
-                          ) : (
-                            <span className="text-muted-foreground">-</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="secondary">
-                            {client.total_visits || 0} agendamentos
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon" className="opacity-0 group-hover:opacity-100">
-                                <MoreVertical className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              {client.is_lead && (
-                                <DropdownMenuItem onClick={() => updateClient.mutate({ id: client.id, is_lead: false })}>
-                                  <UserCheck className="mr-2 h-4 w-4" />
-                                  Converter para Cliente
-                                </DropdownMenuItem>
+                          </TableCell>
+                          <TableCell>
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2 text-sm">
+                                <Phone className="h-3.5 w-3.5 text-muted-foreground" />
+                                {client.phone ? formatPhone(client.phone) : '-'}
+                                {client.phone && (
+                                  <a
+                                    href={phoneToWhatsAppLink(client.phone)}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-green-600 hover:text-green-700"
+                                    title="Abrir WhatsApp"
+                                  >
+                                    <MessageSquare className="h-3.5 w-3.5" />
+                                  </a>
+                                )}
+                              </div>
+                              {client.email && (
+                                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                  <Mail className="h-3.5 w-3.5" />
+                                  {client.email}
+                                </div>
                               )}
-                              <DropdownMenuItem onClick={() => openEditDialog(client)}>
-                                <Edit className="mr-2 h-4 w-4" />
-                                Editar
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                className="text-destructive"
-                                onClick={() => openDeleteDialog(client.id)}
-                              >
-                                <Trash2 className="mr-2 h-4 w-4" />
-                                Excluir
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })
-                )}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            {client.last_visit ? (
+                              <div className="flex items-center gap-2">
+                                <Calendar className="h-4 w-4 text-muted-foreground" />
+                                {new Date(client.last_visit).toLocaleDateString('pt-BR')}
+                              </div>
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="secondary">
+                              {client.total_visits || 0} agendamentos
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="sm:opacity-0 sm:group-hover:opacity-100">
+                                  <MoreVertical className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                {client.is_lead && (
+                                  <DropdownMenuItem onClick={() => updateClient.mutate({ id: client.id, is_lead: false })}>
+                                    <UserCheck className="mr-2 h-4 w-4" />
+                                    Converter para Cliente
+                                  </DropdownMenuItem>
+                                )}
+                                <DropdownMenuItem onClick={() => openEditDialog(client)}>
+                                  <Edit className="mr-2 h-4 w-4" />
+                                  Editar
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  className="text-destructive"
+                                  onClick={() => openDeleteDialog(client.id)}
+                                >
+                                  <Trash2 className="mr-2 h-4 w-4" />
+                                  Excluir
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Create/Edit Dialog */}
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>

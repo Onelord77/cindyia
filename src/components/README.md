@@ -39,8 +39,10 @@ Componentes do painel principal.
 | Arquivo | Propósito |
 |---------|-----------|
 | `AppointmentsList.tsx` | Lista de próximos agendamentos |
-| `RevenueChart.tsx` | Gráfico de receita (Recharts) |
-| `StatsCard.tsx` | Card de estatísticas/KPI |
+| `MrrChart.tsx` | Gráfico de evolução do MRR (SaaS admin) |
+| `RevenueChart.tsx` | Gráfico de receita semanal (tenant) |
+| `SaasStatsCard.tsx` | Card de estatísticas SaaS com trend |
+| `StatsCard.tsx` | Card de estatísticas/KPI básico |
 | `TopServicesChart.tsx` | Gráfico de serviços mais populares |
 
 ---
@@ -201,6 +203,7 @@ Componentes base Shadcn/UI (65+ componentes).
 | `chart.tsx` | Wrapper Recharts |
 | `carousel.tsx` | Carousel (Embla) |
 | `date-range-picker.tsx` | Seletor de período |
+| `mobile-card.tsx` | Card responsivo para listagens mobile |
 | `sonner.tsx` | Sonner toast config |
 | `use-toast.ts` | Hook de toast |
 
@@ -228,3 +231,5 @@ import { StatsCard } from '@/components/dashboard/StatsCard'
 - Componentes UI seguem o padrão **Shadcn/UI** com Radix primitives
 - Use `cn()` de `@/lib/utils` para merge de classes condicionais
 - Props são tipadas com TypeScript interfaces
+- Use `useIsMobile()` de `@/hooks/use-mobile` para renderização condicional mobile
+- Breakpoints: `sm` (640px), `md` (768px - mobile breakpoint), `lg` (1024px)

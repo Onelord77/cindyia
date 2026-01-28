@@ -1,4 +1,4 @@
-import { Search, User, Settings, LogOut } from 'lucide-react';
+import { Search, User, Settings, LogOut, Menu } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,7 +16,12 @@ import { toast } from 'sonner';
 import { NotificationDropdown } from '@/components/notifications';
 import { ThemeToggle } from '@/components/theme';
 
-export function Header() {
+interface HeaderProps {
+  onMenuClick?: () => void;
+  showMenuButton?: boolean;
+}
+
+export function Header({ onMenuClick, showMenuButton }: HeaderProps) {
   const navigate = useNavigate();
   const { profile, signOut } = useAuth();
   
@@ -40,18 +45,33 @@ export function Header() {
 
   return (
     <header className="sticky top-0 z-30 flex h-14 sm:h-16 items-center justify-between border-b border-border bg-background/95 px-4 sm:px-6 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      {/* Search */}
-      <div className="relative w-full max-w-md hidden sm:block">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          placeholder="Buscar clientes, serviços..."
-          className="pl-10 bg-secondary/50 border-transparent focus:border-primary min-h-[40px]"
-        />
-      </div>
+      {/* Left side */}
+      <div className="flex items-center gap-2">
+        {/* Mobile menu button */}
+        {showMenuButton && (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onMenuClick}
+            className="min-h-[44px] min-w-[44px]"
+          >
+            <Menu className="h-5 w-5" />
+          </Button>
+        )}
 
-      {/* Mobile: Just show tenant name */}
-      <div className="sm:hidden">
-        <p className="font-medium text-sm truncate max-w-[150px]">{tenantName}</p>
+        {/* Search - hidden on mobile */}
+        <div className="relative w-full max-w-md hidden sm:block">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Buscar clientes, serviços..."
+            className="pl-10 bg-secondary/50 border-transparent focus:border-primary min-h-[40px]"
+          />
+        </div>
+
+        {/* Mobile: Just show tenant name */}
+        <div className="sm:hidden">
+          <p className="font-medium text-sm truncate max-w-[150px]">{tenantName}</p>
+        </div>
       </div>
 
       {/* Right side */}

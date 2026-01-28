@@ -199,8 +199,8 @@ const AdminNotificacoes = () => {
         {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">Notificações do Sistema</h1>
-            <p className="text-muted-foreground">Gerencie notificações enviadas para os tenants</p>
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Notificações do Sistema</h1>
+            <p className="text-sm text-muted-foreground">Gerencie notificações enviadas para os tenants</p>
           </div>
           <Button onClick={openNewDialog}>
             <Plus className="mr-2 h-4 w-4" />
@@ -209,7 +209,7 @@ const AdminNotificacoes = () => {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid gap-4 md:grid-cols-4">
+        <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
           <StatsCard title="Total" value={stats.total} icon={<Bell className="h-5 w-5" />} />
           <StatsCard title="Ativas" value={stats.active} icon={<CheckCircle className="h-5 w-5" />} />
           <StatsCard title="Expiradas" value={stats.expired} icon={<Calendar className="h-5 w-5" />} />

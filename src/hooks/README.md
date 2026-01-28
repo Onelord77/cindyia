@@ -20,7 +20,8 @@ hooks/
 ├── useTenants.ts                        # Tenants
 ├── useTenantLimits.ts                   # Limites do tenant
 ├── useUserManagement.ts                 # Gestão de usuários
-├── useAdminDashboard.ts                 # Dashboard admin
+├── useAdminDashboard.ts                 # Dashboard admin (metricas basicas)
+├── useSaasDashboard.ts                  # Dashboard SaaS (MRR, churn, etc)
 ├── useAdminNotifications.ts             # Notificações do sistema (admin)
 ├── useUserNotifications.ts              # Notificações do usuário
 ├── useOnboardingStatus.ts               # Status de onboarding
@@ -154,7 +155,35 @@ Todos usam TanStack React Query para cache e sincronização.
 
 | Função | Tipo | Descrição |
 |--------|------|-----------|
-| `useAdminDashboardStats()` | Query | Estatísticas do dashboard admin |
+| `useAdminDashboard()` | Query | Estatísticas básicas do dashboard admin |
+
+### useSaasDashboard.ts
+
+| Função | Tipo | Descrição |
+|--------|------|-----------|
+| `useSaasDashboard()` | Query | Métricas SaaS completas (MRR, churn, ARPU) |
+
+**Retorno:**
+- `mrr` - Receita Recorrente Mensal (soma de monthly_fee dos tenants ativos)
+- `activeTenants` - Número de tenants ativos
+- `newTenantsThisMonth` - Novos tenants no mês atual
+- `churnedTenantsThisMonth` - Tenants que churned no mês
+- `revenuePerTenant` - ARPU (MRR / tenants ativos)
+- `mrrGrowthPercent` - Crescimento % do MRR vs mês anterior
+- `tenantGrowthPercent` - Crescimento % de tenants vs mês anterior
+- `mrrHistory` - Array histórico para gráficos (últimos 12 meses)
+- `churnRate` - Taxa de churn em %
+- `totalTenants` - Total de tenants na plataforma
+- `inactiveTenants` - Tenants inativos
+
+**Uso:**
+```typescript
+import { useSaasDashboard } from '@/hooks/useSaasDashboard'
+
+const { data, isLoading } = useSaasDashboard()
+console.log(data?.mrr) // 5000.00
+console.log(data?.mrrHistory) // [{ month: 'jan/26', mrr: 4500, ... }]
+```
 
 ### useAdminNotifications.ts
 

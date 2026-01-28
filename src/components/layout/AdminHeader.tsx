@@ -1,4 +1,4 @@
-import { Search, Settings, LogOut } from 'lucide-react';
+import { Search, Settings, LogOut, Menu } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,7 +16,12 @@ import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import { ThemeToggle } from '@/components/theme';
 
-export function AdminHeader() {
+interface AdminHeaderProps {
+  onMenuClick?: () => void;
+  showMenuButton?: boolean;
+}
+
+export function AdminHeader({ onMenuClick, showMenuButton }: AdminHeaderProps) {
   const navigate = useNavigate();
   const { profile, signOut } = useAuth();
 
@@ -34,18 +39,34 @@ export function AdminHeader() {
 
   return (
     <header className="sticky top-0 z-30 flex h-14 sm:h-16 items-center justify-between border-b border-border bg-background/95 px-4 sm:px-6 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      {/* Search */}
-      <div className="relative w-full max-w-md hidden sm:block">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          placeholder="Buscar tenants, endpoints..."
-          className="pl-10 bg-secondary/50 border-transparent focus:border-primary min-h-[40px]"
-        />
-      </div>
+      {/* Left side - Menu button and Search */}
+      <div className="flex items-center gap-2 sm:gap-4 flex-1">
+        {/* Mobile menu button */}
+        {showMenuButton && (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onMenuClick}
+            className="min-h-[44px] min-w-[44px]"
+          >
+            <Menu className="h-5 w-5" />
+            <span className="sr-only">Abrir menu</span>
+          </Button>
+        )}
 
-      {/* Mobile: Just show panel name */}
-      <div className="sm:hidden">
-        <p className="font-medium text-sm">Painel Admin</p>
+        {/* Search - desktop only */}
+        <div className="relative w-full max-w-md hidden sm:block">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Buscar tenants, endpoints..."
+            className="pl-10 bg-secondary/50 border-transparent focus:border-primary min-h-[40px]"
+          />
+        </div>
+
+        {/* Mobile: Just show panel name */}
+        <div className="sm:hidden">
+          <p className="font-medium text-sm">Painel Admin</p>
+        </div>
       </div>
 
       {/* Right side */}

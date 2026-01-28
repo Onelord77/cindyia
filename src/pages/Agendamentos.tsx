@@ -8,6 +8,8 @@ import { Badge } from '@/components/ui/badge';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
+import { MobileCard } from '@/components/ui/mobile-card';
+import { useIsMobile } from '@/hooks/use-mobile';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
@@ -52,6 +54,7 @@ const paymentConfig: Record<string, { label: string; class: string }> = {
 };
 
 const Agendamentos = () => {
+  const isMobile = useIsMobile();
   const { appointments, isLoading, addAppointment, updateAppointment, updateStatus, markAsCompleted, deleteAppointment } = useAppointments();
   const { clients } = useClients();
   const { employees } = useEmployees();
@@ -470,115 +473,201 @@ const Agendamentos = () => {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardContent className="p-0 overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Data/Hora</TableHead>
-                  <TableHead>Cliente</TableHead>
-                  <TableHead>Serviço</TableHead>
-                  <TableHead className="hidden md:table-cell">Profissional</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Ações</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredAppointments.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                      Nenhum agendamento encontrado
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  filteredAppointments.map((appointment) => {
-                    const status = statusConfig[appointment.status || 'scheduled'];
-                    const times = formatTime(appointment.scheduled_at, appointment.duration);
-                    const isCompleted = appointment.status === 'completed';
-                    const canComplete = appointment.status === 'scheduled' || appointment.status === 'confirmed';
-                    
-                    return (
-                      <TableRow key={appointment.id}>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <Calendar className="h-4 w-4 text-muted-foreground hidden sm:block" />
-                            <div>
-                              <p className="font-medium text-sm">{new Date(appointment.scheduled_at).toLocaleDateString('pt-BR')}</p>
-                              <p className="text-xs text-muted-foreground">{times.startTime} - {times.endTime}</p>
-                            </div>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <p className="font-medium text-sm truncate max-w-[120px]">{appointment.clients?.name}</p>
-                        </TableCell>
-                        <TableCell>
-                          <div>
-                            <p className="font-medium text-sm truncate max-w-[120px]">{appointment.services?.name}</p>
-                            <p className="text-xs text-muted-foreground">R$ {Number(appointment.price || 0).toFixed(2)}</p>
-                          </div>
-                        </TableCell>
-                        <TableCell className="hidden md:table-cell">
-                          <span className="text-sm">{appointment.employees?.name}</span>
-                        </TableCell>
-                        <TableCell>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Badge variant="outline" className={cn(status?.class, 'cursor-pointer text-xs')}>
-                                {status?.label}
-                              </Badge>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent>
-                              {Object.entries(statusConfig)
-                                .filter(([key]) => key !== 'completed') // Remove completed from regular status change
-                                .map(([key, config]) => (
-                                  <DropdownMenuItem key={key} onClick={() => handleStatusChange(appointment.id, key as AppointmentStatus)}>
-                                    {config.label}
-                                  </DropdownMenuItem>
-                                ))}
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon"><MoreVertical className="h-4 w-4" /></Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              {canComplete && (
-                                <>
-                                  <DropdownMenuItem
-                                    className="text-success"
-                                    onClick={() => handleMarkAsCompleted(appointment.id, Number(appointment.price || 0))}
-                                  >
-                                    <CheckCircle className="mr-2 h-4 w-4" />
-                                    Marcar como Concluído
-                                  </DropdownMenuItem>
-                                  <DropdownMenuSeparator />
-                                </>
-                              )}
-                              {!isCompleted && appointment.status !== 'cancelled' && (
-                                <DropdownMenuItem onClick={() => handleOpenEdit(appointment.id)}>
-                                  <Edit className="mr-2 h-4 w-4" />
-                                  Editar Agendamento
+        {/* Appointment List */}
+        {isMobile ? (
+          /* Mobile: Cards */
+          <div className="space-y-3">
+            {filteredAppointments.length === 0 ? (
+              <Card className="p-8 text-center text-muted-foreground">
+                Nenhum agendamento encontrado
+              </Card>
+            ) : (
+              filteredAppointments.map((appointment) => {
+                const status = statusConfig[appointment.status || 'scheduled'];
+                const times = formatTime(appointment.scheduled_at, appointment.duration);
+                const isCompleted = appointment.status === 'completed';
+                const canComplete = appointment.status === 'scheduled' || appointment.status === 'confirmed';
+
+                return (
+                  <MobileCard
+                    key={appointment.id}
+                    title={appointment.clients?.name || 'Cliente'}
+                    subtitle={appointment.services?.name}
+                    badge={
+                      <Badge variant="outline" className={cn(status?.class, 'text-xs')}>
+                        {status?.label}
+                      </Badge>
+                    }
+                    fields={[
+                      { label: 'Data', value: new Date(appointment.scheduled_at).toLocaleDateString('pt-BR') },
+                      { label: 'Horário', value: `${times.startTime} - ${times.endTime}` },
+                      { label: 'Profissional', value: appointment.employees?.name || '-' },
+                      { label: 'Valor', value: `R$ ${Number(appointment.price || 0).toFixed(2)}` },
+                    ]}
+                    actions={
+                      <div className="flex gap-2">
+                        {canComplete && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="flex-1 min-h-[44px] text-success"
+                            onClick={() => handleMarkAsCompleted(appointment.id, Number(appointment.price || 0))}
+                          >
+                            <CheckCircle className="h-4 w-4 mr-1" /> Concluir
+                          </Button>
+                        )}
+                        {!isCompleted && appointment.status !== 'cancelled' && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="flex-1 min-h-[44px]"
+                            onClick={() => handleOpenEdit(appointment.id)}
+                          >
+                            <Edit className="h-4 w-4 mr-1" /> Editar
+                          </Button>
+                        )}
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="outline" size="sm" className="min-h-[44px]">
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            {Object.entries(statusConfig)
+                              .filter(([key]) => key !== 'completed')
+                              .map(([key, config]) => (
+                                <DropdownMenuItem key={key} onClick={() => handleStatusChange(appointment.id, key as AppointmentStatus)}>
+                                  {config.label}
                                 </DropdownMenuItem>
-                              )}
-                              <DropdownMenuItem className="text-destructive" onClick={() => { setDeletingAppointmentId(appointment.id); setIsDeleteDialogOpen(true); }}>
-                                Cancelar Agendamento
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })
-                )}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+                              ))}
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              className="text-destructive"
+                              onClick={() => { setDeletingAppointmentId(appointment.id); setIsDeleteDialogOpen(true); }}
+                            >
+                              Cancelar Agendamento
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    }
+                  />
+                );
+              })
+            )}
+          </div>
+        ) : (
+          /* Desktop: Table */
+          <Card>
+            <CardContent className="p-0 overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Data/Hora</TableHead>
+                    <TableHead>Cliente</TableHead>
+                    <TableHead>Serviço</TableHead>
+                    <TableHead>Profissional</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Ações</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredAppointments.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                        Nenhum agendamento encontrado
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredAppointments.map((appointment) => {
+                      const status = statusConfig[appointment.status || 'scheduled'];
+                      const times = formatTime(appointment.scheduled_at, appointment.duration);
+                      const isCompleted = appointment.status === 'completed';
+                      const canComplete = appointment.status === 'scheduled' || appointment.status === 'confirmed';
+
+                      return (
+                        <TableRow key={appointment.id}>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <Calendar className="h-4 w-4 text-muted-foreground" />
+                              <div>
+                                <p className="font-medium text-sm">{new Date(appointment.scheduled_at).toLocaleDateString('pt-BR')}</p>
+                                <p className="text-xs text-muted-foreground">{times.startTime} - {times.endTime}</p>
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <p className="font-medium text-sm truncate max-w-[120px]">{appointment.clients?.name}</p>
+                          </TableCell>
+                          <TableCell>
+                            <div>
+                              <p className="font-medium text-sm truncate max-w-[120px]">{appointment.services?.name}</p>
+                              <p className="text-xs text-muted-foreground">R$ {Number(appointment.price || 0).toFixed(2)}</p>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <span className="text-sm">{appointment.employees?.name}</span>
+                          </TableCell>
+                          <TableCell>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Badge variant="outline" className={cn(status?.class, 'cursor-pointer text-xs')}>
+                                  {status?.label}
+                                </Badge>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent>
+                                {Object.entries(statusConfig)
+                                  .filter(([key]) => key !== 'completed')
+                                  .map(([key, config]) => (
+                                    <DropdownMenuItem key={key} onClick={() => handleStatusChange(appointment.id, key as AppointmentStatus)}>
+                                      {config.label}
+                                    </DropdownMenuItem>
+                                  ))}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon"><MoreVertical className="h-4 w-4" /></Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                {canComplete && (
+                                  <>
+                                    <DropdownMenuItem
+                                      className="text-success"
+                                      onClick={() => handleMarkAsCompleted(appointment.id, Number(appointment.price || 0))}
+                                    >
+                                      <CheckCircle className="mr-2 h-4 w-4" />
+                                      Marcar como Concluído
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                  </>
+                                )}
+                                {!isCompleted && appointment.status !== 'cancelled' && (
+                                  <DropdownMenuItem onClick={() => handleOpenEdit(appointment.id)}>
+                                    <Edit className="mr-2 h-4 w-4" />
+                                    Editar Agendamento
+                                  </DropdownMenuItem>
+                                )}
+                                <DropdownMenuItem className="text-destructive" onClick={() => { setDeletingAppointmentId(appointment.id); setIsDeleteDialogOpen(true); }}>
+                                  Cancelar Agendamento
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        )}
 
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogContent>
+          <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Novo Agendamento</DialogTitle>
               <DialogDescription>Crie um novo agendamento</DialogDescription>
@@ -648,7 +737,7 @@ const Agendamentos = () => {
         </Dialog>
 
         <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-          <DialogContent>
+          <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Editar Agendamento</DialogTitle>
               <DialogDescription>Altere os dados do agendamento</DialogDescription>

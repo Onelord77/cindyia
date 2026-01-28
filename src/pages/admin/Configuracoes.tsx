@@ -67,10 +67,10 @@ const AdminConfiguracoes = () => {
         {/* Header */}
         <div>
           <div className="flex items-center gap-2">
-            <Shield className="h-6 w-6 text-primary" />
-            <h1 className="text-2xl font-bold tracking-tight">Configurações do Administrador</h1>
+            <Shield className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Configurações do Administrador</h1>
           </div>
-          <p className="text-muted-foreground mt-1">
+          <p className="text-sm text-muted-foreground mt-1">
             Gerencie API Keys, Webhooks e configurações sensíveis do sistema
           </p>
         </div>
