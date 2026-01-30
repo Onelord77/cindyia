@@ -24,7 +24,7 @@ import {
   Search, Plus, Building2, MoreVertical, Eye, Edit, Power, Trash2, 
   Users, Calendar, Filter, DollarSign, Phone, Mail, Loader2, UserPlus, Shield 
 } from 'lucide-react';
-import { cn, formatCurrency, formatPhone } from '@/lib/utils';
+import { cn, formatCurrency, formatPhone, formatPhoneMask, unmaskPhone } from '@/lib/utils';
 import { useTenants } from '@/hooks/useTenants';
 import { useUserManagement, useTenantAdmins } from '@/hooks/useUserManagement';
 import { toast } from 'sonner';
@@ -94,7 +94,7 @@ const SuperAdminEmpresas = () => {
     setFormData({
       name: tenant.name,
       email: tenant.email || '',
-      phone: tenant.phone || '',
+      phone: tenant.phone ? formatPhoneMask(tenant.phone) : '',
       address: tenant.address || '',
       cnpj: tenant.cnpj || '',
       maxEmployees: tenant.max_employees || 3,
@@ -134,15 +134,18 @@ const SuperAdminEmpresas = () => {
     }
     if (!managingTenant) return;
 
+    // Remove mask from phone before saving
+    const phoneDigitsOnly = adminFormData.phone ? unmaskPhone(adminFormData.phone, '') : undefined;
+
     await createUser.mutateAsync({
       email: adminFormData.email,
       password: adminFormData.password,
       fullName: adminFormData.fullName,
       tenantId: managingTenant.id,
       role: 'admin',
-      phone: adminFormData.phone || undefined,
+      phone: phoneDigitsOnly,
     });
-    
+
     setIsCreateAdminDialogOpen(false);
     resetAdminForm();
   };
@@ -160,12 +163,15 @@ const SuperAdminEmpresas = () => {
       return;
     }
 
+    // Remove mask from phone before saving
+    const phoneDigitsOnly = formData.phone ? unmaskPhone(formData.phone, '') : null;
+
     if (editingTenant) {
       await updateTenant.mutateAsync({
         id: editingTenant.id,
         name: formData.name,
         email: formData.email || null,
-        phone: formData.phone || null,
+        phone: phoneDigitsOnly,
         address: formData.address || null,
         cnpj: formData.cnpj || null,
         max_employees: formData.maxEmployees,
@@ -176,7 +182,7 @@ const SuperAdminEmpresas = () => {
       await addTenant.mutateAsync({
         name: formData.name,
         email: formData.email || null,
-        phone: formData.phone || null,
+        phone: phoneDigitsOnly,
         address: formData.address || null,
         cnpj: formData.cnpj || null,
         max_employees: formData.maxEmployees,
@@ -466,10 +472,10 @@ const SuperAdminEmpresas = () => {
                 </div>
                 <div className="space-y-2">
                   <Label>Telefone</Label>
-                  <Input 
+                  <Input
                     type="tel"
-                    value={formData.phone} 
-                    onChange={(e) => setFormData(p => ({ ...p, phone: e.target.value }))} 
+                    value={formData.phone}
+                    onChange={(e) => setFormData(p => ({ ...p, phone: formatPhoneMask(e.target.value) }))}
                     className="min-h-[44px]"
                     placeholder="(00) 00000-0000"
                   />
@@ -756,10 +762,10 @@ const SuperAdminEmpresas = () => {
               </div>
               <div className="space-y-2">
                 <Label>Telefone</Label>
-                <Input 
+                <Input
                   type="tel"
-                  value={adminFormData.phone} 
-                  onChange={(e) => setAdminFormData(p => ({ ...p, phone: e.target.value }))} 
+                  value={adminFormData.phone}
+                  onChange={(e) => setAdminFormData(p => ({ ...p, phone: formatPhoneMask(e.target.value) }))}
                   className="min-h-[44px]"
                   placeholder="(00) 00000-0000"
                 />

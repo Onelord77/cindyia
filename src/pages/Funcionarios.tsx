@@ -25,6 +25,7 @@ import { useUserManagement } from '@/hooks/useUserManagement';
 import { useEmployeeServices, useEmployeeServicesBulk } from '@/hooks/useEmployeeServices';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { formatPhoneMask, unmaskPhone } from '@/lib/utils';
 
 const Funcionarios = () => {
   const { isSuperAdmin, profile } = useAuth();
@@ -152,13 +153,16 @@ const Funcionarios = () => {
 
     let employeeId: string | null = null;
 
+    // Remove mask from phone before saving
+    const phoneDigitsOnly = formData.phone ? unmaskPhone(formData.phone, '') : '';
+
     if (editingEmployee) {
       // Update existing employee (no auth change)
       await updateEmployee.mutateAsync({
         id: editingEmployee.id,
         name: formData.name,
         email: formData.email,
-        phone: formData.phone,
+        phone: phoneDigitsOnly,
         role: formData.role,
         working_hours: JSON.parse(JSON.stringify({ ...formData.workingHours, breaks: formData.breaks })),
       });
@@ -186,7 +190,7 @@ const Funcionarios = () => {
         fullName: formData.name,
         tenantId: activeTenantId,
         role: formData.role === 'admin' ? 'admin' : 'user',
-        phone: formData.phone || undefined,
+        phone: phoneDigitsOnly || undefined,
       });
       // Note: Services will be linked after creating employee record via separate mutation
     } else {
@@ -194,7 +198,7 @@ const Funcionarios = () => {
       const newEmployee = await addEmployee.mutateAsync({
         name: formData.name,
         email: formData.email,
-        phone: formData.phone,
+        phone: phoneDigitsOnly,
         role: formData.role,
         working_hours: JSON.parse(JSON.stringify({ ...formData.workingHours, breaks: formData.breaks })),
       });
@@ -437,21 +441,21 @@ const Funcionarios = () => {
                       variant="outline" 
                       size="sm" 
                       className="flex-1" 
-                      onClick={() => { 
-                        setEditingEmployee(employee); 
+                      onClick={() => {
+                        setEditingEmployee(employee);
                         // Use services from the bulk map that's already loaded
                         const existingServiceIds = employeeServicesMap[employee.id]?.map(es => es.serviceId) || [];
-                        setFormData({ 
-                          name: employee.name, 
-                          email: employee.email || '', 
-                          phone: employee.phone || '', 
-                          role: employee.role || 'employee', 
+                        setFormData({
+                          name: employee.name,
+                          email: employee.email || '',
+                          phone: employee.phone ? formatPhoneMask(employee.phone) : '',
+                          role: employee.role || 'employee',
                           selectedServiceIds: existingServiceIds,
                           workingHours: (employee.working_hours as unknown as WorkingHours) || {},
                           breaks: ((employee.working_hours as Record<string, unknown>)?.breaks as BreaksConfig) || { breaks: [] },
                           password: '',
                         });
-                        setIsDialogOpen(true); 
+                        setIsDialogOpen(true);
                       }}
                     >
                       <Edit className="h-4 w-4 mr-1" />
@@ -555,10 +559,11 @@ const Funcionarios = () => {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label>Telefone</Label>
-                      <Input 
-                        value={formData.phone} 
-                        onChange={(e) => setFormData(p => ({ ...p, phone: e.target.value }))}
+                      <Input
+                        value={formData.phone}
+                        onChange={(e) => setFormData(p => ({ ...p, phone: formatPhoneMask(e.target.value) }))}
                         className="min-h-[44px]"
+                        placeholder="(00) 00000-0000"
                       />
                     </div>
                     <div className="space-y-2">

@@ -26,7 +26,8 @@ import {
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Search, Plus, Phone, Mail, Calendar, MoreVertical, Edit, Trash2, User, Users, UserCheck, MessageSquare, Loader2 } from 'lucide-react';
+import { Search, Plus, Phone, Mail, Calendar, MoreVertical, Edit, Trash2, User, Users, UserCheck, Loader2 } from 'lucide-react';
+import { WhatsAppIcon } from '@/components/ui/whatsapp-icon';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -312,7 +313,6 @@ const Clientes = () => {
                     fields={[
                       { label: 'Telefone', value: client.phone ? formatPhone(client.phone) : '-' },
                       { label: 'Última Visita', value: client.last_visit ? new Date(client.last_visit).toLocaleDateString('pt-BR') : '-' },
-                      { label: 'Agendamentos', value: `${client.total_visits || 0}` },
                     ]}
                     actions={
                       <div className="flex gap-2">
@@ -336,7 +336,7 @@ const Clientes = () => {
                               target="_blank"
                               rel="noopener noreferrer"
                             >
-                              <MessageSquare className="h-4 w-4 text-green-600" />
+                              <WhatsAppIcon className="h-4 w-4 text-green-600" />
                             </a>
                           </Button>
                         )}
@@ -379,14 +379,13 @@ const Clientes = () => {
                     <TableHead>Cliente</TableHead>
                     <TableHead>Contato</TableHead>
                     <TableHead>Última Visita</TableHead>
-                    <TableHead>Total Agendamentos</TableHead>
                     <TableHead className="text-right">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredClients.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
                         Nenhum cliente encontrado
                       </TableCell>
                     </TableRow>
@@ -441,7 +440,7 @@ const Clientes = () => {
                                     className="text-green-600 hover:text-green-700"
                                     title="Abrir WhatsApp"
                                   >
-                                    <MessageSquare className="h-3.5 w-3.5" />
+                                    <WhatsAppIcon className="h-3.5 w-3.5" />
                                   </a>
                                 )}
                               </div>
@@ -462,11 +461,6 @@ const Clientes = () => {
                             ) : (
                               <span className="text-muted-foreground">-</span>
                             )}
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="secondary">
-                              {client.total_visits || 0} agendamentos
-                            </Badge>
                           </TableCell>
                           <TableCell className="text-right">
                             <DropdownMenu>

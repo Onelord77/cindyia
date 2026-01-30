@@ -119,17 +119,14 @@ Fluxo de configuração inicial.
 
 ## reports/
 
-Componentes de relatórios.
+Componentes de relatórios (3 relatórios principais).
 
 | Arquivo | Propósito |
 |---------|-----------|
 | `index.ts` | Exports do módulo |
-| `ReportAgendamentos.tsx` | Relatório de agendamentos |
-| `ReportClientes.tsx` | Relatório de clientes |
-| `ReportDesempenho.tsx` | Relatório de desempenho |
-| `ReportFinanceiro.tsx` | Relatório financeiro |
-| `ReportHorarios.tsx` | Relatório de horários |
-| `ReportServicos.tsx` | Relatório de serviços |
+| `ReportFinanceiro.tsx` | Relatório financeiro (receitas, despesas, lucro) |
+| `ReportAgendamentos.tsx` | Relatório de agendamentos (status, taxa de conclusão) |
+| `ReportDesempenho.tsx` | Relatório de desempenho (ticket médio, ROI, eficiência) |
 
 ---
 
@@ -206,6 +203,7 @@ Componentes base Shadcn/UI (65+ componentes).
 | `mobile-card.tsx` | Card responsivo para listagens mobile |
 | `sonner.tsx` | Sonner toast config |
 | `use-toast.ts` | Hook de toast |
+| `whatsapp-icon.tsx` | Ícone oficial do WhatsApp (SVG) |
 
 ---
 

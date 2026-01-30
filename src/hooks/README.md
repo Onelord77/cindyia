@@ -106,6 +106,38 @@ Todos usam TanStack React Query para cache e sincronização.
 | `useUpdateFinancialEntry()` | Mutation | Atualizar entrada |
 | `useDeleteFinancialEntry()` | Mutation | Deletar entrada |
 
+### useReportData.ts
+
+Hook para dados de relatórios (sem limitação de período como useAppointments).
+
+| Função | Tipo | Descrição |
+|--------|------|-----------|
+| `useReportData(dateRange?)` | Query | Dados processados para relatórios |
+
+**Retorno:**
+- `totalRevenue` - Receita total do período
+- `totalExpenses` - Despesas totais do período
+- `totalAppointments` - Total de agendamentos
+- `completedAppointments` - Agendamentos concluídos
+- `cancelledAppointments` - Agendamentos cancelados
+- `ticketMedio` - Ticket médio (receita / agendamentos concluídos)
+- `cancelRate` - Taxa de cancelamento em %
+- `dailyData` - Dados diários para gráficos (receita + despesa)
+- `serviceData` - Serviços mais realizados
+- `weekdayData` - Distribuição por dia da semana
+- `expenseCategoryData` - Despesas por categoria
+- `incomeCategoryData` - Receitas por categoria
+- `isLoading` - Estado de carregamento
+
+**Uso:**
+```typescript
+import { useReportData } from '@/hooks/useReportData'
+
+const reportData = useReportData(dateRange)
+console.log(reportData.totalRevenue)
+console.log(reportData.dailyData) // [{ name: '01/01', receita: 100, despesa: 50 }]
+```
+
 ---
 
 ## Hooks de Configuração
