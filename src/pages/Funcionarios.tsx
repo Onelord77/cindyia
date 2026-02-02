@@ -116,6 +116,49 @@ const Funcionarios = () => {
     workingDays: (selectedTenant.settings as Record<string, unknown>).workingDays as string[] || ['seg', 'ter', 'qua', 'qui', 'sex', 'sab'],
   } : undefined;
 
+  // Função para ajustar horários do funcionário aos limites da empresa
+  const adjustWorkingHoursToCompany = (workingHours: WorkingHours, company: CompanyHours): WorkingHours => {
+    const adjusted: WorkingHours = {};
+    const days = ['seg', 'ter', 'qua', 'qui', 'sex', 'sab', 'dom'];
+
+    for (const day of days) {
+      const schedule = workingHours[day];
+      if (!schedule) {
+        adjusted[day] = { enabled: false, start: company.openTime, end: company.closeTime };
+        continue;
+      }
+
+      // Se o dia não está nos dias de trabalho da empresa, desabilita
+      if (!company.workingDays.includes(day)) {
+        adjusted[day] = { ...schedule, enabled: false };
+        continue;
+      }
+
+      // Ajusta horários para ficarem dentro dos limites
+      const clampTime = (time: string, field: 'start' | 'end'): string => {
+        const [h, m] = time.split(':').map(Number);
+        const [openH, openM] = company.openTime.split(':').map(Number);
+        const [closeH, closeM] = company.closeTime.split(':').map(Number);
+
+        const timeMins = h * 60 + m;
+        const openMins = openH * 60 + openM;
+        const closeMins = closeH * 60 + closeM;
+
+        if (field === 'start' && timeMins < openMins) return company.openTime;
+        if (field === 'end' && timeMins > closeMins) return company.closeTime;
+        return time;
+      };
+
+      adjusted[day] = {
+        enabled: schedule.enabled,
+        start: clampTime(schedule.start || company.openTime, 'start'),
+        end: clampTime(schedule.end || company.closeTime, 'end'),
+      };
+    }
+
+    return adjusted;
+  };
+
   const resetForm = () => {
     setFormData({ name: '', email: '', phone: '', role: 'employee', selectedServiceIds: [], workingHours: {}, breaks: { breaks: [] }, password: '' });
     setEditingEmployee(null);
@@ -445,13 +488,20 @@ const Funcionarios = () => {
                         setEditingEmployee(employee);
                         // Use services from the bulk map that's already loaded
                         const existingServiceIds = employeeServicesMap[employee.id]?.map(es => es.serviceId) || [];
+
+                        // Carrega horários do funcionário e ajusta aos limites da empresa
+                        const rawWorkingHours = (employee.working_hours as unknown as WorkingHours) || {};
+                        const adjustedWorkingHours = companyHours
+                          ? adjustWorkingHoursToCompany(rawWorkingHours, companyHours)
+                          : rawWorkingHours;
+
                         setFormData({
                           name: employee.name,
                           email: employee.email || '',
                           phone: employee.phone ? formatPhoneMask(employee.phone) : '',
                           role: employee.role || 'employee',
                           selectedServiceIds: existingServiceIds,
-                          workingHours: (employee.working_hours as unknown as WorkingHours) || {},
+                          workingHours: adjustedWorkingHours,
                           breaks: ((employee.working_hours as Record<string, unknown>)?.breaks as BreaksConfig) || { breaks: [] },
                           password: '',
                         });
