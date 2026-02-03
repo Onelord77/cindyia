@@ -657,16 +657,38 @@ const Funcionarios = () => {
                       </p>
                     </div>
 
-                    {/* Busca de serviços */}
-                    {activeServices.length > 5 && (
-                      <div className="relative">
-                        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                        <Input
-                          placeholder="Buscar serviço..."
-                          value={serviceSearch}
-                          onChange={(e) => setServiceSearch(e.target.value)}
-                          className="pl-9"
-                        />
+                    {/* Busca e ações */}
+                    {activeServices.length > 0 && (
+                      <div className="flex items-center gap-2">
+                        {activeServices.length > 5 && (
+                          <div className="relative flex-1">
+                            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                            <Input
+                              placeholder="Buscar serviço..."
+                              value={serviceSearch}
+                              onChange={(e) => setServiceSearch(e.target.value)}
+                              className="pl-9"
+                            />
+                          </div>
+                        )}
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="shrink-0"
+                          onClick={() => {
+                            const allSelected = activeServices.every(s => formData.selectedServiceIds.includes(s.id));
+                            setFormData(prev => ({
+                              ...prev,
+                              selectedServiceIds: allSelected ? [] : activeServices.map(s => s.id)
+                            }));
+                          }}
+                        >
+                          {activeServices.every(s => formData.selectedServiceIds.includes(s.id))
+                            ? 'Desmarcar todos'
+                            : 'Selecionar todos'
+                          }
+                        </Button>
                       </div>
                     )}
 
