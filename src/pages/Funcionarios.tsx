@@ -14,7 +14,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, Phone, Mail, Clock, Edit, Trash2, UserCog, Loader2, Building2, Scissors, Calendar, Coffee } from 'lucide-react';
+import { Plus, Phone, Mail, Clock, Edit, Trash2, UserCog, Loader2, Building2, Scissors, Calendar, Coffee, Search } from 'lucide-react';
 import { WorkingHoursEditor, formatWorkingHoursSummary, type WorkingHours, type CompanyHours, type BreaksConfig, type BreakPeriod } from '@/components/employees/WorkingHoursEditor';
 import { BreaksEditor, formatBreaksSummary } from '@/components/employees/BreaksEditor';
 import { useEmployees } from '@/hooks/useEmployees';
@@ -54,6 +54,7 @@ const Funcionarios = () => {
   const [editingEmployee, setEditingEmployee] = useState<typeof employees[0] | null>(null);
   const [deletingEmployeeId, setDeletingEmployeeId] = useState<string | null>(null);
   const [createWithAuth, setCreateWithAuth] = useState(false);
+  const [serviceSearch, setServiceSearch] = useState('');
 
   const [formData, setFormData] = useState({
     name: '',
@@ -163,7 +164,17 @@ const Funcionarios = () => {
     setFormData({ name: '', email: '', phone: '', role: 'employee', selectedServiceIds: [], workingHours: {}, breaks: { breaks: [] }, password: '' });
     setEditingEmployee(null);
     setCreateWithAuth(false);
+    setServiceSearch('');
   };
+
+  // Filtrar serviços ativos pela busca
+  const filteredServices = useMemo(() => {
+    if (!serviceSearch.trim()) return activeServices;
+    const search = serviceSearch.toLowerCase();
+    return activeServices.filter(s =>
+      s.name.toLowerCase().includes(search)
+    );
+  }, [activeServices, serviceSearch]);
 
   // Valida se pelo menos um dia de trabalho está configurado
   const hasValidWorkingHours = (): boolean => {
@@ -635,49 +646,88 @@ const Funcionarios = () => {
                 </TabsContent>
 
                 <TabsContent value="servicos" className="mt-0 pr-4">
-                  <div className="space-y-2">
-                    <Label className="flex items-center gap-2">
-                      <Scissors className="h-4 w-4" />
-                      Serviços que pode realizar
-                    </Label>
-                    <p className="text-xs text-muted-foreground mb-3">
-                      Selecione os serviços que este funcionário está habilitado a realizar
-                    </p>
-                    <div className="space-y-3 rounded-md border p-3">
+                  <div className="space-y-3">
+                    <div>
+                      <Label className="flex items-center gap-2">
+                        <Scissors className="h-4 w-4" />
+                        Serviços que pode realizar
+                      </Label>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Selecione os serviços que este funcionário está habilitado a realizar
+                      </p>
+                    </div>
+
+                    {/* Busca de serviços */}
+                    {activeServices.length > 5 && (
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                        <Input
+                          placeholder="Buscar serviço..."
+                          value={serviceSearch}
+                          onChange={(e) => setServiceSearch(e.target.value)}
+                          className="pl-9"
+                        />
+                      </div>
+                    )}
+
+                    <div className="rounded-md border">
                       {services.length === 0 ? (
-                        <p className="text-sm text-muted-foreground py-4 text-center">Nenhum serviço cadastrado</p>
+                        <p className="text-sm text-muted-foreground py-8 text-center">Nenhum serviço cadastrado</p>
+                      ) : filteredServices.length === 0 ? (
+                        <p className="text-sm text-muted-foreground py-8 text-center">Nenhum serviço encontrado</p>
                       ) : (
-                        activeServices.map((service) => (
-                          <div key={service.id} className="flex items-start space-x-3">
-                            <Checkbox
-                              id={`service-${service.id}`}
-                              checked={formData.selectedServiceIds.includes(service.id)}
-                              onCheckedChange={(checked) => {
-                                setFormData(prev => ({
-                                  ...prev,
-                                  selectedServiceIds: checked
-                                    ? [...prev.selectedServiceIds, service.id]
-                                    : prev.selectedServiceIds.filter(id => id !== service.id)
-                                }));
-                              }}
-                            />
-                            <div className="flex-1">
-                              <label 
-                                htmlFor={`service-${service.id}`} 
-                                className="text-sm font-medium leading-none cursor-pointer"
+                        <ScrollArea className="h-[240px]">
+                          <div className="space-y-1 p-3">
+                            {filteredServices.map((service) => (
+                              <div
+                                key={service.id}
+                                className={`flex items-start space-x-3 p-2 rounded-md transition-colors cursor-pointer hover:bg-muted/50 ${
+                                  formData.selectedServiceIds.includes(service.id) ? 'bg-primary/5' : ''
+                                }`}
+                                onClick={() => {
+                                  const isSelected = formData.selectedServiceIds.includes(service.id);
+                                  setFormData(prev => ({
+                                    ...prev,
+                                    selectedServiceIds: isSelected
+                                      ? prev.selectedServiceIds.filter(id => id !== service.id)
+                                      : [...prev.selectedServiceIds, service.id]
+                                  }));
+                                }}
                               >
-                                {service.name}
-                              </label>
-                              <p className="text-xs text-muted-foreground mt-1">
-                                {service.duration} min • R$ {Number(service.price).toFixed(2)}
-                              </p>
-                            </div>
+                                <Checkbox
+                                  id={`service-${service.id}`}
+                                  checked={formData.selectedServiceIds.includes(service.id)}
+                                  onCheckedChange={(checked) => {
+                                    setFormData(prev => ({
+                                      ...prev,
+                                      selectedServiceIds: checked
+                                        ? [...prev.selectedServiceIds, service.id]
+                                        : prev.selectedServiceIds.filter(id => id !== service.id)
+                                    }));
+                                  }}
+                                  onClick={(e) => e.stopPropagation()}
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <label
+                                    htmlFor={`service-${service.id}`}
+                                    className="text-sm font-medium leading-none cursor-pointer"
+                                  >
+                                    {service.name}
+                                  </label>
+                                  <p className="text-xs text-muted-foreground mt-1">
+                                    {service.duration} min • R$ {Number(service.price).toFixed(2)}
+                                  </p>
+                                </div>
+                              </div>
+                            ))}
                           </div>
-                        ))
+                        </ScrollArea>
                       )}
                     </div>
+
                     <p className="text-xs text-muted-foreground">
                       {formData.selectedServiceIds.length} serviço(s) selecionado(s)
+                      {activeServices.length > 0 && ` de ${activeServices.length} disponíveis`}
                     </p>
                   </div>
                 </TabsContent>
