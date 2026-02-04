@@ -15,6 +15,7 @@ hooks/
 ├── useEmployees.ts                      # Funcionários
 ├── useEmployeeServices.ts               # Serviços por funcionário
 ├── useServices.ts                       # Serviços
+├── useServiceCategories.ts              # Categorias de serviços
 ├── useFinancialEntries.ts               # Entradas financeiras
 ├── useSystemEndpoints.ts                # Endpoints de sistema
 ├── useTenants.ts                        # Tenants
@@ -92,10 +93,25 @@ Todos usam TanStack React Query para cache e sincronização.
 
 | Função | Tipo | Descrição |
 |--------|------|-----------|
-| `useServices()` | Query | Lista serviços do tenant |
+| `useServices()` | Query | Lista serviços do tenant (com categoria) |
 | `useCreateService()` | Mutation | Criar serviço |
 | `useUpdateService()` | Mutation | Atualizar serviço |
 | `useDeleteService()` | Mutation | Deletar serviço |
+
+**Tipos exportados:**
+- `ServiceWithCategory` - Serviço com dados da categoria relacionada
+
+### useServiceCategories.ts
+
+| Função | Tipo | Descrição |
+|--------|------|-----------|
+| `useServiceCategories()` | Query | Lista categorias de serviços do tenant |
+| `addCategory` | Mutation | Criar categoria |
+| `updateCategory` | Mutation | Atualizar categoria |
+| `deleteCategory` | Mutation | Deletar categoria |
+
+**Tipos exportados:**
+- `ServiceCategory` - Interface da categoria (id, name, color, sort_order)
 
 ### useFinancialEntries.ts
 

@@ -8,6 +8,15 @@ type Service = Database['public']['Tables']['services']['Row'];
 type ServiceInsert = Database['public']['Tables']['services']['Insert'];
 type ServiceUpdate = Database['public']['Tables']['services']['Update'];
 
+// Tipo estendido com dados da categoria
+export interface ServiceWithCategory extends Service {
+  service_categories?: {
+    id: string;
+    name: string;
+    color: string | null;
+  } | null;
+}
+
 export function useServices(overrideTenantId?: string) {
   const { profile, isSuperAdmin } = useAuth();
   const queryClient = useQueryClient();
@@ -20,23 +29,23 @@ export function useServices(overrideTenantId?: string) {
       if (isSuperAdmin && !tenantId) {
         const { data, error } = await supabase
           .from('services')
-          .select('*')
+          .select('*, service_categories(id, name, color)')
           .order('name', { ascending: true });
 
         if (error) throw error;
-        return data;
+        return data as ServiceWithCategory[];
       }
-      
+
       if (!tenantId) return [];
-      
+
       const { data, error } = await supabase
         .from('services')
-        .select('*')
+        .select('*, service_categories(id, name, color)')
         .eq('tenant_id', tenantId)
         .order('name', { ascending: true });
 
       if (error) throw error;
-      return data;
+      return data as ServiceWithCategory[];
     },
     enabled: !!tenantId || isSuperAdmin,
   });
