@@ -64,11 +64,15 @@ export function AppointmentsList({ appointments, title = 'Próximos Agendamentos
                   <div className="flex items-center gap-3 text-sm text-muted-foreground">
                     <span className="flex items-center gap-1">
                       <Scissors className="h-3.5 w-3.5" />
-                      {appointment.services?.name || 'Serviço'}
+                      {appointment.appointment_services && appointment.appointment_services.length > 0
+                        ? appointment.appointment_services.map(as => as.services?.name).filter(Boolean).join(', ')
+                        : appointment.services?.name || 'Serviço'}
                     </span>
                     <span className="flex items-center gap-1">
                       <User className="h-3.5 w-3.5" />
-                      {appointment.employees?.name || 'Profissional'}
+                      {appointment.appointment_services && appointment.appointment_services.length > 0
+                        ? [...new Set(appointment.appointment_services.map(as => (as as any).employees?.name).filter(Boolean))].join(', ')
+                        : appointment.employees?.name || 'Profissional'}
                     </span>
                   </div>
                 </div>

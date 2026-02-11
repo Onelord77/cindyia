@@ -24,7 +24,8 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Search, Filter, Plus, MoreVertical, Eye, Edit, Calendar, X, Loader2, CheckCircle } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Search, Filter, Plus, MoreVertical, Edit, Calendar, X, Loader2, CheckCircle } from 'lucide-react';
 import { cn, toSaoPauloDateTime, createSaoPauloDate, formatTimeInSaoPaulo, getTodayInSaoPaulo, getDateInSaoPaulo } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useAppointments } from '@/hooks/useAppointments';
@@ -78,67 +79,78 @@ const Agendamentos = () => {
 
   const [formData, setFormData] = useState({
     client_id: '',
-    service_id: '',
-    employee_id: '',
+    service_ids: [] as string[],
+    service_employees: {} as Record<string, string>, // service_id -> employee_id
     date: getTodayInSaoPaulo(),
     time: '09:00',
   });
 
   const [editFormData, setEditFormData] = useState({
     client_id: '',
-    service_id: '',
-    employee_id: '',
+    service_ids: [] as string[],
+    service_employees: {} as Record<string, string>, // service_id -> employee_id
     date: '',
     time: '',
   });
 
-  // Filter employees that can perform the selected service (for create form)
-  const availableEmployees = useMemo(() => {
-    if (!formData.service_id) return employees.filter(e => e.is_active);
+  // Get employees that can perform a specific service
+  const getEmployeesForService = useMemo(() => {
+    return (serviceId: string) => {
+      return employees.filter(e => {
+        if (!e.is_active) return false;
+        const empServices = employeeServicesMap[e.id] || [];
+        return empServices.some(es => es.serviceId === serviceId);
+      });
+    };
+  }, [employees, employeeServicesMap]);
 
-    return employees.filter(e => {
-      if (!e.is_active) return false;
-      const empServices = employeeServicesMap[e.id] || [];
-      return empServices.some(es => es.serviceId === formData.service_id);
-    });
-  }, [employees, formData.service_id, employeeServicesMap]);
+  // Calculate totals for selected services (create form)
+  const selectedServicesTotals = useMemo(() => {
+    const selectedSvcs = activeServices.filter(s => formData.service_ids.includes(s.id));
+    return {
+      duration: selectedSvcs.reduce((sum, s) => sum + s.duration, 0),
+      price: selectedSvcs.reduce((sum, s) => sum + Number(s.price), 0),
+    };
+  }, [formData.service_ids, activeServices]);
 
-  // Filter employees that can perform the selected service (for edit form)
-  const availableEmployeesEdit = useMemo(() => {
-    if (!editFormData.service_id) return employees.filter(e => e.is_active);
+  // Calculate totals for selected services (edit form)
+  const editServicesTotals = useMemo(() => {
+    const selectedSvcs = activeServices.filter(s => editFormData.service_ids.includes(s.id));
+    return {
+      duration: selectedSvcs.reduce((sum, s) => sum + s.duration, 0),
+      price: selectedSvcs.reduce((sum, s) => sum + Number(s.price), 0),
+    };
+  }, [editFormData.service_ids, activeServices]);
 
-    return employees.filter(e => {
-      if (!e.is_active) return false;
-      const empServices = employeeServicesMap[e.id] || [];
-      return empServices.some(es => es.serviceId === editFormData.service_id);
-    });
-  }, [employees, editFormData.service_id, employeeServicesMap]);
-
-  // Reset employee selection when service changes and employee can't perform it
+  // Clean up service_employees when services are unchecked
   useEffect(() => {
-    if (formData.service_id && formData.employee_id) {
-      const canPerform = availableEmployees.some(e => e.id === formData.employee_id);
-      if (!canPerform) {
-        setFormData(prev => ({ ...prev, employee_id: '' }));
-      }
-    }
-  }, [formData.service_id, availableEmployees]);
+    setFormData(prev => {
+      const cleaned = { ...prev.service_employees };
+      Object.keys(cleaned).forEach(sId => {
+        if (!prev.service_ids.includes(sId)) delete cleaned[sId];
+      });
+      return { ...prev, service_employees: cleaned };
+    });
+  }, [formData.service_ids]);
 
-  // Reset employee selection when service changes in edit form
   useEffect(() => {
-    if (editFormData.service_id && editFormData.employee_id) {
-      const canPerform = availableEmployeesEdit.some(e => e.id === editFormData.employee_id);
-      if (!canPerform) {
-        setEditFormData(prev => ({ ...prev, employee_id: '' }));
-      }
-    }
-  }, [editFormData.service_id, availableEmployeesEdit]);
+    setEditFormData(prev => {
+      const cleaned = { ...prev.service_employees };
+      Object.keys(cleaned).forEach(sId => {
+        if (!prev.service_ids.includes(sId)) delete cleaned[sId];
+      });
+      return { ...prev, service_employees: cleaned };
+    });
+  }, [editFormData.service_ids]);
 
   const filteredAppointments = useMemo(() => {
     return appointments.filter((appointment) => {
-      const matchesSearch = 
+      const serviceNames = appointment.appointment_services && appointment.appointment_services.length > 0
+        ? appointment.appointment_services.map(as => as.services?.name || '').join(' ')
+        : appointment.services?.name || '';
+      const matchesSearch =
         appointment.clients?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        appointment.services?.name?.toLowerCase().includes(searchTerm.toLowerCase());
+        serviceNames.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesStatus = statusFilter === 'all' || appointment.status === statusFilter;
       
       if (dateRange?.from && dateRange?.to) {
@@ -157,8 +169,8 @@ const Agendamentos = () => {
   const resetForm = () => {
     setFormData({
       client_id: '',
-      service_id: '',
-      employee_id: '',
+      service_ids: [],
+      service_employees: {},
       date: getTodayInSaoPaulo(),
       time: '09:00',
     });
@@ -170,96 +182,96 @@ const Agendamentos = () => {
       toast.error('Selecione um cliente para criar o agendamento.');
       return;
     }
-    if (!formData.service_id) {
-      toast.error('Selecione um serviço para criar o agendamento.');
-      return;
-    }
-    if (!formData.employee_id) {
-      toast.error('Selecione um profissional para criar o agendamento.');
+    if (formData.service_ids.length === 0) {
+      toast.error('Selecione pelo menos um serviço para criar o agendamento.');
       return;
     }
 
-    // Validate employee can perform the service (frontend validation)
-    const empServices = employeeServicesMap[formData.employee_id] || [];
-    const canPerform = empServices.some(es => es.serviceId === formData.service_id);
-    if (!canPerform) {
-      toast.error('Este profissional não executa o serviço selecionado.');
+    // Validate each service has an employee assigned
+    const missingEmployee = formData.service_ids.find(sId => !formData.service_employees[sId]);
+    if (missingEmployee) {
+      const svc = activeServices.find(s => s.id === missingEmployee);
+      toast.error(`Selecione um profissional para o serviço "${svc?.name || 'selecionado'}".`);
       return;
     }
 
-    const service = services.find(s => s.id === formData.service_id);
+    // Validate each employee can perform their assigned service (frontend validation)
+    for (const [svcId, empId] of Object.entries(formData.service_employees)) {
+      const empServices = employeeServicesMap[empId] || [];
+      if (!empServices.some(es => es.serviceId === svcId)) {
+        const svc = activeServices.find(s => s.id === svcId);
+        const emp = employees.find(e => e.id === empId);
+        toast.error(`${emp?.name || 'Profissional'} não executa o serviço "${svc?.name || ''}".`);
+        return;
+      }
+    }
+
     const scheduledAt = createSaoPauloDate(formData.date, formData.time);
-    const duration = service?.duration || 30;
+    const duration = selectedServicesTotals.duration || 30;
 
-    // Frontend validation for working day (using PT-BR format as saved in DB)
-    const selectedEmployee = employees.find(e => e.id === formData.employee_id);
-    if (selectedEmployee?.working_hours) {
-      // Map day index to Portuguese key (0=Sunday, 1=Monday, etc.)
-      const dayKeysPt = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab'];
-      const dayLabelsPt: Record<string, string> = {
-        dom: 'domingo',
-        seg: 'segunda-feira',
-        ter: 'terça-feira',
-        qua: 'quarta-feira',
-        qui: 'quinta-feira',
-        sex: 'sexta-feira',
-        sab: 'sábado',
-      };
+    // Validate working day/time for each unique employee
+    const uniqueEmployeeIds = [...new Set(Object.values(formData.service_employees))];
+    const dayKeysPt = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab'];
+    const dayLabelsPt: Record<string, string> = {
+      dom: 'domingo', seg: 'segunda-feira', ter: 'terça-feira', qua: 'quarta-feira',
+      qui: 'quinta-feira', sex: 'sexta-feira', sab: 'sábado',
+    };
 
-      const dayOfWeek = dayKeysPt[scheduledAt.getDay()];
-      const workingHours = selectedEmployee.working_hours as Record<string, { enabled?: boolean; isOpen?: boolean; start?: string; end?: string; open?: string; close?: string }>;
-      const daySchedule = workingHours[dayOfWeek];
+    for (const empId of uniqueEmployeeIds) {
+      const selectedEmployee = employees.find(e => e.id === empId);
+      if (selectedEmployee?.working_hours) {
+        const dayOfWeek = dayKeysPt[scheduledAt.getDay()];
+        const workingHours = selectedEmployee.working_hours as Record<string, { enabled?: boolean; isOpen?: boolean; start?: string; end?: string; open?: string; close?: string }>;
+        const daySchedule = workingHours[dayOfWeek];
 
-      // Check enabled (PT-BR format) or isOpen (EN format)
-      const isEnabled = daySchedule?.enabled ?? daySchedule?.isOpen ?? false;
-      const startTime = daySchedule?.start ?? daySchedule?.open ?? '09:00';
-      const endTime = daySchedule?.end ?? daySchedule?.close ?? '18:00';
+        const isEnabled = daySchedule?.enabled ?? daySchedule?.isOpen ?? false;
+        const startTime = daySchedule?.start ?? daySchedule?.open ?? '09:00';
+        const endTime = daySchedule?.end ?? daySchedule?.close ?? '18:00';
 
-      if (!daySchedule || !isEnabled) {
-        toast.error(`${selectedEmployee.name} não trabalha ${dayLabelsPt[dayOfWeek]}. Selecione outro dia.`);
-        return;
+        if (!daySchedule || !isEnabled) {
+          toast.error(`${selectedEmployee.name} não trabalha ${dayLabelsPt[dayOfWeek]}. Selecione outro dia.`);
+          return;
+        }
+
+        const appointmentTime = formData.time;
+        const appointmentEndTime = new Date(scheduledAt.getTime() + duration * 60000);
+        const endTimeStr = formatTimeInSaoPaulo(appointmentEndTime);
+
+        if (appointmentTime < startTime || endTimeStr > endTime) {
+          toast.error(`${selectedEmployee.name} só atende das ${startTime} às ${endTime} neste dia. Selecione outro horário.`);
+          return;
+        }
       }
 
-      // Check if time is within working hours
-      const appointmentTime = formData.time;
-      const appointmentEndTime = new Date(scheduledAt.getTime() + duration * 60000);
-      const endTimeStr = formatTimeInSaoPaulo(appointmentEndTime);
+      // Frontend validation for time conflict per employee
+      const newStart = scheduledAt.getTime();
+      const newEnd = newStart + duration * 60000;
+      const activeStatuses = ['scheduled', 'confirmed', 'in_progress'];
 
-      if (appointmentTime < startTime || endTimeStr > endTime) {
-        toast.error(`${selectedEmployee.name} só atende das ${startTime} às ${endTime} neste dia. Selecione outro horário.`);
+      const conflict = appointments.find(apt => {
+        if (apt.employee_id !== empId) return false;
+        if (!apt.status || !activeStatuses.includes(apt.status)) return false;
+
+        const existingStart = new Date(apt.scheduled_at).getTime();
+        const existingEnd = existingStart + apt.duration * 60000;
+
+        return newStart < existingEnd && newEnd > existingStart;
+      });
+
+      if (conflict) {
+        const conflictStart = formatTimeInSaoPaulo(conflict.scheduled_at);
+        const conflictEnd = formatTimeInSaoPaulo(new Date(new Date(conflict.scheduled_at).getTime() + conflict.duration * 60000));
+        const empName = employees.find(e => e.id === empId)?.name || 'O profissional';
+        toast.error(`${empName} já possui um agendamento das ${conflictStart} às ${conflictEnd}. Selecione outro horário.`);
         return;
       }
-    }
-
-    // Frontend validation for time conflict
-    const newStart = scheduledAt.getTime();
-    const newEnd = newStart + duration * 60000;
-    const activeStatuses = ['scheduled', 'confirmed', 'in_progress'];
-
-    const conflict = appointments.find(apt => {
-      if (apt.employee_id !== formData.employee_id) return false;
-      if (!apt.status || !activeStatuses.includes(apt.status)) return false;
-      
-      const existingStart = new Date(apt.scheduled_at).getTime();
-      const existingEnd = existingStart + apt.duration * 60000;
-      
-      return newStart < existingEnd && newEnd > existingStart;
-    });
-
-    if (conflict) {
-      const conflictStart = formatTimeInSaoPaulo(conflict.scheduled_at);
-      const conflictEnd = formatTimeInSaoPaulo(new Date(new Date(conflict.scheduled_at).getTime() + conflict.duration * 60000));
-      toast.error(`O profissional já possui um agendamento das ${conflictStart} às ${conflictEnd}. Selecione outro horário.`);
-      return;
     }
 
     await addAppointment.mutateAsync({
       client_id: formData.client_id,
-      service_id: formData.service_id,
-      employee_id: formData.employee_id,
+      service_ids: formData.service_ids,
+      service_employees: formData.service_employees,
       scheduled_at: toSaoPauloDateTime(formData.date, formData.time),
-      duration,
-      price: service?.price,
     });
 
     setIsDialogOpen(false);
@@ -291,10 +303,26 @@ const Agendamentos = () => {
     const dateStr = getDateInSaoPaulo(appointmentDate);
     const timeStr = formatTimeInSaoPaulo(appointmentDate);
 
+    // Load service_ids and service_employees from appointment_services
+    let serviceIds: string[] = [];
+    const serviceEmployees: Record<string, string> = {};
+
+    if (appointment.appointment_services && appointment.appointment_services.length > 0) {
+      serviceIds = appointment.appointment_services.map(as => as.service_id);
+      appointment.appointment_services.forEach(as => {
+        serviceEmployees[as.service_id] = as.employee_id;
+      });
+    } else if (appointment.service_id) {
+      serviceIds = [appointment.service_id];
+      if (appointment.employee_id) {
+        serviceEmployees[appointment.service_id] = appointment.employee_id;
+      }
+    }
+
     setEditFormData({
       client_id: appointment.client_id || '',
-      service_id: appointment.service_id || '',
-      employee_id: appointment.employee_id || '',
+      service_ids: serviceIds,
+      service_employees: serviceEmployees,
       date: dateStr,
       time: timeStr,
     });
@@ -305,105 +333,94 @@ const Agendamentos = () => {
   const handleSaveEdit = async () => {
     if (!editingAppointmentId) return;
 
-    // Validate required fields with specific messages
     if (!editFormData.client_id) {
       toast.error('Selecione um cliente para o agendamento.');
       return;
     }
-    if (!editFormData.service_id) {
-      toast.error('Selecione um serviço para o agendamento.');
-      return;
-    }
-    if (!editFormData.employee_id) {
-      toast.error('Selecione um profissional para o agendamento.');
+    if (editFormData.service_ids.length === 0) {
+      toast.error('Selecione pelo menos um serviço para o agendamento.');
       return;
     }
 
-    // Validate employee can perform the service (frontend validation)
-    const empServices = employeeServicesMap[editFormData.employee_id] || [];
-    const canPerform = empServices.some(es => es.serviceId === editFormData.service_id);
-    if (!canPerform) {
-      toast.error('Este profissional não executa o serviço selecionado.');
+    // Validate each service has an employee assigned
+    const missingEmployee = editFormData.service_ids.find(sId => !editFormData.service_employees[sId]);
+    if (missingEmployee) {
+      const svc = activeServices.find(s => s.id === missingEmployee);
+      toast.error(`Selecione um profissional para o serviço "${svc?.name || 'selecionado'}".`);
       return;
     }
 
-    const service = services.find(s => s.id === editFormData.service_id);
     const scheduledAt = createSaoPauloDate(editFormData.date, editFormData.time);
-    const duration = service?.duration || 30;
+    const duration = editServicesTotals.duration || 30;
 
-    // Frontend validation for working day (using PT-BR format as saved in DB)
-    const selectedEmployee = employees.find(e => e.id === editFormData.employee_id);
-    if (selectedEmployee?.working_hours) {
-      const dayKeysPt = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab'];
-      const dayLabelsPt: Record<string, string> = {
-        dom: 'domingo',
-        seg: 'segunda-feira',
-        ter: 'terça-feira',
-        qua: 'quarta-feira',
-        qui: 'quinta-feira',
-        sex: 'sexta-feira',
-        sab: 'sábado',
-      };
+    // Validate working day/time and conflicts for each unique employee
+    const uniqueEmployeeIds = [...new Set(Object.values(editFormData.service_employees))];
+    const dayKeysPt = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab'];
+    const dayLabelsPt: Record<string, string> = {
+      dom: 'domingo', seg: 'segunda-feira', ter: 'terça-feira', qua: 'quarta-feira',
+      qui: 'quinta-feira', sex: 'sexta-feira', sab: 'sábado',
+    };
 
-      const dayOfWeek = dayKeysPt[scheduledAt.getDay()];
-      const workingHours = selectedEmployee.working_hours as Record<string, { enabled?: boolean; isOpen?: boolean; start?: string; end?: string; open?: string; close?: string }>;
-      const daySchedule = workingHours[dayOfWeek];
+    for (const empId of uniqueEmployeeIds) {
+      const selectedEmployee = employees.find(e => e.id === empId);
+      if (selectedEmployee?.working_hours) {
+        const dayOfWeek = dayKeysPt[scheduledAt.getDay()];
+        const workingHours = selectedEmployee.working_hours as Record<string, { enabled?: boolean; isOpen?: boolean; start?: string; end?: string; open?: string; close?: string }>;
+        const daySchedule = workingHours[dayOfWeek];
 
-      const isEnabled = daySchedule?.enabled ?? daySchedule?.isOpen ?? false;
-      const startTime = daySchedule?.start ?? daySchedule?.open ?? '09:00';
-      const endTime = daySchedule?.end ?? daySchedule?.close ?? '18:00';
+        const isEnabled = daySchedule?.enabled ?? daySchedule?.isOpen ?? false;
+        const startTime = daySchedule?.start ?? daySchedule?.open ?? '09:00';
+        const endTime = daySchedule?.end ?? daySchedule?.close ?? '18:00';
 
-      if (!daySchedule || !isEnabled) {
-        toast.error(`${selectedEmployee.name} não trabalha ${dayLabelsPt[dayOfWeek]}. Selecione outro dia.`);
-        return;
+        if (!daySchedule || !isEnabled) {
+          toast.error(`${selectedEmployee.name} não trabalha ${dayLabelsPt[dayOfWeek]}. Selecione outro dia.`);
+          return;
+        }
+
+        const appointmentTime = editFormData.time;
+        const appointmentEndTime = new Date(scheduledAt.getTime() + duration * 60000);
+        const endTimeStr = formatTimeInSaoPaulo(appointmentEndTime);
+
+        if (appointmentTime < startTime || endTimeStr > endTime) {
+          toast.error(`${selectedEmployee.name} só atende das ${startTime} às ${endTime} neste dia. Selecione outro horário.`);
+          return;
+        }
       }
 
-      const appointmentTime = editFormData.time;
-      const appointmentEndTime = new Date(scheduledAt.getTime() + duration * 60000);
-      const endTimeStr = formatTimeInSaoPaulo(appointmentEndTime);
+      const newStart = scheduledAt.getTime();
+      const newEnd = newStart + duration * 60000;
+      const activeStatuses = ['scheduled', 'confirmed', 'in_progress'];
 
-      if (appointmentTime < startTime || endTimeStr > endTime) {
-        toast.error(`${selectedEmployee.name} só atende das ${startTime} às ${endTime} neste dia. Selecione outro horário.`);
+      const conflict = appointments.find(apt => {
+        if (apt.id === editingAppointmentId) return false;
+        if (apt.employee_id !== empId) return false;
+        if (!apt.status || !activeStatuses.includes(apt.status)) return false;
+
+        const existingStart = new Date(apt.scheduled_at).getTime();
+        const existingEnd = existingStart + apt.duration * 60000;
+
+        return newStart < existingEnd && newEnd > existingStart;
+      });
+
+      if (conflict) {
+        const conflictStart = formatTimeInSaoPaulo(conflict.scheduled_at);
+        const conflictEnd = formatTimeInSaoPaulo(new Date(new Date(conflict.scheduled_at).getTime() + conflict.duration * 60000));
+        const empName = employees.find(e => e.id === empId)?.name || 'O profissional';
+        toast.error(`${empName} já possui um agendamento das ${conflictStart} às ${conflictEnd}. Selecione outro horário.`);
         return;
       }
-    }
-
-    // Frontend validation for time conflict (excluding current appointment)
-    const newStart = scheduledAt.getTime();
-    const newEnd = newStart + duration * 60000;
-    const activeStatuses = ['scheduled', 'confirmed', 'in_progress'];
-
-    const conflict = appointments.find(apt => {
-      if (apt.id === editingAppointmentId) return false; // Exclude current appointment
-      if (apt.employee_id !== editFormData.employee_id) return false;
-      if (!apt.status || !activeStatuses.includes(apt.status)) return false;
-
-      const existingStart = new Date(apt.scheduled_at).getTime();
-      const existingEnd = existingStart + apt.duration * 60000;
-
-      return newStart < existingEnd && newEnd > existingStart;
-    });
-
-    if (conflict) {
-      const conflictStart = formatTimeInSaoPaulo(conflict.scheduled_at);
-      const conflictEnd = formatTimeInSaoPaulo(new Date(new Date(conflict.scheduled_at).getTime() + conflict.duration * 60000));
-      toast.error(`O profissional já possui um agendamento das ${conflictStart} às ${conflictEnd}. Selecione outro horário.`);
-      return;
     }
 
     await updateAppointment.mutateAsync({
       id: editingAppointmentId,
       client_id: editFormData.client_id,
-      service_id: editFormData.service_id,
-      employee_id: editFormData.employee_id,
+      service_ids: editFormData.service_ids,
+      service_employees: editFormData.service_employees,
       scheduled_at: toSaoPauloDateTime(editFormData.date, editFormData.time),
-      duration,
-      price: service?.price,
     });
 
     setIsEditDialogOpen(false);
     setEditingAppointmentId(null);
-    toast.success('Agendamento atualizado com sucesso!');
   };
 
   const formatTime = (scheduledAt: string, duration: number) => {
@@ -492,7 +509,11 @@ const Agendamentos = () => {
                   <MobileCard
                     key={appointment.id}
                     title={appointment.clients?.name || 'Cliente'}
-                    subtitle={appointment.services?.name}
+                    subtitle={
+                      appointment.appointment_services && appointment.appointment_services.length > 0
+                        ? appointment.appointment_services.map(as => as.services?.name).filter(Boolean).join(', ')
+                        : appointment.services?.name
+                    }
                     badge={
                       <Badge variant="outline" className={cn(status?.class, 'text-xs')}>
                         {status?.label}
@@ -601,12 +622,36 @@ const Agendamentos = () => {
                           </TableCell>
                           <TableCell>
                             <div>
-                              <p className="font-medium text-sm truncate max-w-[120px]">{appointment.services?.name}</p>
-                              <p className="text-xs text-muted-foreground">R$ {Number(appointment.price || 0).toFixed(2)}</p>
+                              {appointment.appointment_services && appointment.appointment_services.length > 0 ? (
+                                <>
+                                  <p className="font-medium text-sm truncate max-w-[200px]">
+                                    {appointment.appointment_services.map(as => as.services?.name).filter(Boolean).join(', ')}
+                                  </p>
+                                  <p className="text-xs text-muted-foreground">
+                                    {appointment.appointment_services.length} serviço{appointment.appointment_services.length > 1 ? 's' : ''} - R$ {Number(appointment.price || 0).toFixed(2)}
+                                  </p>
+                                </>
+                              ) : (
+                                <>
+                                  <p className="font-medium text-sm truncate max-w-[120px]">{appointment.services?.name}</p>
+                                  <p className="text-xs text-muted-foreground">R$ {Number(appointment.price || 0).toFixed(2)}</p>
+                                </>
+                              )}
                             </div>
                           </TableCell>
                           <TableCell>
-                            <span className="text-sm">{appointment.employees?.name}</span>
+                            {appointment.appointment_services && appointment.appointment_services.length > 0 ? (
+                              <div className="space-y-0.5">
+                                {(() => {
+                                  const uniqueNames = [...new Set(appointment.appointment_services.map(as => as.employees?.name).filter(Boolean))];
+                                  return uniqueNames.map((name, i) => (
+                                    <span key={i} className="text-sm block">{name}</span>
+                                  ));
+                                })()}
+                              </div>
+                            ) : (
+                              <span className="text-sm">{appointment.employees?.name}</span>
+                            )}
                           </TableCell>
                           <TableCell>
                             <DropdownMenu>
@@ -683,36 +728,73 @@ const Agendamentos = () => {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Serviço *</Label>
-                <Select value={formData.service_id} onValueChange={(v) => setFormData(p => ({ ...p, service_id: v }))}>
-                  <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-                  <SelectContent>
-                    {activeServices.map(s => <SelectItem key={s.id} value={s.id}>{s.name} - R$ {Number(s.price).toFixed(2)}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Profissional *</Label>
-                <Select 
-                  value={formData.employee_id} 
-                  onValueChange={(v) => setFormData(p => ({ ...p, employee_id: v }))}
-                  disabled={!formData.service_id}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder={formData.service_id ? "Selecione" : "Selecione o serviço primeiro"} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableEmployees.length === 0 && formData.service_id ? (
-                      <div className="px-2 py-1.5 text-sm text-muted-foreground">
-                        Nenhum profissional executa este serviço
+                <Label>Serviços e Profissionais *</Label>
+                <div className="border rounded-md p-3 space-y-3 max-h-64 overflow-y-auto">
+                  {activeServices.map(s => {
+                    const isChecked = formData.service_ids.includes(s.id);
+                    const availableForService = getEmployeesForService(s.id);
+                    return (
+                      <div key={s.id} className="space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <Checkbox
+                              checked={isChecked}
+                              onCheckedChange={(checked) => {
+                                setFormData(prev => ({
+                                  ...prev,
+                                  service_ids: checked
+                                    ? [...prev.service_ids, s.id]
+                                    : prev.service_ids.filter(id => id !== s.id)
+                                }));
+                              }}
+                            />
+                            <span className="text-sm font-medium">{s.name}</span>
+                          </label>
+                          <span className="text-xs text-muted-foreground whitespace-nowrap ml-2">
+                            R$ {Number(s.price).toFixed(2)} - {s.duration}min
+                          </span>
+                        </div>
+                        {isChecked && (
+                          <div className="ml-6">
+                            <Select
+                              value={formData.service_employees[s.id] || ''}
+                              onValueChange={(v) => setFormData(prev => ({
+                                ...prev,
+                                service_employees: { ...prev.service_employees, [s.id]: v }
+                              }))}
+                            >
+                              <SelectTrigger className="h-8 text-xs">
+                                <SelectValue placeholder="Selecione o profissional" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {availableForService.length === 0 ? (
+                                  <div className="px-2 py-1.5 text-xs text-muted-foreground">
+                                    Nenhum profissional para este serviço
+                                  </div>
+                                ) : (
+                                  availableForService.map(e => (
+                                    <SelectItem key={e.id} value={e.id}>{e.name}</SelectItem>
+                                  ))
+                                )}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
                       </div>
-                    ) : (
-                      availableEmployees.map(e => <SelectItem key={e.id} value={e.id}>{e.name}</SelectItem>)
-                    )}
-                  </SelectContent>
-                </Select>
-                {formData.service_id && availableEmployees.length === 0 && (
-                  <p className="text-xs text-destructive">Nenhum profissional cadastrado executa este serviço.</p>
+                    );
+                  })}
+                </div>
+                {formData.service_ids.length > 0 && (
+                  <div className="bg-muted/50 rounded-md p-2 text-sm space-y-1">
+                    <div className="flex justify-between">
+                      <span>Duração total:</span>
+                      <span className="font-medium">{selectedServicesTotals.duration} min</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Preço total:</span>
+                      <span className="font-medium">R$ {selectedServicesTotals.price.toFixed(2)}</span>
+                    </div>
+                  </div>
                 )}
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -753,36 +835,73 @@ const Agendamentos = () => {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Serviço *</Label>
-                <Select value={editFormData.service_id} onValueChange={(v) => setEditFormData(p => ({ ...p, service_id: v }))}>
-                  <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-                  <SelectContent>
-                    {activeServices.map(s => <SelectItem key={s.id} value={s.id}>{s.name} - R$ {Number(s.price).toFixed(2)}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Profissional *</Label>
-                <Select
-                  value={editFormData.employee_id}
-                  onValueChange={(v) => setEditFormData(p => ({ ...p, employee_id: v }))}
-                  disabled={!editFormData.service_id}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder={editFormData.service_id ? "Selecione" : "Selecione o serviço primeiro"} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableEmployeesEdit.length === 0 && editFormData.service_id ? (
-                      <div className="px-2 py-1.5 text-sm text-muted-foreground">
-                        Nenhum profissional executa este serviço
+                <Label>Serviços e Profissionais *</Label>
+                <div className="border rounded-md p-3 space-y-3 max-h-64 overflow-y-auto">
+                  {activeServices.map(s => {
+                    const isChecked = editFormData.service_ids.includes(s.id);
+                    const availableForService = getEmployeesForService(s.id);
+                    return (
+                      <div key={s.id} className="space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <Checkbox
+                              checked={isChecked}
+                              onCheckedChange={(checked) => {
+                                setEditFormData(prev => ({
+                                  ...prev,
+                                  service_ids: checked
+                                    ? [...prev.service_ids, s.id]
+                                    : prev.service_ids.filter(id => id !== s.id)
+                                }));
+                              }}
+                            />
+                            <span className="text-sm font-medium">{s.name}</span>
+                          </label>
+                          <span className="text-xs text-muted-foreground whitespace-nowrap ml-2">
+                            R$ {Number(s.price).toFixed(2)} - {s.duration}min
+                          </span>
+                        </div>
+                        {isChecked && (
+                          <div className="ml-6">
+                            <Select
+                              value={editFormData.service_employees[s.id] || ''}
+                              onValueChange={(v) => setEditFormData(prev => ({
+                                ...prev,
+                                service_employees: { ...prev.service_employees, [s.id]: v }
+                              }))}
+                            >
+                              <SelectTrigger className="h-8 text-xs">
+                                <SelectValue placeholder="Selecione o profissional" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {availableForService.length === 0 ? (
+                                  <div className="px-2 py-1.5 text-xs text-muted-foreground">
+                                    Nenhum profissional para este serviço
+                                  </div>
+                                ) : (
+                                  availableForService.map(e => (
+                                    <SelectItem key={e.id} value={e.id}>{e.name}</SelectItem>
+                                  ))
+                                )}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
                       </div>
-                    ) : (
-                      availableEmployeesEdit.map(e => <SelectItem key={e.id} value={e.id}>{e.name}</SelectItem>)
-                    )}
-                  </SelectContent>
-                </Select>
-                {editFormData.service_id && availableEmployeesEdit.length === 0 && (
-                  <p className="text-xs text-destructive">Nenhum profissional cadastrado executa este serviço.</p>
+                    );
+                  })}
+                </div>
+                {editFormData.service_ids.length > 0 && (
+                  <div className="bg-muted/50 rounded-md p-2 text-sm space-y-1">
+                    <div className="flex justify-between">
+                      <span>Duração total:</span>
+                      <span className="font-medium">{editServicesTotals.duration} min</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Preço total:</span>
+                      <span className="font-medium">R$ {editServicesTotals.price.toFixed(2)}</span>
+                    </div>
+                  </div>
                 )}
               </div>
               <div className="grid grid-cols-2 gap-4">

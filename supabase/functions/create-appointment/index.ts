@@ -114,6 +114,8 @@ function normalizeWorkingHours(workingHours: unknown): WorkingHours | null {
 
   for (const [key, value] of Object.entries(wh)) {
     if (!value || typeof value !== 'object') continue
+    // Skip non-day keys (e.g., 'breaks' config)
+    if (key === 'breaks') continue
 
     const dayData = value as Record<string, unknown>
     
@@ -200,7 +202,9 @@ serve(async (req) => {
       clientPhone?: string
       clientName?: string
       serviceId?: string
+      serviceIds?: string[]
       professionalId?: string
+      services?: { serviceId: string; professionalId: string }[]
       dateTime?: string
       notes?: string
     }
@@ -214,7 +218,32 @@ serve(async (req) => {
       )
     }
 
-    const { tenantId, clientPhone, clientName, serviceId, professionalId, dateTime, notes } = body
+    const { tenantId, clientPhone, clientName, serviceId, serviceIds, professionalId, services: servicesInput, dateTime, notes } = body
+
+    // Normalizar entrada: aceita 3 formatos
+    // 1. services: [{ serviceId, professionalId }] (novo - profissional por serviço)
+    // 2. serviceIds: [...] + professionalId (array com profissional global)
+    // 3. serviceId + professionalId (legado)
+    let serviceEmployeeMap: { serviceId: string; professionalId: string }[] = []
+
+    if (servicesInput && Array.isArray(servicesInput) && servicesInput.length > 0) {
+      // Novo formato: per-service professional
+      serviceEmployeeMap = servicesInput
+    } else {
+      const legacyServiceIds: string[] = serviceIds && Array.isArray(serviceIds) && serviceIds.length > 0
+        ? serviceIds
+        : serviceId
+          ? [serviceId]
+          : []
+      // Legado: all services use the same professionalId
+      if (professionalId) {
+        serviceEmployeeMap = legacyServiceIds.map(sId => ({ serviceId: sId, professionalId: professionalId! }))
+      } else if (legacyServiceIds.length > 0) {
+        serviceEmployeeMap = legacyServiceIds.map(sId => ({ serviceId: sId, professionalId: '' }))
+      }
+    }
+
+    const serviceIdsList = serviceEmployeeMap.map(s => s.serviceId)
 
     // ============ VALIDATION ============
 
@@ -222,8 +251,8 @@ serve(async (req) => {
     const missingFields: string[] = []
     if (!tenantId) missingFields.push('tenantId')
     if (!clientPhone) missingFields.push('clientPhone')
-    if (!serviceId) missingFields.push('serviceId')
-    if (!professionalId) missingFields.push('professionalId')
+    if (serviceIdsList.length === 0) missingFields.push('serviceId, serviceIds, or services')
+    if (serviceEmployeeMap.some(s => !s.professionalId)) missingFields.push('professionalId for each service')
     if (!dateTime) missingFields.push('dateTime')
 
     if (missingFields.length > 0) {
@@ -255,18 +284,20 @@ serve(async (req) => {
       )
     }
 
-    if (!isValidUUID(serviceId!)) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Invalid serviceId format (must be UUID)' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
-
-    if (!isValidUUID(professionalId!)) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Invalid professionalId format (must be UUID)' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+    // Validate all serviceIds and professionalIds are valid UUIDs
+    for (const entry of serviceEmployeeMap) {
+      if (!isValidUUID(entry.serviceId)) {
+        return new Response(
+          JSON.stringify({ success: false, error: `Invalid serviceId format: ${entry.serviceId} (must be UUID)` }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+      if (!isValidUUID(entry.professionalId)) {
+        return new Response(
+          JSON.stringify({ success: false, error: `Invalid professionalId format: ${entry.professionalId} (must be UUID)` }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
     }
 
     // 3. Parse and validate dateTime (ISO 8601 format)
@@ -315,69 +346,93 @@ serve(async (req) => {
       )
     }
 
-    // ============ SERVICE VALIDATION ============
+    // ============ SERVICES VALIDATION ============
 
-    const { data: service, error: serviceError } = await supabase
+    const { data: services, error: servicesError } = await supabase
       .from('services')
       .select('id, name, duration, price, is_active, tenant_id')
-      .eq('id', serviceId)
+      .in('id', serviceIdsList)
       .eq('tenant_id', tenantId)
-      .single()
 
-    if (serviceError || !service) {
+    if (servicesError || !services || services.length !== serviceIdsList.length) {
       return new Response(
-        JSON.stringify({ success: false, error: 'Service not found for this tenant' }),
+        JSON.stringify({ success: false, error: 'One or more services not found for this tenant' }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    if (!service.is_active) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Service is not active' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+    // Check all services are active
+    for (const svc of services) {
+      if (!svc.is_active) {
+        return new Response(
+          JSON.stringify({ success: false, error: `Service "${svc.name}" is not active` }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
     }
 
-    // ============ PROFESSIONAL VALIDATION ============
+    // Calculate totals
+    const totalDuration = services.reduce((sum, s) => sum + s.duration, 0)
+    const totalPrice = services.reduce((sum, s) => sum + Number(s.price), 0)
 
-    const { data: professional, error: professionalError } = await supabase
+    // ============ PROFESSIONALS VALIDATION ============
+
+    const uniqueProfessionalIds = [...new Set(serviceEmployeeMap.map(s => s.professionalId))]
+
+    const { data: professionals, error: professionalsError } = await supabase
       .from('employees')
       .select('id, name, working_hours, is_active, tenant_id')
-      .eq('id', professionalId)
+      .in('id', uniqueProfessionalIds)
       .eq('tenant_id', tenantId)
-      .single()
 
-    if (professionalError || !professional) {
+    if (professionalsError || !professionals || professionals.length !== uniqueProfessionalIds.length) {
       return new Response(
-        JSON.stringify({ success: false, error: 'Professional not found for this tenant' }),
+        JSON.stringify({ success: false, error: 'One or more professionals not found for this tenant' }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    if (!professional.is_active) {
+    for (const prof of professionals) {
+      if (!prof.is_active) {
+        return new Response(
+          JSON.stringify({ success: false, error: `Professional "${prof.name}" is not active` }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+    }
+
+    const professionalsMap = new Map(professionals.map(p => [p.id, p]))
+
+    // ============ PROFESSIONAL x SERVICES VALIDATION (per-service) ============
+
+    // Fetch all employee_services for all professionals
+    const { data: employeeServices, error: esError } = await supabase
+      .from('employee_services')
+      .select('employee_id, service_id')
+      .in('employee_id', uniqueProfessionalIds)
+      .in('service_id', serviceIdsList)
+
+    if (esError) {
       return new Response(
-        JSON.stringify({ success: false, error: 'Professional is not active' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ success: false, error: 'Error validating professional services' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    // ============ PROFESSIONAL x SERVICE VALIDATION ============
-
-    const { data: employeeService, error: esError } = await supabase
-      .from('employee_services')
-      .select('id')
-      .eq('employee_id', professionalId)
-      .eq('service_id', serviceId)
-      .single()
-
-    if (esError || !employeeService) {
-      return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: `Professional "${professional.name}" is not qualified to perform service "${service.name}"` 
-        }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+    // Build a set of "empId:svcId" for quick lookup
+    const qualifiedPairs = new Set(employeeServices?.map(es => `${es.employee_id}:${es.service_id}`) || [])
+    for (const entry of serviceEmployeeMap) {
+      if (!qualifiedPairs.has(`${entry.professionalId}:${entry.serviceId}`)) {
+        const prof = professionalsMap.get(entry.professionalId)
+        const svc = services.find(s => s.id === entry.serviceId)
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: `Professional "${prof?.name || 'Unknown'}" is not qualified to perform service "${svc?.name || 'Unknown'}"`
+          }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
     }
 
     // ============ COMPANY HOURS VALIDATION ============
@@ -434,131 +489,180 @@ serve(async (req) => {
     }
     
     // Calcular horário de término para validar contra fechamento da empresa
-    const serviceEndMinutes = reqMinutes + service.duration
-    
+    const serviceEndMinutes = reqMinutes + totalDuration
+
     if (serviceEndMinutes > companyCloseMins) {
       return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: `Agendamento terminaria após fechamento da empresa (${companyCloseTime}). Duração do serviço: ${service.duration} minutos` 
+        JSON.stringify({
+          success: false,
+          error: `Agendamento terminaria após fechamento da empresa (${companyCloseTime}). Duração total dos serviços: ${totalDuration} minutos`
         }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    // ============ WORKING HOURS VALIDATION (PROFESSIONAL) ============
+    // ============ WORKING HOURS VALIDATION (ALL PROFESSIONALS) ============
 
-    const workingHours = normalizeWorkingHours(professional.working_hours)
+    const endMinutes = reqMinutes + totalDuration
 
-    const dayHours = workingHours?.[dayOfWeek]
+    for (const prof of professionals) {
+      const workingHours = normalizeWorkingHours(prof.working_hours)
+      const dayHours = workingHours?.[dayOfWeek]
 
-    if (!dayHours || !dayHours.isOpen) {
-      return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: `Profissional "${professional.name}" não trabalha neste dia` 
-        }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
-
-    // Check if requested time is within professional's working hours
-    const [openHour, openMin] = dayHours.open.split(':').map(Number)
-    const [closeHour, closeMin] = dayHours.close.split(':').map(Number)
-
-    const openMinutes = openHour * 60 + openMin
-    const closeMinutes = closeHour * 60 + closeMin
-    const endMinutes = reqMinutes + service.duration
-
-    if (reqMinutes < openMinutes) {
-      return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: `Horário ${time} é antes do início do expediente do profissional (${dayHours.open})` 
-        }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
-
-    if (endMinutes > closeMinutes) {
-      return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: `Agendamento terminaria após fim do expediente do profissional (${dayHours.close}). Duração do serviço: ${service.duration} minutos` 
-        }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
-
-    // ============ BREAK VALIDATION ============
-    
-    // Extract breaks from professional's working_hours
-    const professionalData = professional.working_hours as Record<string, unknown>
-    const breaksConfig = professionalData?.breaks as { breaks?: Array<{ start: string; end: string; label?: string }> } | undefined
-    const breaks = breaksConfig?.breaks || []
-    
-    // Check if appointment overlaps with any break
-    for (const breakPeriod of breaks) {
-      const [breakStartH, breakStartM] = breakPeriod.start.split(':').map(Number)
-      const [breakEndH, breakEndM] = breakPeriod.end.split(':').map(Number)
-      const breakStartMins = breakStartH * 60 + breakStartM
-      const breakEndMins = breakEndH * 60 + breakEndM
-      
-      // Check overlap: appointment [reqMinutes, endMinutes) vs break [breakStartMins, breakEndMins)
-      if (reqMinutes < breakEndMins && endMinutes > breakStartMins) {
+      if (!dayHours || !dayHours.isOpen) {
         return new Response(
-          JSON.stringify({ 
-            success: false, 
-            error: `Horário conflita com intervalo do profissional (${breakPeriod.start} - ${breakPeriod.end}${breakPeriod.label ? ': ' + breakPeriod.label : ''})` 
+          JSON.stringify({
+            success: false,
+            error: `Profissional "${prof.name}" não trabalha neste dia`
           }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
       }
-    }
 
-    // ============ AVAILABILITY VALIDATION (CONFLICT CHECK) ============
+      const [openHour, openMin] = dayHours.open.split(':').map(Number)
+      const [closeHour, closeMin] = dayHours.close.split(':').map(Number)
+      const openMinutes = openHour * 60 + openMin
+      const closeMinutes = closeHour * 60 + closeMin
 
-    const appointmentStart = new Date(scheduledAt)
-    const appointmentEnd = new Date(appointmentStart.getTime() + service.duration * 60000)
-
-    // Get appointments for the professional on that day (usando timezone local)
-    const dayStart = `${date}T00:00:00${TIMEZONE_OFFSET}`
-    const dayEnd = `${date}T23:59:59${TIMEZONE_OFFSET}`
-
-    const { data: existingAppointments, error: appointmentsError } = await supabase
-      .from('appointments')
-      .select('id, scheduled_at, duration, status')
-      .eq('employee_id', professionalId)
-      .eq('tenant_id', tenantId)
-      .gte('scheduled_at', dayStart)
-      .lte('scheduled_at', dayEnd)
-      .in('status', ['scheduled', 'confirmed', 'in_progress'])
-
-    if (appointmentsError) {
-      console.error('Error fetching appointments:', appointmentsError)
-      return new Response(
-        JSON.stringify({ success: false, error: 'Error checking availability' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
-
-    // Check for time conflicts
-    for (const apt of existingAppointments || []) {
-      const aptStart = new Date(apt.scheduled_at)
-      const aptEnd = new Date(aptStart.getTime() + (apt.duration || 30) * 60000)
-
-      // Check if new appointment overlaps with existing one
-      if (appointmentStart < aptEnd && appointmentEnd > aptStart) {
-        // Usar formatTimeInSaoPaulo para exibir horários corretos (UTC-3)
-        const aptStartTime = formatTimeInSaoPaulo(aptStart.toISOString())
-        const aptEndTime = formatTimeInSaoPaulo(aptEnd.toISOString())
+      if (reqMinutes < openMinutes) {
         return new Response(
           JSON.stringify({
             success: false,
-            error: `Time slot conflicts with existing appointment (${aptStartTime} - ${aptEndTime})`
+            error: `Horário ${time} é antes do início do expediente de ${prof.name} (${dayHours.open})`
           }),
-          { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
+      }
+
+      if (endMinutes > closeMinutes) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: `Agendamento terminaria após fim do expediente de ${prof.name} (${dayHours.close}). Duração total: ${totalDuration} min`
+          }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      // Break validation per professional
+      // working_hours.breaks.breaks is the array of break periods
+      // Parse more defensively to avoid silent failures in Deno runtime
+      let breaks: Array<{ start: string; end: string; label?: string }> = []
+      try {
+        const rawWH = prof.working_hours as Record<string, unknown> | null
+        if (rawWH && typeof rawWH === 'object') {
+          const breaksObj = rawWH['breaks'] as Record<string, unknown> | undefined
+          if (breaksObj && typeof breaksObj === 'object') {
+            const breaksArr = breaksObj['breaks']
+            if (Array.isArray(breaksArr)) {
+              breaks = breaksArr as Array<{ start: string; end: string; label?: string }>
+            }
+          }
+        }
+      } catch (e) {
+        console.error(`Error parsing breaks for ${prof.name}:`, e)
+      }
+
+      console.log(`[BREAK-CHECK] ${prof.name}: found ${breaks.length} breaks, appointment ${reqMinutes}-${endMinutes} min`)
+
+      for (const breakPeriod of breaks) {
+        const [breakStartH, breakStartM] = breakPeriod.start.split(':').map(Number)
+        const [breakEndH, breakEndM] = breakPeriod.end.split(':').map(Number)
+        const breakStartMins = breakStartH * 60 + breakStartM
+        const breakEndMins = breakEndH * 60 + breakEndM
+
+        console.log(`[BREAK-CHECK] ${prof.name}: break ${breakPeriod.start}-${breakPeriod.end} (${breakStartMins}-${breakEndMins}), apt ${reqMinutes}-${endMinutes}, overlap=${reqMinutes < breakEndMins && endMinutes > breakStartMins}`)
+
+        if (reqMinutes < breakEndMins && endMinutes > breakStartMins) {
+          return new Response(
+            JSON.stringify({
+              success: false,
+              error: `Horário conflita com intervalo de ${prof.name} (${breakPeriod.start} - ${breakPeriod.end}${breakPeriod.label ? ': ' + breakPeriod.label : ''})`
+            }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
+      }
+    }
+
+    // ============ AVAILABILITY VALIDATION (CONFLICT CHECK FOR ALL PROFESSIONALS) ============
+
+    const appointmentStart = new Date(scheduledAt)
+    const appointmentEnd = new Date(appointmentStart.getTime() + totalDuration * 60000)
+
+    const dayStart = `${date}T00:00:00${TIMEZONE_OFFSET}`
+    const dayEnd = `${date}T23:59:59${TIMEZONE_OFFSET}`
+
+    // Check conflicts for each professional
+    // Query both appointments.employee_id (legacy) and appointment_services.employee_id (per-service)
+    for (const profId of uniqueProfessionalIds) {
+      const prof = professionalsMap.get(profId)!
+
+      // 1. Appointments where this professional is the primary employee (legacy field)
+      const { data: legacyAppointments, error: legacyError } = await supabase
+        .from('appointments')
+        .select('id, scheduled_at, duration, status')
+        .eq('employee_id', profId)
+        .eq('tenant_id', tenantId)
+        .gte('scheduled_at', dayStart)
+        .lte('scheduled_at', dayEnd)
+        .in('status', ['scheduled', 'confirmed', 'in_progress'])
+
+      if (legacyError) {
+        console.error('Error fetching legacy appointments:', legacyError)
+        return new Response(
+          JSON.stringify({ success: false, error: 'Error checking availability' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      // 2. Appointments where this professional is assigned via appointment_services
+      const { data: asAppointments, error: asError } = await supabase
+        .from('appointment_services')
+        .select('appointment_id, appointments!inner(id, scheduled_at, duration, status, tenant_id)')
+        .eq('employee_id', profId)
+        .eq('appointments.tenant_id', tenantId)
+        .gte('appointments.scheduled_at', dayStart)
+        .lte('appointments.scheduled_at', dayEnd)
+        .in('appointments.status', ['scheduled', 'confirmed', 'in_progress'])
+
+      if (asError) {
+        console.error('Error fetching appointment_services conflicts:', asError)
+        return new Response(
+          JSON.stringify({ success: false, error: 'Error checking availability' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      // Merge and deduplicate by appointment ID
+      const allConflictAppointments = new Map<string, { id: string; scheduled_at: string; duration: number; status: string }>()
+
+      for (const apt of legacyAppointments || []) {
+        allConflictAppointments.set(apt.id, apt)
+      }
+
+      for (const asApt of asAppointments || []) {
+        const apt = (asApt as any).appointments as { id: string; scheduled_at: string; duration: number; status: string }
+        if (apt && !allConflictAppointments.has(apt.id)) {
+          allConflictAppointments.set(apt.id, apt)
+        }
+      }
+
+      for (const apt of allConflictAppointments.values()) {
+        const aptStart = new Date(apt.scheduled_at)
+        const aptEnd = new Date(aptStart.getTime() + (apt.duration || 30) * 60000)
+
+        if (appointmentStart < aptEnd && appointmentEnd > aptStart) {
+          const aptStartTime = formatTimeInSaoPaulo(aptStart.toISOString())
+          const aptEndTime = formatTimeInSaoPaulo(aptEnd.toISOString())
+          return new Response(
+            JSON.stringify({
+              success: false,
+              error: `${prof.name} has a conflicting appointment (${aptStartTime} - ${aptEndTime})`
+            }),
+            { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
       }
     }
 
@@ -629,11 +733,11 @@ serve(async (req) => {
       .insert({
         tenant_id: tenantId,
         client_id: clientId,
-        employee_id: professionalId,
-        service_id: serviceId,
+        employee_id: uniqueProfessionalIds[0], // Backward compatibility: first professional
+        service_id: services[0].id, // Backward compatibility: first service
         scheduled_at: scheduledAt,
-        duration: service.duration,
-        price: service.price,
+        duration: totalDuration,
+        price: totalPrice,
         status: 'scheduled',
         payment_status: 'pending',
         notes: notes || null
@@ -649,10 +753,42 @@ serve(async (req) => {
       )
     }
 
+    // ============ INSERT APPOINTMENT SERVICES ============
+
+    // Build a map from serviceId to professionalId for easy lookup
+    const svcToProfMap = new Map(serviceEmployeeMap.map(s => [s.serviceId, s.professionalId]))
+
+    const appointmentServicesData = services.map((svc, index) => ({
+      appointment_id: appointment.id,
+      service_id: svc.id,
+      employee_id: svcToProfMap.get(svc.id) || uniqueProfessionalIds[0],
+      price: svc.price,
+      duration: svc.duration,
+      sort_order: index
+    }))
+
+    const { error: asInsertError } = await supabase
+      .from('appointment_services')
+      .insert(appointmentServicesData)
+
+    if (asInsertError) {
+      console.error('Error inserting appointment_services:', asInsertError)
+      // Rollback: deletar o appointment criado
+      await supabase.from('appointments').delete().eq('id', appointment.id)
+      return new Response(
+        JSON.stringify({ success: false, error: 'Error linking services to appointment' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
     // ============ SUCCESS RESPONSE ============
 
-    const endDateTime = new Date(new Date(scheduledAt).getTime() + service.duration * 60000)
+    const endDateTime = new Date(new Date(scheduledAt).getTime() + totalDuration * 60000)
     const endTime = formatTimeInSaoPaulo(endDateTime.toISOString())
+
+    const serviceNames = services.map(s => s.name).join(', ')
+
+    const profNames = [...new Set(professionals.map(p => p.name))].join(', ')
 
     return new Response(
       JSON.stringify({
@@ -662,17 +798,24 @@ serve(async (req) => {
           date: date,
           time: time,
           endTime: endTime,
-          duration: service.duration,
+          duration: totalDuration,
+          totalPrice: totalPrice,
           status: appointment.status,
-          service: {
-            id: service.id,
-            name: service.name,
-            price: service.price
-          },
-          professional: {
-            id: professional.id,
-            name: professional.name
-          },
+          services: services.map(s => {
+            const profId = svcToProfMap.get(s.id)
+            const prof = profId ? professionalsMap.get(profId) : null
+            return {
+              id: s.id,
+              name: s.name,
+              price: s.price,
+              duration: s.duration,
+              professional: prof ? { id: prof.id, name: prof.name } : null
+            }
+          }),
+          professionals: professionals.map(p => ({
+            id: p.id,
+            name: p.name
+          })),
           client: {
             id: clientId,
             phone: normalizedPhone,
@@ -680,7 +823,7 @@ serve(async (req) => {
             isNew: !existingClient
           }
         },
-        message: `Appointment scheduled successfully for ${date} at ${time} with ${professional.name}`
+        message: `Appointment scheduled successfully for ${date} at ${time} with ${profNames}. Services: ${serviceNames}`
       }),
       { status: 201, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )

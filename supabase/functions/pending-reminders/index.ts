@@ -89,6 +89,8 @@ interface ReminderItem {
   client_phone: string | null
   service_name: string
   employee_name: string
+  service_names: string[]
+  employee_names: string[]
   scheduled_at: string
   formatted_date: string
   formatted_time: string
@@ -166,11 +168,15 @@ serve(async (req) => {
             name,
             phone
           ),
-          services!inner (
+          services (
             name
           ),
-          employees!inner (
+          employees (
             name
+          ),
+          appointment_services (
+            services:service_id (name),
+            employees:employee_id (name)
           )
         `)
         .eq('tenant_id', tenant.id)
@@ -200,8 +206,26 @@ serve(async (req) => {
       // Add reminders to the list
       for (const apt of appointments) {
         const client = apt.clients as { name: string | null; phone: string | null }
-        const service = apt.services as { name: string }
-        const employee = apt.employees as { name: string }
+        const legacyService = apt.services as { name: string } | null
+        const legacyEmployee = apt.employees as { name: string } | null
+        const appointmentServices = (apt as any).appointment_services as { services?: { name: string } | null; employees?: { name: string } | null }[] | null
+
+        // Build service and employee names from appointment_services (preferred) or legacy fields
+        let serviceNames: string[] = []
+        let employeeNames: string[] = []
+
+        if (appointmentServices && appointmentServices.length > 0) {
+          serviceNames = appointmentServices.map(as => as.services?.name).filter(Boolean) as string[]
+          employeeNames = [...new Set(appointmentServices.map(as => as.employees?.name).filter(Boolean) as string[])]
+        }
+
+        // Fallback to legacy relations
+        if (serviceNames.length === 0 && legacyService?.name) {
+          serviceNames = [legacyService.name]
+        }
+        if (employeeNames.length === 0 && legacyEmployee?.name) {
+          employeeNames = [legacyEmployee.name]
+        }
 
         reminders.push({
           appointment_id: apt.id,
@@ -209,8 +233,10 @@ serve(async (req) => {
           tenant_name: tenant.name,
           client_name: client?.name || null,
           client_phone: client?.phone || null,
-          service_name: service?.name || 'Servico',
-          employee_name: employee?.name || 'Profissional',
+          service_name: serviceNames.join(', ') || 'Servico',
+          employee_name: employeeNames.join(', ') || 'Profissional',
+          service_names: serviceNames,
+          employee_names: employeeNames,
           scheduled_at: apt.scheduled_at,
           formatted_date: formatDateBR(apt.scheduled_at),
           formatted_time: formatTimeInSaoPaulo(apt.scheduled_at),

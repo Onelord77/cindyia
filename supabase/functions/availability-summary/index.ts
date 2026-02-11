@@ -100,6 +100,8 @@ function normalizeWorkingHours(workingHours: unknown): WorkingHours | null {
 
   for (const [key, value] of Object.entries(wh)) {
     if (!value || typeof value !== 'object') continue
+    // Skip non-day keys (e.g., 'breaks' config)
+    if (key === 'breaks') continue
 
     const dayData = value as Record<string, unknown>
     const dayName = dayMappingPtToEn[key.toLowerCase()] || key.toLowerCase()
@@ -418,6 +420,7 @@ serve(async (req) => {
     const rangeStart = `${startDate}T00:00:00${TIMEZONE_OFFSET}`
     const rangeEnd = `${effectiveEndDate}T23:59:59${TIMEZONE_OFFSET}`
 
+    // 1. Legacy: appointments.employee_id
     const { data: appointments, error: appointmentsError } = await supabase
       .from('appointments')
       .select('id, employee_id, scheduled_at, duration, status')
@@ -434,27 +437,58 @@ serve(async (req) => {
       )
     }
 
-    // Group appointments by employee and date
-    const appointmentsByEmployeeDate: Record<string, Record<string, Array<{ start: Date; end: Date }>>> = {}
-    for (const apt of appointments || []) {
-      if (!apt.employee_id) continue
-      const aptStart = new Date(apt.scheduled_at)
-      const aptDate = formatDateFromDate(aptStart)
-      const aptEnd = new Date(aptStart.getTime() + (apt.duration || 30) * 60000)
+    // 2. Per-service: appointment_services.employee_id
+    const { data: asAppointments, error: asError } = await supabase
+      .from('appointment_services')
+      .select('employee_id, appointments!inner(id, scheduled_at, duration, status, tenant_id)')
+      .eq('appointments.tenant_id', tenantId)
+      .gte('appointments.scheduled_at', rangeStart)
+      .lte('appointments.scheduled_at', rangeEnd)
+      .in('appointments.status', ['scheduled', 'confirmed', 'in_progress'])
 
-      if (!appointmentsByEmployeeDate[apt.employee_id]) {
-        appointmentsByEmployeeDate[apt.employee_id] = {}
-      }
-      if (!appointmentsByEmployeeDate[apt.employee_id][aptDate]) {
-        appointmentsByEmployeeDate[apt.employee_id][aptDate] = []
-      }
-      appointmentsByEmployeeDate[apt.employee_id][aptDate].push({ start: aptStart, end: aptEnd })
+    if (asError) {
+      console.error('Error fetching appointment_services:', asError)
     }
 
     // Helper to get date string from Date in SP timezone
     function formatDateFromDate(d: Date): string {
       const spTime = new Date(d.getTime() - 3 * 60 * 60 * 1000)
       return spTime.toISOString().split('T')[0]
+    }
+
+    // Group appointments by employee and date (merge legacy + per-service)
+    const appointmentsByEmployeeDate: Record<string, Record<string, Array<{ start: Date; end: Date }>>> = {}
+
+    // Helper to add appointment to employee-date map (deduplicates by appointment id)
+    const addedAptIds: Record<string, Set<string>> = {}
+    const addAptToEmployeeDate = (empId: string, aptId: string, scheduledAt: string, duration: number) => {
+      const key = `${empId}`
+      if (!addedAptIds[key]) addedAptIds[key] = new Set()
+      if (addedAptIds[key].has(aptId)) return
+
+      addedAptIds[key].add(aptId)
+      const aptStart = new Date(scheduledAt)
+      const aptDate = formatDateFromDate(aptStart)
+      const aptEnd = new Date(aptStart.getTime() + (duration || 30) * 60000)
+
+      if (!appointmentsByEmployeeDate[empId]) appointmentsByEmployeeDate[empId] = {}
+      if (!appointmentsByEmployeeDate[empId][aptDate]) appointmentsByEmployeeDate[empId][aptDate] = []
+      appointmentsByEmployeeDate[empId][aptDate].push({ start: aptStart, end: aptEnd })
+    }
+
+    // 1. Legacy appointments.employee_id
+    for (const apt of appointments || []) {
+      if (!apt.employee_id) continue
+      addAptToEmployeeDate(apt.employee_id, apt.id, apt.scheduled_at, apt.duration)
+    }
+
+    // 2. Per-service appointment_services.employee_id
+    for (const asApt of asAppointments || []) {
+      if (!asApt.employee_id) continue
+      const apt = (asApt as any).appointments as { id: string; scheduled_at: string; duration: number } | null
+      if (apt) {
+        addAptToEmployeeDate(asApt.employee_id, apt.id, apt.scheduled_at, apt.duration)
+      }
     }
 
     // ============ CALCULATE AVAILABILITY FOR EACH DAY ============
@@ -517,10 +551,22 @@ serve(async (req) => {
 
         const employeeAppointments = appointmentsByEmployeeDate[employee.id]?.[date] || []
 
-        // Get breaks
-        const employeeData = employee.working_hours as Record<string, unknown>
-        const breaksConfig = employeeData?.breaks as { breaks?: Array<{ start: string; end: string }> } | undefined
-        const breaks = breaksConfig?.breaks || []
+        // Get breaks (defensive parsing)
+        let breaks: Array<{ start: string; end: string; label?: string }> = []
+        try {
+          const rawWH = employee.working_hours as Record<string, unknown> | null
+          if (rawWH && typeof rawWH === 'object') {
+            const breaksObj = rawWH['breaks'] as Record<string, unknown> | undefined
+            if (breaksObj && typeof breaksObj === 'object') {
+              const breaksArr = breaksObj['breaks']
+              if (Array.isArray(breaksArr)) {
+                breaks = breaksArr as Array<{ start: string; end: string; label?: string }>
+              }
+            }
+          }
+        } catch (e) {
+          console.error(`Error parsing breaks for ${employee.name}:`, e)
+        }
 
         // Create work day boundaries
         const workDayStart = createSaoPauloDateTime(date, workStart)

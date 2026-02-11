@@ -11,10 +11,22 @@ type AppointmentUpdate = Database['public']['Tables']['appointments']['Update'];
 type AppointmentStatus = Database['public']['Enums']['appointment_status'];
 type PaymentStatus = Database['public']['Enums']['payment_status'];
 
+export interface AppointmentServiceRelation {
+  id: string;
+  service_id: string;
+  employee_id: string;
+  price: number;
+  duration: number;
+  sort_order: number;
+  services?: { id: string; name: string; price: number; duration: number } | null;
+  employees?: { id: string; name: string } | null;
+}
+
 export interface AppointmentWithRelations extends Appointment {
   clients?: { id: string; name: string; phone: string | null; email: string | null } | null;
   employees?: { id: string; name: string } | null;
   services?: { id: string; name: string; price: number; duration: number } | null;
+  appointment_services?: AppointmentServiceRelation[];
 }
 
 export function useAppointments() {
@@ -37,7 +49,8 @@ export function useAppointments() {
           *,
           clients (id, name, phone, email),
           employees (id, name),
-          services (id, name, price, duration)
+          services (id, name, price, duration),
+          appointment_services (id, service_id, employee_id, price, duration, sort_order, services:service_id (id, name, price, duration), employees:employee_id (id, name))
         `)
         .eq('tenant_id', tenantId)
         .gte('scheduled_at', thirtyDaysAgo.toISOString())
@@ -50,7 +63,7 @@ export function useAppointments() {
     enabled: !!tenantId,
   });
 
-  // Validate if employee can perform the service
+  // Validate if employee can perform the service (single - backward compat)
   const validateEmployeeService = async (employeeId: string, serviceId: string): Promise<boolean> => {
     const { data, error } = await supabase
       .from('employee_services')
@@ -61,6 +74,19 @@ export function useAppointments() {
 
     if (error) throw error;
     return !!data;
+  };
+
+  // Validate if employee can perform ALL services
+  const validateEmployeeServices = async (employeeId: string, serviceIds: string[]): Promise<boolean> => {
+    const { data, error } = await supabase
+      .from('employee_services')
+      .select('service_id')
+      .eq('employee_id', employeeId)
+      .in('service_id', serviceIds);
+
+    if (error) throw error;
+    const validIds = new Set(data?.map(es => es.service_id) || []);
+    return serviceIds.every(id => validIds.has(id));
   };
 
   // Mapeamento de dias em português para inglês
@@ -217,42 +243,80 @@ export function useAppointments() {
   };
 
   const addAppointment = useMutation({
-    mutationFn: async (appointment: Omit<AppointmentInsert, 'tenant_id'>) => {
+    mutationFn: async (appointment: Omit<AppointmentInsert, 'tenant_id'> & {
+      service_ids?: string[];
+      service_employees?: Record<string, string>; // service_id -> employee_id
+    }) => {
       if (!tenantId) throw new Error('Tenant não encontrado');
-      
-      // Validate employee_id is required
-      if (!appointment.employee_id) {
-        throw new Error('Selecione um profissional para criar o agendamento.');
+
+      // Determine service IDs list (new format or legacy)
+      const serviceIds = appointment.service_ids && appointment.service_ids.length > 0
+        ? appointment.service_ids
+        : appointment.service_id
+          ? [appointment.service_id]
+          : [];
+
+      if (serviceIds.length === 0) {
+        throw new Error('Selecione pelo menos um serviço.');
       }
 
-      // Validate employee can perform the service
-      if (appointment.service_id) {
-        const canPerform = await validateEmployeeService(appointment.employee_id, appointment.service_id);
+      // Build service-employee mapping
+      const serviceEmployees = appointment.service_employees || {};
+
+      // If no per-service employees, fall back to global employee_id
+      if (Object.keys(serviceEmployees).length === 0 && appointment.employee_id) {
+        serviceIds.forEach(sId => { serviceEmployees[sId] = appointment.employee_id!; });
+      }
+
+      // Validate all services have an employee assigned
+      const missingEmployee = serviceIds.find(sId => !serviceEmployees[sId]);
+      if (missingEmployee) {
+        throw new Error('Selecione um profissional para cada serviço.');
+      }
+
+      // Get unique employee IDs
+      const uniqueEmployeeIds = [...new Set(Object.values(serviceEmployees))];
+
+      // Validate each employee can perform their assigned service
+      for (const [svcId, empId] of Object.entries(serviceEmployees)) {
+        const canPerform = await validateEmployeeService(empId, svcId);
         if (!canPerform) {
-          throw new Error('Este profissional não executa o serviço selecionado.');
+          throw new Error('Um dos profissionais selecionados não executa o serviço atribuído.');
         }
       }
 
-      // Validate employee works on this day/time
-      await validateEmployeeWorkingDay(
-        appointment.employee_id,
-        appointment.scheduled_at,
-        appointment.duration || 30
-      );
+      // Fetch services to calculate totals
+      const { data: servicesData, error: svcError } = await supabase
+        .from('services')
+        .select('id, name, price, duration')
+        .in('id', serviceIds);
 
-      // Validate time conflict
-      await validateTimeConflict(
-        appointment.employee_id,
-        appointment.scheduled_at,
-        appointment.duration || 30
-      );
-      
+      if (svcError || !servicesData || servicesData.length !== serviceIds.length) {
+        throw new Error('Erro ao buscar serviços selecionados.');
+      }
+
+      const totalDuration = servicesData.reduce((sum, s) => sum + s.duration, 0);
+      const totalPrice = servicesData.reduce((sum, s) => sum + Number(s.price), 0);
+
+      // Validate each unique employee works on this day/time and has no conflicts
+      for (const empId of uniqueEmployeeIds) {
+        await validateEmployeeWorkingDay(empId, appointment.scheduled_at, totalDuration);
+        await validateTimeConflict(empId, appointment.scheduled_at, totalDuration);
+      }
+
+      // Remove extra fields from the insert payload (not DB columns)
+      const { service_ids: _sids, service_employees: _se, ...appointmentData } = appointment;
+
       const { data, error } = await supabase
         .from('appointments')
         .insert({
-          ...appointment,
+          ...appointmentData,
           tenant_id: tenantId,
-          created_by: user?.id
+          created_by: user?.id,
+          employee_id: uniqueEmployeeIds[0], // Backward compatibility: first employee
+          service_id: serviceIds[0], // Backward compatibility
+          duration: totalDuration,
+          price: totalPrice,
         })
         .select(`
           *,
@@ -264,9 +328,28 @@ export function useAppointments() {
 
       if (error) throw error;
 
+      // Insert appointment_services with per-service employee
+      const appointmentServicesData = servicesData.map((svc, index) => ({
+        appointment_id: data.id,
+        service_id: svc.id,
+        employee_id: serviceEmployees[svc.id],
+        price: Number(svc.price),
+        duration: svc.duration,
+        sort_order: index,
+      }));
+
+      const { error: asError } = await supabase
+        .from('appointment_services')
+        .insert(appointmentServicesData);
+
+      if (asError) {
+        // Rollback
+        await supabase.from('appointments').delete().eq('id', data.id);
+        throw new Error('Erro ao vincular serviços ao agendamento.');
+      }
+
       // Update client: promote lead to client, increment total_visits, update last_visit
       if (appointment.client_id) {
-        // Get current client data
         const { data: clientData } = await supabase
           .from('clients')
           .select('total_visits, is_lead')
@@ -278,7 +361,6 @@ export function useAppointments() {
           last_visit: appointment.scheduled_at,
         };
 
-        // Promote lead to client when appointment is created
         if (clientData?.is_lead) {
           updates.is_lead = false;
         }
@@ -303,7 +385,51 @@ export function useAppointments() {
   });
 
   const updateAppointment = useMutation({
-    mutationFn: async ({ id, ...updates }: AppointmentUpdate & { id: string }) => {
+    mutationFn: async ({ id, service_ids, service_employees, ...updates }: AppointmentUpdate & {
+      id: string;
+      service_ids?: string[];
+      service_employees?: Record<string, string>;
+    }) => {
+      // If service_ids are provided, recalculate totals and update appointment_services
+      if (service_ids && service_ids.length > 0) {
+        const { data: servicesData } = await supabase
+          .from('services')
+          .select('id, name, price, duration')
+          .in('id', service_ids);
+
+        if (servicesData && servicesData.length > 0) {
+          updates.duration = servicesData.reduce((sum, s) => sum + s.duration, 0);
+          updates.price = servicesData.reduce((sum, s) => sum + Number(s.price), 0);
+          updates.service_id = service_ids[0]; // Backward compat
+
+          // Set primary employee to first service's employee
+          const empMap = service_employees || {};
+          const firstEmpId = empMap[service_ids[0]] || updates.employee_id;
+          if (firstEmpId) {
+            updates.employee_id = firstEmpId;
+          }
+
+          // Delete old appointment_services and insert new ones
+          await supabase
+            .from('appointment_services')
+            .delete()
+            .eq('appointment_id', id);
+
+          const newAppointmentServices = servicesData.map((svc, index) => ({
+            appointment_id: id,
+            service_id: svc.id,
+            employee_id: empMap[svc.id] || updates.employee_id,
+            price: Number(svc.price),
+            duration: svc.duration,
+            sort_order: index,
+          }));
+
+          await supabase
+            .from('appointment_services')
+            .insert(newAppointmentServices);
+        }
+      }
+
       const { data, error } = await supabase
         .from('appointments')
         .update(updates)
@@ -312,7 +438,8 @@ export function useAppointments() {
           *,
           clients (id, name, phone, email),
           employees (id, name),
-          services (id, name, price, duration)
+          services (id, name, price, duration),
+          appointment_services (id, service_id, employee_id, price, duration, sort_order, services:service_id (id, name, price, duration), employees:employee_id (id, name))
         `)
         .single();
 
@@ -398,7 +525,7 @@ export function useAppointments() {
       // Get current appointment with price info to check status change
       const { data: currentAppointment, error: fetchError } = await supabase
         .from('appointments')
-        .select('status, client_id, price, services(name)')
+        .select('status, client_id, price, services(name), appointment_services(services:service_id(name))')
         .eq('id', id)
         .single();
 
@@ -446,7 +573,10 @@ export function useAppointments() {
 
         if (!existingEntry) {
           const price = Number(currentAppointment?.price || 0);
-          const serviceName = (currentAppointment?.services as { name: string } | null)?.name || 'Serviço';
+          const appointmentSvcs = currentAppointment?.appointment_services as { services?: { name: string } }[] | null;
+          const serviceName = appointmentSvcs && appointmentSvcs.length > 0
+            ? appointmentSvcs.map(as => as.services?.name).filter(Boolean).join(', ')
+            : (currentAppointment?.services as { name: string } | null)?.name || 'Serviço';
 
           await supabase
             .from('financial_entries')
@@ -566,5 +696,6 @@ export function useAppointments() {
     markAsCompleted,
     deleteAppointment,
     validateEmployeeService,
+    validateEmployeeServices,
   };
 }

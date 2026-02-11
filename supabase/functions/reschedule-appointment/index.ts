@@ -116,6 +116,8 @@ function normalizeWorkingHours(workingHours: unknown): WorkingHours | null {
 
   for (const [key, value] of Object.entries(wh)) {
     if (!value || typeof value !== 'object') continue
+    // Skip non-day keys (e.g., 'breaks' config)
+    if (key === 'breaks') continue
 
     const dayData = value as Record<string, unknown>
 
@@ -318,6 +320,9 @@ serve(async (req) => {
       )
     }
 
+    // Use the TOTAL appointment duration (not single service duration)
+    const totalDuration = appointment.duration
+
     const service = appointment.services
     if (!service || !service.is_active) {
       return new Response(
@@ -434,7 +439,8 @@ serve(async (req) => {
     const reqMinutes = timeToMinutes(time)
     const companyOpenMins = timeToMinutes(companyOpenTime)
     const companyCloseMins = timeToMinutes(companyCloseTime)
-    const serviceEndMinutes = reqMinutes + service.duration
+    // Use totalDuration (from appointments table) not service.duration
+    const endMinutes = reqMinutes + totalDuration
 
     if (reqMinutes < companyOpenMins) {
       return new Response(
@@ -446,11 +452,11 @@ serve(async (req) => {
       )
     }
 
-    if (serviceEndMinutes > companyCloseMins) {
+    if (endMinutes > companyCloseMins) {
       return new Response(
         JSON.stringify({
           success: false,
-          error: `Agendamento terminaria após fechamento da empresa (${companyCloseTime}). Duração do serviço: ${service.duration} minutos`
+          error: `Agendamento terminaria após fechamento da empresa (${companyCloseTime}). Duração total: ${totalDuration} minutos`
         }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
@@ -484,11 +490,11 @@ serve(async (req) => {
       )
     }
 
-    if (serviceEndMinutes > closeMinutes) {
+    if (endMinutes > closeMinutes) {
       return new Response(
         JSON.stringify({
           success: false,
-          error: `Agendamento terminaria após fim do expediente do profissional (${dayHours.close}). Duração do serviço: ${service.duration} minutos`
+          error: `Agendamento terminaria após fim do expediente do profissional (${dayHours.close}). Duração total: ${totalDuration} min`
         }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
@@ -496,16 +502,31 @@ serve(async (req) => {
 
     // ============ BREAK VALIDATION ============
 
-    const employeeData = employee.working_hours as Record<string, unknown>
-    const breaksConfig = employeeData?.breaks as { breaks?: Array<{ start: string; end: string; label?: string }> } | undefined
-    const breaks = breaksConfig?.breaks || []
+    let breaks: Array<{ start: string; end: string; label?: string }> = []
+    try {
+      const rawWH = employee.working_hours as Record<string, unknown> | null
+      if (rawWH && typeof rawWH === 'object') {
+        const breaksObj = rawWH['breaks'] as Record<string, unknown> | undefined
+        if (breaksObj && typeof breaksObj === 'object') {
+          const breaksArr = breaksObj['breaks']
+          if (Array.isArray(breaksArr)) {
+            breaks = breaksArr as Array<{ start: string; end: string; label?: string }>
+          }
+        }
+      }
+    } catch (e) {
+      console.error(`Error parsing breaks for ${employee.name}:`, e)
+    }
+
+    console.log(`[BREAK-CHECK] ${employee.name}: found ${breaks.length} breaks, appointment ${reqMinutes}-${endMinutes} min`)
 
     for (const breakPeriod of breaks) {
       const breakStartMins = timeToMinutes(breakPeriod.start)
       const breakEndMins = timeToMinutes(breakPeriod.end)
 
-      // Check overlap
-      if (reqMinutes < breakEndMins && serviceEndMinutes > breakStartMins) {
+      console.log(`[BREAK-CHECK] ${employee.name}: break ${breakPeriod.start}-${breakPeriod.end} (${breakStartMins}-${breakEndMins}), apt ${reqMinutes}-${endMinutes}, overlap=${reqMinutes < breakEndMins && endMinutes > breakStartMins}`)
+
+      if (reqMinutes < breakEndMins && endMinutes > breakStartMins) {
         return new Response(
           JSON.stringify({
             success: false,
@@ -519,45 +540,75 @@ serve(async (req) => {
     // ============ CONFLICT CHECK ============
 
     const appointmentStart = new Date(newScheduledAt)
-    const appointmentEnd = new Date(appointmentStart.getTime() + service.duration * 60000)
+    const appointmentEnd = new Date(appointmentStart.getTime() + totalDuration * 60000)
 
     const dayStart = `${date}T00:00:00${TIMEZONE_OFFSET}`
     const dayEnd = `${date}T23:59:59${TIMEZONE_OFFSET}`
 
-    const { data: existingAppointments, error: conflictError } = await supabase
+    // 1. Legacy: appointments.employee_id
+    const { data: legacyAppointments, error: legacyError } = await supabase
       .from('appointments')
       .select('id, scheduled_at, duration, status')
       .eq('employee_id', employee.id)
       .eq('tenant_id', tenantId)
-      .neq('id', appointmentId) // Exclude current appointment
+      .neq('id', appointmentId)
       .gte('scheduled_at', dayStart)
       .lte('scheduled_at', dayEnd)
       .in('status', ['scheduled', 'confirmed', 'in_progress'])
 
-    if (conflictError) {
-      console.error('Error checking conflicts:', conflictError)
+    if (legacyError) {
+      console.error('Error checking conflicts:', legacyError)
       return new Response(
         JSON.stringify({ success: false, error: 'Error checking availability' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    if (existingAppointments && existingAppointments.length > 0) {
-      for (const existing of existingAppointments) {
-        const existingStart = new Date(existing.scheduled_at)
-        const existingEnd = new Date(existingStart.getTime() + existing.duration * 60000)
+    // 2. Per-service: appointment_services.employee_id
+    const { data: asAppointments, error: asError } = await supabase
+      .from('appointment_services')
+      .select('appointment_id, appointments!inner(id, scheduled_at, duration, status, tenant_id)')
+      .eq('employee_id', employee.id)
+      .eq('appointments.tenant_id', tenantId)
+      .neq('appointment_id', appointmentId)
+      .gte('appointments.scheduled_at', dayStart)
+      .lte('appointments.scheduled_at', dayEnd)
+      .in('appointments.status', ['scheduled', 'confirmed', 'in_progress'])
 
-        if (appointmentStart < existingEnd && appointmentEnd > existingStart) {
-          const existingStartTime = formatTimeInSaoPaulo(existingStart.toISOString())
-          const existingEndTime = formatTimeInSaoPaulo(existingEnd.toISOString())
-          return new Response(
-            JSON.stringify({
-              success: false,
-              error: `Time slot conflicts with existing appointment (${existingStartTime} - ${existingEndTime})`
-            }),
-            { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          )
-        }
+    if (asError) {
+      console.error('Error checking appointment_services conflicts:', asError)
+      return new Response(
+        JSON.stringify({ success: false, error: 'Error checking availability' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Merge and deduplicate
+    const allConflictAppointments = new Map<string, { id: string; scheduled_at: string; duration: number; status: string }>()
+    for (const apt of legacyAppointments || []) {
+      allConflictAppointments.set(apt.id, apt)
+    }
+    for (const asApt of asAppointments || []) {
+      const apt = (asApt as any).appointments as { id: string; scheduled_at: string; duration: number; status: string }
+      if (apt && !allConflictAppointments.has(apt.id)) {
+        allConflictAppointments.set(apt.id, apt)
+      }
+    }
+
+    for (const existing of allConflictAppointments.values()) {
+      const existingStart = new Date(existing.scheduled_at)
+      const existingEnd = new Date(existingStart.getTime() + (existing.duration || 30) * 60000)
+
+      if (appointmentStart < existingEnd && appointmentEnd > existingStart) {
+        const existingStartTime = formatTimeInSaoPaulo(existingStart.toISOString())
+        const existingEndTime = formatTimeInSaoPaulo(existingEnd.toISOString())
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: `Time slot conflicts with existing appointment (${existingStartTime} - ${existingEndTime})`
+          }),
+          { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
       }
     }
 
@@ -596,7 +647,7 @@ serve(async (req) => {
 
     // ============ SUCCESS RESPONSE ============
 
-    const endDateTime = new Date(appointmentStart.getTime() + service.duration * 60000)
+    const endDateTime = new Date(appointmentStart.getTime() + totalDuration * 60000)
     const endTime = formatTimeInSaoPaulo(endDateTime.toISOString())
 
     return new Response(
@@ -609,7 +660,7 @@ serve(async (req) => {
           date,
           time,
           endTime,
-          duration: service.duration,
+          duration: totalDuration,
           status: updatedAppointment.status,
           professionalChanged: isChangingEmployee,
           previousProfessionalId: isChangingEmployee ? previousEmployeeId : null,

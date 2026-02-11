@@ -122,15 +122,17 @@ function normalizeWorkingHours(workingHours: unknown): WorkingHours | null {
 
   for (const [key, value] of Object.entries(wh)) {
     if (!value || typeof value !== 'object') continue
+    // Skip non-day keys (e.g., 'breaks' config)
+    if (key === 'breaks') continue
 
     const dayData = value as Record<string, unknown>
-    
+
     // Determina o nome do dia em inglês
     const dayName = dayMappingPtToEn[key.toLowerCase()] || key.toLowerCase()
-    
+
     // Detecta formato: PT-BR usa 'enabled/start/end', EN usa 'isOpen/open/close'
     const isPortugueseFormat = 'enabled' in dayData || 'start' in dayData
-    
+
     if (isPortugueseFormat) {
       // Formato PT-BR: { enabled, start, end }
       normalized[dayName] = {
@@ -269,17 +271,14 @@ serve(async (req) => {
     const dayStart = `${date}T00:00:00${TIMEZONE_OFFSET}`
     const dayEnd = `${date}T23:59:59${TIMEZONE_OFFSET}`
 
-    // Fetch appointments for the date
-    let appointmentsQuery = supabase
+    // Fetch appointments for the date (legacy: appointments.employee_id)
+    const { data: appointments, error: appointmentsError } = await supabase
       .from('appointments')
       .select('id, employee_id, scheduled_at, duration, status')
+      .eq('tenant_id', tenantId)
       .gte('scheduled_at', dayStart)
       .lte('scheduled_at', dayEnd)
       .in('status', ['scheduled', 'confirmed', 'in_progress'])
-
-    appointmentsQuery = appointmentsQuery.eq('tenant_id', tenantId)
-
-    const { data: appointments, error: appointmentsError } = await appointmentsQuery
 
     if (appointmentsError) {
       console.error('Error fetching appointments:', appointmentsError)
@@ -287,6 +286,19 @@ serve(async (req) => {
         JSON.stringify({ error: 'Error fetching appointments', details: appointmentsError.message }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
+    }
+
+    // Fetch per-service professional assignments (appointment_services.employee_id)
+    const { data: asAppointments, error: asError } = await supabase
+      .from('appointment_services')
+      .select('employee_id, appointments!inner(id, scheduled_at, duration, status, tenant_id)')
+      .eq('appointments.tenant_id', tenantId)
+      .gte('appointments.scheduled_at', dayStart)
+      .lte('appointments.scheduled_at', dayEnd)
+      .in('appointments.status', ['scheduled', 'confirmed', 'in_progress'])
+
+    if (asError) {
+      console.error('Error fetching appointment_services:', asError)
     }
 
     // Get service duration if serviceId provided
@@ -297,22 +309,41 @@ serve(async (req) => {
         .select('duration')
         .eq('id', serviceId)
         .single()
-      
+
       if (service) {
         serviceDuration = service.duration
       }
     }
 
-    // Group appointments by employee
+    // Group appointments by employee (merge legacy + per-service)
     const appointmentsByEmployee: Record<string, Array<{ start: Date; end: Date }>> = {}
+
+    // Helper to add appointment to employee map (deduplicates by appointment id)
+    const addedAptIds: Record<string, Set<string>> = {}
+    const addAptToEmployee = (empId: string, aptId: string, scheduledAt: string, duration: number) => {
+      if (!addedAptIds[empId]) addedAptIds[empId] = new Set()
+      if (addedAptIds[empId].has(aptId)) return // skip duplicate
+      addedAptIds[empId].add(aptId)
+
+      if (!appointmentsByEmployee[empId]) appointmentsByEmployee[empId] = []
+      const aptStart = new Date(scheduledAt)
+      const aptEnd = new Date(aptStart.getTime() + (duration || 30) * 60000)
+      appointmentsByEmployee[empId].push({ start: aptStart, end: aptEnd })
+    }
+
+    // 1. Legacy appointments.employee_id
     for (const apt of appointments || []) {
       if (!apt.employee_id) continue
-      if (!appointmentsByEmployee[apt.employee_id]) {
-        appointmentsByEmployee[apt.employee_id] = []
+      addAptToEmployee(apt.employee_id, apt.id, apt.scheduled_at, apt.duration)
+    }
+
+    // 2. Per-service appointment_services.employee_id
+    for (const asApt of asAppointments || []) {
+      if (!asApt.employee_id) continue
+      const apt = (asApt as any).appointments as { id: string; scheduled_at: string; duration: number } | null
+      if (apt) {
+        addAptToEmployee(asApt.employee_id, apt.id, apt.scheduled_at, apt.duration)
       }
-      const aptStart = new Date(apt.scheduled_at)
-      const aptEnd = new Date(aptStart.getTime() + (apt.duration || 30) * 60000)
-      appointmentsByEmployee[apt.employee_id].push({ start: aptStart, end: aptEnd })
     }
 
     // Helper function to format time as HH:MM in São Paulo timezone (UTC-3)
@@ -377,10 +408,22 @@ serve(async (req) => {
       // Sort appointments by start time
       const sortedAppointments = [...employeeAppointments].sort((a, b) => a.start.getTime() - b.start.getTime())
 
-      // Extract breaks from employee's working_hours
-      const employeeData = employee.working_hours as Record<string, unknown>
-      const breaksConfig = employeeData?.breaks as { breaks?: Array<{ start: string; end: string; label?: string }> } | undefined
-      const breaks = breaksConfig?.breaks || []
+      // Extract breaks from employee's working_hours (defensive parsing)
+      let breaks: Array<{ start: string; end: string; label?: string }> = []
+      try {
+        const rawWH = employee.working_hours as Record<string, unknown> | null
+        if (rawWH && typeof rawWH === 'object') {
+          const breaksObj = rawWH['breaks'] as Record<string, unknown> | undefined
+          if (breaksObj && typeof breaksObj === 'object') {
+            const breaksArr = breaksObj['breaks']
+            if (Array.isArray(breaksArr)) {
+              breaks = breaksArr as Array<{ start: string; end: string; label?: string }>
+            }
+          }
+        }
+      } catch (e) {
+        console.error(`Error parsing breaks for ${employee.name}:`, e)
+      }
 
       // Convert breaks to time ranges for the day (using São Paulo timezone)
       const breakRanges: Array<{ start: Date; end: Date }> = []

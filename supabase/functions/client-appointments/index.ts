@@ -255,7 +255,16 @@ serve(async (req) => {
         price,
         notes,
         employees (id, name),
-        services (id, name, duration, price)
+        services (id, name, duration, price),
+        appointment_services (
+          service_id,
+          employee_id,
+          price,
+          duration,
+          sort_order,
+          services:service_id (id, name, duration, price),
+          employees:employee_id (id, name)
+        )
       `)
       .eq('client_id', client.id)
       .eq('tenant_id', tenantId)
@@ -281,6 +290,41 @@ serve(async (req) => {
       const endDate = new Date(new Date(scheduledAt).getTime() + apt.duration * 60000)
       const endTime = formatTimeInSaoPaulo(endDate.toISOString())
 
+      const aptServices = (apt as any).appointment_services as {
+        service_id: string; employee_id: string; price: number; duration: number; sort_order: number;
+        services?: { id: string; name: string; duration: number; price: number } | null;
+        employees?: { id: string; name: string } | null;
+      }[] | null
+
+      // Build services array from appointment_services (preferred) or legacy fields
+      let services: { id: string; name: string; duration: number; price: number; professional: { id: string; name: string } | null }[] = []
+
+      if (aptServices && aptServices.length > 0) {
+        services = aptServices
+          .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
+          .map(as => ({
+            id: as.services?.id || as.service_id,
+            name: as.services?.name || 'Serviço',
+            duration: as.duration || as.services?.duration || 0,
+            price: as.price || as.services?.price || 0,
+            professional: as.employees ? { id: as.employees.id, name: as.employees.name } : null
+          }))
+      } else if (apt.services) {
+        // Fallback to legacy single service/employee
+        services = [{
+          id: (apt.services as any).id,
+          name: (apt.services as any).name,
+          duration: (apt.services as any).duration,
+          price: (apt.services as any).price,
+          professional: apt.employees ? { id: (apt.employees as any).id, name: (apt.employees as any).name } : null
+        }]
+      }
+
+      // Unique professionals
+      const professionals = [...new Map(
+        services.filter(s => s.professional).map(s => [s.professional!.id, s.professional!])
+      ).values()]
+
       return {
         id: apt.id,
         date,
@@ -292,16 +336,8 @@ serve(async (req) => {
         paymentStatus: apt.payment_status,
         price: apt.price,
         notes: apt.notes,
-        professional: apt.employees ? {
-          id: apt.employees.id,
-          name: apt.employees.name
-        } : null,
-        service: apt.services ? {
-          id: apt.services.id,
-          name: apt.services.name,
-          duration: apt.services.duration,
-          price: apt.services.price
-        } : null
+        services,
+        professionals
       }
     })
 

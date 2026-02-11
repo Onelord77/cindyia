@@ -14,6 +14,7 @@ interface ReportAppointment {
   services?: { id: string; name: string; price: number } | null;
   employees?: { id: string; name: string } | null;
   clients?: { id: string; name: string } | null;
+  appointment_services?: { services?: { name: string } | null; employees?: { name: string } | null }[];
 }
 
 interface FinancialEntry {
@@ -61,7 +62,8 @@ export function useReportData(dateRange?: DateRange) {
           duration,
           services (id, name, price),
           employees (id, name),
-          clients (id, name)
+          clients (id, name),
+          appointment_services (services:service_id (name), employees:employee_id (name))
         `)
         .eq('tenant_id', tenantId)
         .gte('scheduled_at', queryDateRange.from)
@@ -159,11 +161,18 @@ export function useReportData(dateRange?: DateRange) {
 
     const dailyData = sortedDays.map(([name, values]) => ({ name, ...values }));
 
-    // Group by service
+    // Group by service (supports multiple services per appointment)
     const serviceCount: Record<string, number> = {};
     filteredAppointments.forEach(appointment => {
-      const serviceName = appointment.services?.name || 'Outros';
-      serviceCount[serviceName] = (serviceCount[serviceName] || 0) + 1;
+      if (appointment.appointment_services && appointment.appointment_services.length > 0) {
+        appointment.appointment_services.forEach(as => {
+          const svcName = as.services?.name || 'Outros';
+          serviceCount[svcName] = (serviceCount[svcName] || 0) + 1;
+        });
+      } else {
+        const serviceName = appointment.services?.name || 'Outros';
+        serviceCount[serviceName] = (serviceCount[serviceName] || 0) + 1;
+      }
     });
 
     const colors = [
