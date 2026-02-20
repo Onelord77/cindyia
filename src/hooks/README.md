@@ -281,6 +281,18 @@ createNotification.mutate({
 | `useWhatsappInstances()` | Query | Lista instâncias WhatsApp |
 | `useSendWhatsappMessage()` | Mutation | Enviar mensagem |
 
+### useWhatsappStatus.ts
+
+| Função | Tipo | Descrição |
+|--------|------|-----------|
+| `useWhatsappStatus()` | Query | Verifica status de conexão das instâncias WhatsApp |
+
+**Retorno:**
+- `hasInstances` - Se o tenant tem instâncias cadastradas
+- `hasDisconnected` - Se há instâncias desconectadas
+- `disconnectedNames` - Nomes das instâncias desconectadas
+- `isLoading` - Estado de carregamento
+
 ### useAgentApiKeys.ts
 
 | Função | Tipo | Descrição |

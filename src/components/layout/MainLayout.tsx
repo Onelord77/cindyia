@@ -4,6 +4,7 @@ import { Header } from './Header';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 import { cn } from '@/lib/utils';
+import { WhatsAppDisconnectAlert } from './WhatsAppDisconnectAlert';
 
 interface MainLayoutProps {
   children: ReactNode;
@@ -33,6 +34,7 @@ export function MainLayout({ children }: MainLayoutProps) {
           {children}
         </main>
       </div>
+      <WhatsAppDisconnectAlert />
     </div>
   );
 }

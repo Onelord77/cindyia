@@ -82,6 +82,7 @@ Componentes estruturais de layout.
 | `Header.tsx` | Header principal do tenant |
 | `MainLayout.tsx` | Layout wrapper para páginas de tenant |
 | `Sidebar.tsx` | Menu lateral do tenant |
+| `WhatsAppDisconnectAlert.tsx` | Popup de alerta quando WhatsApp está desconectado |
 | `AdminHeader.tsx` | Header do painel admin |
 | `AdminLayout.tsx` | Layout wrapper para páginas admin |
 | `AdminSidebar.tsx` | Menu lateral admin |
