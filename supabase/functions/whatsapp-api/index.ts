@@ -509,7 +509,7 @@ Deno.serve(async (req) => {
             enabled: true,
             url: webhookUrl,
             events: ['messages', 'connection'],
-            excludeMessages: ['wasSentByApi'],
+            excludeMessages: ['wasSentByApi', 'isGroupYes'],
           }),
         });
 
@@ -584,7 +584,7 @@ Deno.serve(async (req) => {
                 enabled: true,
                 url: webhookUrl,
                 events: ['messages', 'connection'],
-                excludeMessages: ['wasSentByApi'],
+                excludeMessages: ['wasSentByApi', 'isGroupYes'],
               }),
             });
 
