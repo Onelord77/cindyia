@@ -63,7 +63,7 @@ const months = [
 const Agenda = () => {
   const isMobile = useIsMobile();
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [view, setView] = useState<'day' | 'week'>('day');
+  const [view, setView] = useState<'day' | 'week'>('week');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [formData, setFormData] = useState({
     client_id: '',
@@ -342,150 +342,177 @@ const Agenda = () => {
         {/* Calendar Grid */}
         {view === 'day' ? (
           isMobile ? (
-            /* Mobile Day View - Lista Vertical */
+            /* Mobile Day View - Grid similar ao semanal */
             <Card className="overflow-hidden">
               <CardContent className="p-0">
-                {activeEmployees.length === 0 ? (
-                  <div className="p-8 text-center text-muted-foreground">
-                    Nenhum funcionário ativo cadastrado
-                  </div>
-                ) : (
-                  <ScrollArea className="h-[60vh]">
-                    <div className="p-4 space-y-4">
-                      {timeSlots.map((time) => {
-                        const appointmentsAtTime = getAppointmentsForDate(currentDate).filter(
-                          (a) => getAppointmentTime(a.scheduled_at) === time
-                        );
-
-                        return (
-                          <div key={time} className="border-l-2 border-muted pl-4">
-                            <p className="text-sm font-medium text-muted-foreground mb-2">{time}</p>
-                            {appointmentsAtTime.length > 0 ? (
-                              appointmentsAtTime.map((appointment) => (
-                                <Card
-                                  key={appointment.id}
-                                  className={cn(
-                                    'p-3 mb-2 border-l-4',
-                                    statusColors[appointment.status || 'scheduled']
-                                  )}
-                                >
-                                  <p className="font-medium">{appointment.clients?.name}</p>
-                                  <p className="text-sm text-muted-foreground flex items-center gap-1">
-                                    <Scissors className="h-3 w-3" />
-                                    {appointment.appointment_services && appointment.appointment_services.length > 0
-                                      ? appointment.appointment_services.map(as => as.services?.name).filter(Boolean).join(', ')
-                                      : appointment.services?.name}
-                                  </p>
-                                  <div className="flex items-center justify-between mt-2 text-xs text-muted-foreground">
-                                    <span>
-                                      {appointment.appointment_services && appointment.appointment_services.length > 0
-                                        ? [...new Set(appointment.appointment_services.map(as => as.employees?.name).filter(Boolean))].join(', ')
-                                        : appointment.employees?.name}
-                                    </span>
-                                    <span>
-                                      {formatAppointmentTime(appointment.scheduled_at, appointment.duration).startTime} - {formatAppointmentTime(appointment.scheduled_at, appointment.duration).endTime}
-                                    </span>
-                                  </div>
-                                </Card>
-                              ))
-                            ) : (
-                              <Button
-                                variant="ghost"
-                                className="w-full h-12 border-2 border-dashed min-h-[44px]"
-                                onClick={() => handleSlotClick(currentDate, time)}
-                              >
-                                <Plus className="h-4 w-4 mr-2" /> Agendar
-                              </Button>
-                            )}
-                          </div>
-                        );
-                      })}
+                <ScrollArea className="h-[60vh]">
+                  <div className="grid grid-cols-[50px_1fr] divide-x divide-border">
+                    {/* Header */}
+                    <div className="border-b bg-muted/30 p-2 sticky top-0 z-10"></div>
+                    <div
+                      className={cn(
+                        'border-b p-2 text-center sticky top-0 z-10',
+                        currentDate.toDateString() === new Date().toDateString() ? 'bg-primary/10' : 'bg-muted/30'
+                      )}
+                    >
+                      <p className="text-xs text-muted-foreground uppercase">
+                        {currentDate.toLocaleDateString('pt-BR', { weekday: 'short' })}
+                      </p>
+                      <p className={cn(
+                        'text-lg font-bold',
+                        currentDate.toDateString() === new Date().toDateString() && 'text-primary'
+                      )}>
+                        {currentDate.getDate()}
+                      </p>
                     </div>
-                  </ScrollArea>
-                )}
-              </CardContent>
-            </Card>
-          ) : (
-            /* Desktop Day View - Grid */
-            <Card className="overflow-hidden">
-              <CardContent className="p-0">
-                {activeEmployees.length === 0 ? (
-                  <div className="p-8 text-center text-muted-foreground">
-                    Nenhum funcionário ativo cadastrado
-                  </div>
-                ) : (
-                  <ScrollArea className="h-[60vh]">
-                    <div className={cn("grid divide-x divide-border min-w-[600px]", `grid-cols-[60px_repeat(${Math.min(activeEmployees.length, 4)},1fr)]`)}>
-                      {/* Time Column Header */}
-                      <div className="border-b bg-muted/30 p-2 sticky top-0 z-10">
-                        <Clock className="h-4 w-4 text-muted-foreground mx-auto" />
-                      </div>
 
-                      {/* Employee Headers */}
-                      {activeEmployees.slice(0, 4).map((employee) => (
-                        <div key={employee.id} className="border-b bg-muted/30 p-2 text-center sticky top-0 z-10">
-                          <div className="flex items-center justify-center gap-2">
-                            <div className="h-7 w-7 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-xs font-semibold">
-                              {employee.name.split(' ').map(n => n[0]).join('').slice(0, 2)}
-                            </div>
-                            <span className="font-medium text-sm truncate max-w-[100px]">{employee.name}</span>
-                          </div>
-                        </div>
-                      ))}
+                    {/* Time Slots */}
+                    {timeSlots.map((time) => {
+                      const dayAppointments = getAppointmentsForDate(currentDate).filter(
+                        (a) => getAppointmentTime(a.scheduled_at) === time
+                      );
+                      const hasAppointments = dayAppointments.length > 0;
 
-                      {/* Time Slots */}
-                      {timeSlots.map((time) => (
+                      return (
                         <React.Fragment key={`time-${time}`}>
                           <div className="border-b p-2 text-center text-sm text-muted-foreground bg-muted/10">
                             {time}
                           </div>
-                          {activeEmployees.slice(0, 4).map((employee) => {
-                            const appointment = getAppointmentsForDate(currentDate).find(
-                              (a) => a.employee_id === employee.id && getAppointmentTime(a.scheduled_at) === time
-                            );
-
-                            return (
-                              <div
-                                key={`${employee.id}-${time}`}
-                                className={cn(
-                                  'border-b p-1 min-h-[56px] relative',
-                                  !appointment && 'cursor-pointer hover:bg-primary/5 transition-colors'
-                                )}
-                                onClick={() => !appointment && handleSlotClick(currentDate, time, employee.id)}
-                              >
-                                {appointment ? (
-                                  <div
-                                    className={cn(
-                                      'rounded-lg border-l-4 p-1.5 text-xs cursor-pointer transition-all hover:shadow-md',
-                                      statusColors[appointment.status || 'scheduled']
-                                    )}
-                                  >
-                                    <p className="font-semibold truncate">{appointment.clients?.name}</p>
-                                    <p className="text-muted-foreground flex items-center gap-1">
-                                      <Scissors className="h-3 w-3" />
-                                      <span className="truncate">
-                                        {appointment.appointment_services && appointment.appointment_services.length > 0
-                                          ? appointment.appointment_services.map(as => as.services?.name).filter(Boolean).join(', ')
-                                          : appointment.services?.name}
-                                      </span>
-                                    </p>
-                                    <p className="text-muted-foreground text-[10px]">
+                          <div
+                            className={cn(
+                              'border-b p-1 min-h-[48px]',
+                              !hasAppointments && 'cursor-pointer hover:bg-primary/5 transition-colors'
+                            )}
+                            onClick={() => !hasAppointments && handleSlotClick(currentDate, time)}
+                          >
+                            {hasAppointments ? (
+                              dayAppointments.map((appointment) => (
+                                <div
+                                  key={appointment.id}
+                                  className={cn(
+                                    'rounded-lg border-l-4 p-2 text-xs mb-1',
+                                    statusColors[appointment.status || 'scheduled']
+                                  )}
+                                >
+                                  <p className="font-semibold truncate">{appointment.clients?.name}</p>
+                                  <p className="text-muted-foreground flex items-center gap-1">
+                                    <Scissors className="h-3 w-3" />
+                                    <span className="truncate">
+                                      {appointment.appointment_services && appointment.appointment_services.length > 0
+                                        ? appointment.appointment_services.map(as => as.services?.name).filter(Boolean).join(', ')
+                                        : appointment.services?.name}
+                                    </span>
+                                  </p>
+                                  <div className="flex items-center justify-between mt-1">
+                                    <span className="text-muted-foreground">
+                                      {appointment.appointment_services && appointment.appointment_services.length > 0
+                                        ? [...new Set(appointment.appointment_services.map(as => as.employees?.name).filter(Boolean))].join(', ')
+                                        : appointment.employees?.name}
+                                    </span>
+                                    <span className="text-muted-foreground">
                                       {formatAppointmentTime(appointment.scheduled_at, appointment.duration).startTime} - {formatAppointmentTime(appointment.scheduled_at, appointment.duration).endTime}
-                                    </p>
+                                    </span>
                                   </div>
-                                ) : (
-                                  <div className="h-full w-full flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
-                                    <Plus className="h-4 w-4 text-muted-foreground" />
-                                  </div>
-                                )}
+                                </div>
+                              ))
+                            ) : (
+                              <div className="h-full w-full flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                                <Plus className="h-4 w-4 text-muted-foreground" />
                               </div>
-                            );
-                          })}
+                            )}
+                          </div>
                         </React.Fragment>
-                      ))}
+                      );
+                    })}
+                  </div>
+                </ScrollArea>
+              </CardContent>
+            </Card>
+          ) : (
+            /* Desktop Day View - Grid similar ao semanal */
+            <Card className="overflow-hidden">
+              <CardContent className="p-0">
+                <ScrollArea className="h-[60vh]">
+                  <div className="grid grid-cols-[60px_1fr] divide-x divide-border">
+                    {/* Header */}
+                    <div className="border-b bg-muted/30 p-2 sticky top-0 z-10"></div>
+                    <div
+                      className={cn(
+                        'border-b p-2 text-center sticky top-0 z-10',
+                        currentDate.toDateString() === new Date().toDateString() ? 'bg-primary/10' : 'bg-muted/30'
+                      )}
+                    >
+                      <p className="text-xs text-muted-foreground uppercase">
+                        {currentDate.toLocaleDateString('pt-BR', { weekday: 'short' })}
+                      </p>
+                      <p className={cn(
+                        'text-lg font-bold',
+                        currentDate.toDateString() === new Date().toDateString() && 'text-primary'
+                      )}>
+                        {currentDate.getDate()}
+                      </p>
                     </div>
-                  </ScrollArea>
-                )}
+
+                    {/* Time Slots */}
+                    {timeSlots.map((time) => {
+                      const dayAppointments = getAppointmentsForDate(currentDate).filter(
+                        (a) => getAppointmentTime(a.scheduled_at) === time
+                      );
+                      const hasAppointments = dayAppointments.length > 0;
+
+                      return (
+                        <React.Fragment key={`time-${time}`}>
+                          <div className="border-b p-2 text-center text-sm text-muted-foreground bg-muted/10">
+                            {time}
+                          </div>
+                          <div
+                            className={cn(
+                              'border-b p-1 min-h-[48px]',
+                              !hasAppointments && 'cursor-pointer hover:bg-primary/5 transition-colors'
+                            )}
+                            onClick={() => !hasAppointments && handleSlotClick(currentDate, time)}
+                          >
+                            {hasAppointments ? (
+                              dayAppointments.map((appointment) => (
+                                <div
+                                  key={appointment.id}
+                                  className={cn(
+                                    'rounded-lg border-l-4 p-1.5 text-xs mb-1 cursor-pointer transition-all hover:shadow-md',
+                                    statusColors[appointment.status || 'scheduled']
+                                  )}
+                                >
+                                  <p className="font-semibold truncate">{appointment.clients?.name}</p>
+                                  <p className="text-muted-foreground flex items-center gap-1">
+                                    <Scissors className="h-3 w-3" />
+                                    <span className="truncate">
+                                      {appointment.appointment_services && appointment.appointment_services.length > 0
+                                        ? appointment.appointment_services.map(as => as.services?.name).filter(Boolean).join(', ')
+                                        : appointment.services?.name}
+                                    </span>
+                                  </p>
+                                  <div className="flex items-center justify-between mt-1">
+                                    <span className="text-muted-foreground text-[10px]">
+                                      {appointment.appointment_services && appointment.appointment_services.length > 0
+                                        ? [...new Set(appointment.appointment_services.map(as => as.employees?.name).filter(Boolean))].join(', ')
+                                        : appointment.employees?.name}
+                                    </span>
+                                    <span className="text-muted-foreground text-[10px]">
+                                      {formatAppointmentTime(appointment.scheduled_at, appointment.duration).startTime} - {formatAppointmentTime(appointment.scheduled_at, appointment.duration).endTime}
+                                    </span>
+                                  </div>
+                                </div>
+                              ))
+                            ) : (
+                              <div className="h-full w-full flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                                <Plus className="h-4 w-4 text-muted-foreground" />
+                              </div>
+                            )}
+                          </div>
+                        </React.Fragment>
+                      );
+                    })}
+                  </div>
+                </ScrollArea>
               </CardContent>
             </Card>
           )

@@ -1,7 +1,7 @@
 import * as React from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { CalendarIcon } from "lucide-react";
+import { CalendarIcon, Check, X } from "lucide-react";
 import { DateRange } from "react-day-picker";
 
 import { cn } from "@/lib/utils";
@@ -26,9 +26,17 @@ export function DateRangePicker({
   className,
   placeholder = "Selecione o período",
 }: DateRangePickerProps) {
+  const [open, setOpen] = React.useState(false);
+  const [pendingRange, setPendingRange] = React.useState<DateRange | undefined>(dateRange);
+
+  // Sync pending range when popover opens
+  React.useEffect(() => {
+    if (open) setPendingRange(dateRange);
+  }, [open]);
+
   return (
     <div className={cn("grid gap-2", className)}>
-      <Popover>
+      <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <Button
             id="date"
@@ -57,13 +65,37 @@ export function DateRangePicker({
           <Calendar
             initialFocus
             mode="range"
-            defaultMonth={dateRange?.from}
-            selected={dateRange}
-            onSelect={onDateRangeChange}
+            defaultMonth={pendingRange?.from || dateRange?.from}
+            selected={pendingRange}
+            onSelect={setPendingRange}
             numberOfMonths={2}
             locale={ptBR}
             className="pointer-events-auto"
           />
+          <div className="flex gap-2 p-3 pt-0 border-t mt-1 pt-3">
+            <Button
+              size="sm"
+              className="flex-1"
+              onClick={() => {
+                onDateRangeChange(pendingRange);
+                setOpen(false);
+              }}
+            >
+              <Check className="h-3 w-3 mr-1" /> OK
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex-1"
+              onClick={() => {
+                setPendingRange(undefined);
+                onDateRangeChange(undefined);
+                setOpen(false);
+              }}
+            >
+              <X className="h-3 w-3 mr-1" /> Resetar
+            </Button>
+          </div>
         </PopoverContent>
       </Popover>
     </div>
