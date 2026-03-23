@@ -68,7 +68,7 @@ export function DateRangePicker({
             defaultMonth={pendingRange?.from || dateRange?.from}
             selected={pendingRange}
             onSelect={setPendingRange}
-            numberOfMonths={2}
+            numberOfMonths={1}
             locale={ptBR}
             className="pointer-events-auto"
           />
