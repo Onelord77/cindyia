@@ -4,6 +4,9 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 const ALLOWED_ORIGINS = [
   'https://app.cindyia.com',
   'https://cindyia.com',
+  'http://localhost:8080',
+  'http://localhost:5173',
+  'http://127.0.0.1:8080',
   Deno.env.get('ALLOWED_ORIGIN'),
 ].filter(Boolean) as string[];
 

@@ -25,6 +25,7 @@ import AdminConfiguracoes from "./pages/admin/Configuracoes";
 import AdminDashboard from "./pages/admin/Dashboard";
 import AdminEndpoints from "./pages/admin/Endpoints";
 import AdminNotificacoes from "./pages/admin/Notificacoes";
+import AdminWhatsAppInstances from "./pages/admin/WhatsAppInstances";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -64,6 +65,7 @@ const App = () => (
                 {/* Super Admin Only Routes */}
                 <Route path="/admin" element={<ProtectedRoute requiredRoles={['super_admin']}><AdminDashboard /></ProtectedRoute>} />
                 <Route path="/admin/empresas" element={<ProtectedRoute requiredRoles={['super_admin']}><SuperAdminEmpresas /></ProtectedRoute>} />
+                <Route path="/admin/whatsapp-instances" element={<ProtectedRoute requiredRoles={['super_admin']}><AdminWhatsAppInstances /></ProtectedRoute>} />
                 <Route path="/admin/notificacoes" element={<ProtectedRoute requiredRoles={['super_admin']}><AdminNotificacoes /></ProtectedRoute>} />
                 <Route path="/admin/endpoints" element={<ProtectedRoute requiredRoles={['super_admin']}><AdminEndpoints /></ProtectedRoute>} />
                 <Route path="/admin/configuracoes" element={<ProtectedRoute requiredRoles={['super_admin']}><AdminConfiguracoes /></ProtectedRoute>} />

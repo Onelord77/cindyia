@@ -30,6 +30,8 @@ hooks/
 ├── useSystemSettings.ts                 # Configurações globais
 ├── useAppointmentsWithNotifications.ts  # Agendamentos com notificações
 ├── useWhatsappApi.ts                    # Integração WhatsApp
+├── useWhatsappStatus.ts                 # Status WhatsApp do tenant logado
+├── useAdminWhatsappStatus.ts            # Status WhatsApp de TODOS os tenants (super_admin)
 ├── use-mobile.tsx                       # Detectar mobile
 └── use-toast.ts                         # Toast notifications
 ```
@@ -292,6 +294,23 @@ createNotification.mutate({
 - `hasDisconnected` - Se há instâncias desconectadas
 - `disconnectedNames` - Nomes das instâncias desconectadas
 - `isLoading` - Estado de carregamento
+
+### useAdminWhatsappStatus.ts
+
+| Função | Tipo | Descrição |
+|--------|------|-----------|
+| `useAdminWhatsappStatus()` | Query | Status de TODAS as instâncias WhatsApp (apenas super_admin) |
+
+**Retorno:**
+- `instances` - Lista de instâncias com tenant_name
+- `connectedInstances` / `disconnectedInstances`
+- `connectedCount` / `disconnectedCount` / `totalCount`
+- `tenantsWithIssues` - Empresas com instâncias desconectadas
+- `hasDisconnected` - Se há alguma desconexão
+- `refetch` - Recarregar status
+- `isConnected(status)` - Helper para checar status
+
+**Polling automático a cada 60s** para detectar desconexões rapidamente.
 
 ### useAgentApiKeys.ts
 

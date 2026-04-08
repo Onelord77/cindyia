@@ -26,6 +26,7 @@ pages/
 └── admin/                     # Páginas Super Admin
     ├── Dashboard.tsx          # Dashboard admin
     ├── Empresas.tsx           # Gestão de tenants
+    ├── WhatsAppInstances.tsx  # Monitoramento global das instâncias WhatsApp
     ├── Endpoints.tsx          # Gestão de endpoints
     ├── Notificacoes.tsx       # Gestão de notificações
     └── Configuracoes.tsx      # Configurações globais
@@ -52,6 +53,7 @@ pages/
 | `/notificacoes` | `Notificacoes.tsx` | admin/manager |
 | `/admin` | `admin/Dashboard.tsx` | super_admin |
 | `/admin/empresas` | `admin/Empresas.tsx` | super_admin |
+| `/admin/whatsapp-instances` | `admin/WhatsAppInstances.tsx` | super_admin |
 | `/admin/endpoints` | `admin/Endpoints.tsx` | super_admin |
 | `/admin/notificacoes` | `admin/Notificacoes.tsx` | super_admin |
 | `/admin/configuracoes` | `admin/Configuracoes.tsx` | super_admin |
