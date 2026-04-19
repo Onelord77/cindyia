@@ -40,6 +40,8 @@ pages/
 |------|--------|--------|
 | `/` | `Dashboard.tsx` | Autenticado |
 | `/login` | `Login.tsx` | Público |
+| `/esqueci-senha` | `EsqueciSenha.tsx` | Público |
+| `/redefinir-senha` | `RedefinirSenha.tsx` | Público (via link de e-mail) |
 | `/onboarding` | `Onboarding.tsx` | Autenticado |
 | `/agenda` | `Agenda.tsx` | Autenticado |
 | `/agendamentos` | `Agendamentos.tsx` | Autenticado |

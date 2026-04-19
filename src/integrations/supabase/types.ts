@@ -405,10 +405,12 @@ export type Database = {
       services: {
         Row: {
           category: string | null
+          category_id: string | null
           created_at: string | null
           description: string | null
           duration: number
           id: string
+          image_url: string | null
           is_active: boolean | null
           name: string
           price: number
@@ -417,10 +419,12 @@ export type Database = {
         }
         Insert: {
           category?: string | null
+          category_id?: string | null
           created_at?: string | null
           description?: string | null
           duration?: number
           id?: string
+          image_url?: string | null
           is_active?: boolean | null
           name: string
           price?: number
@@ -429,10 +433,12 @@ export type Database = {
         }
         Update: {
           category?: string | null
+          category_id?: string | null
           created_at?: string | null
           description?: string | null
           duration?: number
           id?: string
+          image_url?: string | null
           is_active?: boolean | null
           name?: string
           price?: number

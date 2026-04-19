@@ -8,6 +8,8 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { NotificationProvider } from "@/components/notifications";
 import { ThemeProvider } from "@/components/theme";
 import Login from "./pages/Login";
+import EsqueciSenha from "./pages/EsqueciSenha";
+import RedefinirSenha from "./pages/RedefinirSenha";
 import Onboarding from "./pages/Onboarding";
 import Dashboard from "./pages/Dashboard";
 import Agenda from "./pages/Agenda";
@@ -42,7 +44,9 @@ const App = () => (
               <Routes>
                 {/* Public Routes - Only Login, no registration */}
                 <Route path="/login" element={<Login />} />
-                
+                <Route path="/esqueci-senha" element={<EsqueciSenha />} />
+                <Route path="/redefinir-senha" element={<RedefinirSenha />} />
+
                 {/* Redirect old cadastro route to login */}
                 <Route path="/cadastro" element={<Navigate to="/login" replace />} />
 

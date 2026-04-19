@@ -31,7 +31,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
-import { Plus, Search, Edit, Trash2, Sparkles, Clock, DollarSign, MoreVertical, Loader2, FolderOpen, ChevronDown, Palette, Tag } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Sparkles, Clock, DollarSign, MoreVertical, Loader2, FolderOpen, ChevronDown, Palette, Tag, ImageIcon } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -59,6 +59,7 @@ import { useServices, type ServiceWithCategory } from '@/hooks/useServices';
 import { useServiceCategories, type ServiceCategory } from '@/hooks/useServiceCategories';
 import { useAuth } from '@/hooks/useAuth';
 import { useTenants } from '@/hooks/useTenants';
+import { ImageUpload } from '@/components/ui/image-upload';
 import { toast } from 'sonner';
 
 // Cores predefinidas para categorias
@@ -100,6 +101,7 @@ const Servicos = () => {
     price: '',
     tenant_id: '',
     category_id: '',
+    image_url: '' as string | null,
   });
 
   const [categoryFormData, setCategoryFormData] = useState({
@@ -145,7 +147,7 @@ const Servicos = () => {
     : 0;
 
   const resetForm = () => {
-    setFormData({ name: '', description: '', duration: '', price: '', tenant_id: selectedTenantId || '', category_id: '' });
+    setFormData({ name: '', description: '', duration: '', price: '', tenant_id: selectedTenantId || '', category_id: '', image_url: null });
     setEditingService(null);
   };
 
@@ -168,6 +170,7 @@ const Servicos = () => {
       price: String(service.price),
       tenant_id: service.tenant_id,
       category_id: service.category_id || '',
+      image_url: service.image_url || null,
     });
     setIsDialogOpen(true);
   };
@@ -205,6 +208,7 @@ const Servicos = () => {
         duration: parseInt(formData.duration),
         price: parseFloat(formData.price),
         category_id: formData.category_id || null,
+        image_url: formData.image_url || null,
       });
     } else {
       await addService.mutateAsync({
@@ -214,6 +218,7 @@ const Servicos = () => {
         price: parseFloat(formData.price),
         tenant_id: formData.tenant_id || undefined,
         category_id: formData.category_id || null,
+        image_url: formData.image_url || null,
       });
     }
 
@@ -302,19 +307,34 @@ const Servicos = () => {
     );
   }
 
-  const renderServiceRow = (service: ServiceWithCategory) => (
+  const renderServiceRow = (service: ServiceWithCategory) => {
+    const imageUrl = service.image_url;
+    return (
     <TableRow key={service.id} className="group">
+      <TableCell className="w-[88px]">
+        {imageUrl ? (
+          <img
+            src={imageUrl}
+            alt={service.name}
+            className="h-16 w-16 rounded-lg object-cover ring-1 ring-border shadow-sm"
+            loading="lazy"
+          />
+        ) : (
+          <div
+            className="flex h-16 w-16 flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-muted-foreground/30 bg-muted/40 text-muted-foreground"
+            title="Sem foto cadastrada"
+          >
+            <ImageIcon className="h-5 w-5" />
+            <span className="text-[9px] font-medium uppercase tracking-wide">Sem foto</span>
+          </div>
+        )}
+      </TableCell>
       <TableCell>
-        <div className="flex items-center gap-3">
-          <div className="rounded-lg bg-primary/10 p-2">
-            <Sparkles className="h-4 w-4 text-primary" />
-          </div>
-          <div>
-            <p className="font-medium">{service.name}</p>
-            {service.description && (
-              <p className="text-sm text-muted-foreground">{service.description}</p>
-            )}
-          </div>
+        <div>
+          <p className="font-medium">{service.name}</p>
+          {service.description && (
+            <p className="text-sm text-muted-foreground line-clamp-1">{service.description}</p>
+          )}
         </div>
       </TableCell>
       <TableCell>
@@ -360,17 +380,33 @@ const Servicos = () => {
         </DropdownMenu>
       </TableCell>
     </TableRow>
-  );
+    );
+  };
 
-  const renderServiceCard = (service: ServiceWithCategory) => (
+  const renderServiceCard = (service: ServiceWithCategory) => {
+    const imageUrl = service.image_url;
+    return (
     <MobileCard
       key={service.id}
       title={service.name}
       subtitle={service.description || undefined}
       avatar={
-        <div className="rounded-lg bg-primary/10 p-2">
-          <Sparkles className="h-5 w-5 text-primary" />
-        </div>
+        imageUrl ? (
+          <img
+            src={imageUrl}
+            alt={service.name}
+            className="h-16 w-16 rounded-lg object-cover ring-1 ring-border shadow-sm"
+            loading="lazy"
+          />
+        ) : (
+          <div
+            className="flex h-16 w-16 flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-muted-foreground/30 bg-muted/40 text-muted-foreground"
+            title="Sem foto cadastrada"
+          >
+            <ImageIcon className="h-5 w-5" />
+            <span className="text-[9px] font-medium uppercase tracking-wide">Sem foto</span>
+          </div>
+        )
       }
       badge={
         <Badge variant={service.is_active ? 'default' : 'secondary'}>
@@ -419,7 +455,8 @@ const Servicos = () => {
         </div>
       }
     />
-  );
+    );
+  };
 
   const renderCategorySection = (categoryId: string, categoryServices: ServiceWithCategory[]) => {
     const category = getCategoryById(categoryId);
@@ -493,6 +530,7 @@ const Servicos = () => {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead className="w-[88px]">Foto</TableHead>
                       <TableHead>Serviço</TableHead>
                       <TableHead>Duração</TableHead>
                       <TableHead>Preço</TableHead>
@@ -653,6 +691,26 @@ const Servicos = () => {
                   </Select>
                 </div>
               )}
+              {(() => {
+                const uploadTenantId = editingService?.tenant_id || formData.tenant_id || selectedTenantId || profile?.tenant_id || '';
+                return (
+                  <div className="space-y-2">
+                    <Label>Foto do Serviço</Label>
+                    <ImageUpload
+                      value={formData.image_url}
+                      onChange={(url) => setFormData(prev => ({ ...prev, image_url: url }))}
+                      bucket="service-images"
+                      folder={uploadTenantId}
+                      aspectRatio="video"
+                      maxSizeMB={5}
+                      disabled={!uploadTenantId}
+                    />
+                    {!uploadTenantId && (
+                      <p className="text-xs text-muted-foreground">Selecione uma empresa antes de enviar a foto</p>
+                    )}
+                  </div>
+                );
+              })()}
               <div className="space-y-2">
                 <Label htmlFor="name">Nome do Serviço *</Label>
                 <Input
