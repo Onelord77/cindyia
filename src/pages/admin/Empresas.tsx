@@ -25,6 +25,7 @@ import {
   Users, Calendar, Filter, DollarSign, Phone, Mail, Loader2, UserPlus, Shield 
 } from 'lucide-react';
 import { cn, formatCurrency, formatPhone, formatPhoneMask, unmaskPhone } from '@/lib/utils';
+import { BUSINESS_TYPES, OTHER_BUSINESS_TYPE, splitBusinessType } from '@/lib/business-types';
 import { useTenants } from '@/hooks/useTenants';
 import { useUserManagement, useTenantAdmins } from '@/hooks/useUserManagement';
 import { toast } from 'sonner';
@@ -63,6 +64,8 @@ const SuperAdminEmpresas = () => {
     maxEmployees: 3,
     maxWhatsappInstances: 1,
     monthlyFee: 0,
+    businessTypePreset: '',
+    businessTypeCustom: '',
   });
 
   const [adminFormData, setAdminFormData] = useState({
@@ -83,7 +86,7 @@ const SuperAdminEmpresas = () => {
   const activeTenants = tenants.filter((t) => t.status === 'active').length;
 
   const resetForm = () => {
-    setFormData({ name: '', email: '', phone: '', address: '', cnpj: '', maxEmployees: 3, maxWhatsappInstances: 1, monthlyFee: 0 });
+    setFormData({ name: '', email: '', phone: '', address: '', cnpj: '', maxEmployees: 3, maxWhatsappInstances: 1, monthlyFee: 0, businessTypePreset: '', businessTypeCustom: '' });
     setEditingTenant(null);
   };
 
@@ -91,6 +94,7 @@ const SuperAdminEmpresas = () => {
   
   const openEditDialog = (tenant: typeof tenants[0]) => {
     setEditingTenant(tenant);
+    const { preset, custom } = splitBusinessType(tenant.business_type);
     setFormData({
       name: tenant.name,
       email: tenant.email || '',
@@ -100,6 +104,8 @@ const SuperAdminEmpresas = () => {
       maxEmployees: tenant.max_employees || 3,
       maxWhatsappInstances: tenant.max_whatsapp_instances || 1,
       monthlyFee: tenant.monthly_fee || 0,
+      businessTypePreset: preset,
+      businessTypeCustom: custom,
     });
     setIsDialogOpen(true);
   };
@@ -166,6 +172,12 @@ const SuperAdminEmpresas = () => {
     // Remove mask from phone before saving
     const phoneDigitsOnly = formData.phone ? unmaskPhone(formData.phone, '') : null;
 
+    // Resolve business_type: Outro → usa texto custom; demais → usa preset
+    const businessType =
+      formData.businessTypePreset === OTHER_BUSINESS_TYPE
+        ? (formData.businessTypeCustom.trim() || null)
+        : (formData.businessTypePreset || null);
+
     if (editingTenant) {
       await updateTenant.mutateAsync({
         id: editingTenant.id,
@@ -177,6 +189,7 @@ const SuperAdminEmpresas = () => {
         max_employees: formData.maxEmployees,
         max_whatsapp_instances: formData.maxWhatsappInstances,
         monthly_fee: formData.monthlyFee,
+        business_type: businessType,
       });
     } else {
       await addTenant.mutateAsync({
@@ -188,6 +201,7 @@ const SuperAdminEmpresas = () => {
         max_employees: formData.maxEmployees,
         max_whatsapp_instances: formData.maxWhatsappInstances,
         monthly_fee: formData.monthlyFee,
+        business_type: businessType,
         subscription_started_at: new Date().toISOString(),
       });
     }
@@ -462,10 +476,10 @@ const SuperAdminEmpresas = () => {
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label>Email</Label>
-                  <Input 
+                  <Input
                     type="email"
-                    value={formData.email} 
-                    onChange={(e) => setFormData(p => ({ ...p, email: e.target.value }))} 
+                    value={formData.email}
+                    onChange={(e) => setFormData(p => ({ ...p, email: e.target.value }))}
                     className="min-h-[44px]"
                     placeholder="contato@empresa.com"
                   />
@@ -481,7 +495,32 @@ const SuperAdminEmpresas = () => {
                   />
                 </div>
               </div>
-              
+
+              <div className="space-y-2">
+                <Label>Tipo de negócio</Label>
+                <Select
+                  value={formData.businessTypePreset}
+                  onValueChange={(value) => setFormData(p => ({ ...p, businessTypePreset: value }))}
+                >
+                  <SelectTrigger className="min-h-[44px]">
+                    <SelectValue placeholder="Selecione o segmento" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {BUSINESS_TYPES.map((bt) => (
+                      <SelectItem key={bt} value={bt}>{bt}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {formData.businessTypePreset === OTHER_BUSINESS_TYPE && (
+                  <Input
+                    value={formData.businessTypeCustom}
+                    onChange={(e) => setFormData(p => ({ ...p, businessTypeCustom: e.target.value }))}
+                    className="min-h-[44px] mt-2"
+                    placeholder="Descreva o segmento"
+                  />
+                )}
+              </div>
+
               <div className="space-y-2">
                 <Label>Endereço</Label>
                 <Input 
@@ -592,6 +631,12 @@ const SuperAdminEmpresas = () => {
                     <div>
                       <p className="text-sm text-muted-foreground">CNPJ</p>
                       <p className="font-medium">{viewingTenant.cnpj}</p>
+                    </div>
+                  )}
+                  {viewingTenant.business_type && (
+                    <div>
+                      <p className="text-sm text-muted-foreground">Tipo de negócio</p>
+                      <p className="font-medium">{viewingTenant.business_type}</p>
                     </div>
                   )}
                   <div>

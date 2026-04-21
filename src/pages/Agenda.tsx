@@ -30,6 +30,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { cn, formatTimeInSaoPaulo, isSameDayInSaoPaulo, getDateInSaoPaulo, toSaoPauloDateTime, createSaoPauloDate, getTodayInSaoPaulo } from '@/lib/utils';
+import { ClientQuickCreateDialog } from '@/components/appointments/ClientQuickCreateDialog';
 import { toast } from 'sonner';
 
 const timeSlots = [
@@ -696,12 +697,17 @@ const Agenda = () => {
             <div className="grid gap-4 py-4">
               <div className="space-y-2">
                 <Label>Cliente *</Label>
-                <Select value={formData.client_id} onValueChange={(v) => setFormData(p => ({ ...p, client_id: v }))}>
-                  <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-                  <SelectContent>
-                    {clients.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+                <div className="flex gap-2">
+                  <Select value={formData.client_id} onValueChange={(v) => setFormData(p => ({ ...p, client_id: v }))}>
+                    <SelectTrigger className="flex-1"><SelectValue placeholder="Selecione" /></SelectTrigger>
+                    <SelectContent>
+                      {clients.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  <ClientQuickCreateDialog
+                    onClientCreated={(id) => setFormData(p => ({ ...p, client_id: id }))}
+                  />
+                </div>
               </div>
               <div className="space-y-2">
                 <Label>Serviços e Profissionais *</Label>

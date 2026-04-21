@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/select';
 import { Building2, Clock, Bell, Save, Loader2 } from 'lucide-react';
 import { useTenantSettings } from '@/hooks/useTenantSettings';
+import { BUSINESS_TYPES, OTHER_BUSINESS_TYPE, splitBusinessType } from '@/lib/business-types';
 import { Skeleton } from '@/components/ui/skeleton';
 
 const DAYS_OF_WEEK = [
@@ -110,8 +111,8 @@ const Configuracoes = () => {
 
                 <div className="space-y-2">
                   <Label htmlFor="address">Endereço</Label>
-                  <Textarea 
-                    id="address" 
+                  <Textarea
+                    id="address"
                     value={settings.address}
                     onChange={(e) => updateSetting('address', e.target.value)}
                   />
@@ -126,6 +127,46 @@ const Configuracoes = () => {
                     onChange={(e) => updateSetting('email', e.target.value)}
                   />
                 </div>
+
+                {(() => {
+                  const { preset, custom } = splitBusinessType(settings.businessType);
+                  const isOther = preset === OTHER_BUSINESS_TYPE;
+                  return (
+                    <div className="space-y-2">
+                      <Label htmlFor="businessType">Tipo de negócio</Label>
+                      <Select
+                        value={preset}
+                        onValueChange={(value) => {
+                          if (value === OTHER_BUSINESS_TYPE) {
+                            updateSetting('businessType', custom || OTHER_BUSINESS_TYPE);
+                          } else {
+                            updateSetting('businessType', value);
+                          }
+                        }}
+                      >
+                        <SelectTrigger id="businessType">
+                          <SelectValue placeholder="Selecione o segmento da sua empresa" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {BUSINESS_TYPES.map((bt) => (
+                            <SelectItem key={bt} value={bt}>{bt}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {isOther && (
+                        <Input
+                          placeholder="Descreva o segmento"
+                          value={custom}
+                          onChange={(e) => updateSetting('businessType', e.target.value || OTHER_BUSINESS_TYPE)}
+                          className="mt-2"
+                        />
+                      )}
+                      <p className="text-xs text-muted-foreground">
+                        Essa informação é usada pela IA de atendimento para contextualizar respostas aos seus clientes.
+                      </p>
+                    </div>
+                  );
+                })()}
 
                 <Separator />
 

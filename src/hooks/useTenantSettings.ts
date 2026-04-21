@@ -9,6 +9,7 @@ export interface TenantSettings {
   phone: string;
   address: string;
   email: string;
+  businessType: string;
 
   // Scheduling settings
   openTime: string;
@@ -27,6 +28,7 @@ const defaultSettings: TenantSettings = {
   phone: '',
   address: '',
   email: '',
+  businessType: '',
   openTime: '09:00',
   closeTime: '19:00',
   workingDays: ['seg', 'ter', 'qua', 'qui', 'sex', 'sab'],
@@ -170,7 +172,7 @@ export function useTenantSettings() {
       // Fetch tenant data
       const { data: tenant, error: tenantError } = await supabase
         .from('tenants')
-        .select('name, email, phone, address, settings')
+        .select('name, email, phone, address, business_type, settings')
         .eq('id', profile.tenant_id)
         .single();
 
@@ -182,12 +184,13 @@ export function useTenantSettings() {
 
       // Merge tenant base data with settings
       const storedSettings = (tenant.settings as Record<string, unknown>) || {};
-      
+
       setSettings({
         companyName: tenant.name || '',
         phone: tenant.phone || '',
         address: tenant.address || '',
         email: tenant.email || '',
+        businessType: tenant.business_type || '',
         openTime: (storedSettings.openTime as string) || '09:00',
         closeTime: (storedSettings.closeTime as string) || '19:00',
         workingDays: (storedSettings.workingDays as string[]) || ['seg', 'ter', 'qua', 'qui', 'sex', 'sab'],
@@ -214,7 +217,7 @@ export function useTenantSettings() {
       setSaving(true);
 
       // Separate base tenant fields from settings
-      const { companyName, phone, address, email, ...restSettings } = newSettings;
+      const { companyName, phone, address, email, businessType, ...restSettings } = newSettings;
 
       const { error } = await supabase
         .from('tenants')
@@ -223,6 +226,7 @@ export function useTenantSettings() {
           phone,
           address,
           email,
+          business_type: businessType || null,
           settings: restSettings,
           updated_at: new Date().toISOString(),
         })

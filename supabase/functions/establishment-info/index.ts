@@ -1,62 +1,10 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { crypto } from "https://deno.land/std@0.190.0/crypto/mod.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-agent-key',
 };
-
-// ============ AUTH FUNCTIONS ============
-
-// Gera hash SHA-256 da chave
-async function hashKey(key: string): Promise<string> {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(key);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-}
-
-// Valida a chave de API do agente
-async function validateAgentKey(supabase: ReturnType<typeof createClient>, apiKey: string, tenantId: string): Promise<{ valid: boolean; error?: string }> {
-  if (!apiKey) {
-    return { valid: false, error: 'Missing x-agent-key header' };
-  }
-
-  const keyHash = await hashKey(apiKey);
-
-  const { data: keyRecord, error } = await supabase
-    .from('agent_api_keys')
-    .select('id, tenant_id, is_active, expires_at')
-    .eq('key_hash', keyHash)
-    .single();
-
-  if (error || !keyRecord) {
-    return { valid: false, error: 'Invalid API key' };
-  }
-
-  if (keyRecord.tenant_id !== null && keyRecord.tenant_id !== tenantId) {
-    return { valid: false, error: 'API key not authorized for this tenant' };
-  }
-
-  if (!keyRecord.is_active) {
-    return { valid: false, error: 'API key is inactive' };
-  }
-
-  if (keyRecord.expires_at && new Date(keyRecord.expires_at) < new Date()) {
-    return { valid: false, error: 'API key has expired' };
-  }
-
-  // Atualiza last_used_at em background
-  supabase
-    .from('agent_api_keys')
-    .update({ last_used_at: new Date().toISOString() })
-    .eq('id', keyRecord.id)
-    .then(() => {});
-
-  return { valid: true };
-}
 
 // Working hours type
 type DayHours = { open: string | null; close: string | null; isOpen: boolean };
@@ -99,7 +47,7 @@ const ptDayToEnglish: Record<string, string> = {
 const calculateBusinessHoursFromSchedule = (hours: WorkingHoursMap): { earliestOpen: string | null; latestClose: string | null } => {
   let earliestOpen: string | null = null;
   let latestClose: string | null = null;
-  
+
   Object.values(hours).forEach((day) => {
     if (day.isOpen && day.open && day.close) {
       if (!earliestOpen || day.open < earliestOpen) {
@@ -110,7 +58,7 @@ const calculateBusinessHoursFromSchedule = (hours: WorkingHoursMap): { earliestO
       }
     }
   });
-  
+
   return { earliestOpen, latestClose };
 };
 
@@ -122,7 +70,7 @@ serve(async (req) => {
 
   try {
     const url = new URL(req.url);
-    
+
     // Get query parameters
     const tenantId = url.searchParams.get('tenantId');
 
@@ -148,21 +96,10 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // ============ API KEY VALIDATION ============
-
-    const agentKey = req.headers.get('x-agent-key');
-    const keyValidation = await validateAgentKey(supabase, agentKey || '', tenantId);
-    if (!keyValidation.valid) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'unauthorized', message: keyValidation.error }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
     // Fetch tenant data
     const { data: tenant, error: tenantError } = await supabase
       .from('tenants')
-      .select('id, name, address, phone, email, settings')
+      .select('id, name, address, phone, email, business_type, settings')
       .eq('id', tenantId)
       .single();
 
@@ -176,27 +113,27 @@ serve(async (req) => {
 
     // Parse settings for working hours and policies
     const settings = tenant.settings || {};
-    
+
     // Build working hours from settings
     const workingHours: WorkingHoursMap = createDefaultWorkingHours();
-    
+
     // Check if settings has workingDays array and openTime/closeTime
     if (settings.workingDays && Array.isArray(settings.workingDays)) {
       const openTime = settings.openTime || '09:00';
       const closeTime = settings.closeTime || '18:00';
-      
+
       settings.workingDays.forEach((day: number | string) => {
         let dayName: string | undefined;
-        
+
         // Handle numeric index (0-6)
         if (typeof day === 'number') {
           dayName = dayIndexToName[day];
-        } 
+        }
         // Handle Portuguese abbreviation (seg, ter, qua, etc.)
         else if (typeof day === 'string') {
           dayName = ptDayToEnglish[day.toLowerCase()];
         }
-        
+
         if (dayName) {
           workingHours[dayName as keyof typeof workingHours] = {
             open: openTime,
@@ -223,7 +160,7 @@ serve(async (req) => {
 
     // Fallback: If no working hours found, try to get from an admin employee
     const hasWorkingHours = Object.values(workingHours).some((day: DayHours) => day.isOpen);
-    
+
     if (!hasWorkingHours) {
       const { data: employees } = await supabase
         .from('employees')
@@ -232,9 +169,9 @@ serve(async (req) => {
         .eq('is_active', true)
         .order('created_at', { ascending: true })
         .limit(1);
-      
+
       const firstEmployee = employees?.[0];
-      
+
       if (firstEmployee?.working_hours && typeof firstEmployee.working_hours === 'object') {
         const empHours = firstEmployee.working_hours as Record<string, { start?: string; end?: string; enabled?: boolean }>;
         Object.keys(empHours).forEach((day) => {
@@ -256,9 +193,9 @@ serve(async (req) => {
 
     // Extract policies (only safe, non-sensitive data)
     const policies = {
-      cancellation: settings.cancellationPolicy?.text || 
-                   (settings.cancellationPolicy?.allowCancellation 
-                     ? `Cancelamento permitido até ${settings.cancellationPolicy.minHoursBeforeCancel || 2}h antes` 
+      cancellation: settings.cancellationPolicy?.text ||
+                   (settings.cancellationPolicy?.allowCancellation
+                     ? `Cancelamento permitido até ${settings.cancellationPolicy.minHoursBeforeCancel || 2}h antes`
                      : null),
       late: settings.latePolicy || null,
     };
@@ -328,6 +265,7 @@ serve(async (req) => {
     const response = {
       tenantId: tenant.id,
       name: tenant.name,
+      businessType: tenant.business_type || null,
       address: tenant.address || null,
       phone: tenant.phone || null,
       email: tenant.email || null,

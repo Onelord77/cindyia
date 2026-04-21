@@ -602,6 +602,7 @@ export type Database = {
       tenants: {
         Row: {
           address: string | null
+          business_type: string | null
           cnpj: string | null
           created_at: string | null
           email: string | null
@@ -620,6 +621,7 @@ export type Database = {
         }
         Insert: {
           address?: string | null
+          business_type?: string | null
           cnpj?: string | null
           created_at?: string | null
           email?: string | null
@@ -638,6 +640,7 @@ export type Database = {
         }
         Update: {
           address?: string | null
+          business_type?: string | null
           cnpj?: string | null
           created_at?: string | null
           email?: string | null

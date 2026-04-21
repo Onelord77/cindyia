@@ -10,6 +10,7 @@ Biblioteca de componentes React organizados por domínio.
 components/
 ├── NavLink.tsx                    # Link de navegação customizado
 ├── ProtectedRoute.tsx             # HOC para proteção de rotas
+├── appointments/                  # Componentes de Agendamento (ex: ClientQuickCreateDialog)
 ├── dashboard/                     # Componentes de Dashboard
 ├── employees/                     # Componentes de Funcionários
 ├── integrations/                  # Componentes de Integrações

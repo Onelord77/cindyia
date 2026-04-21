@@ -34,6 +34,7 @@ import { useEmployees } from '@/hooks/useEmployees';
 import { useServices } from '@/hooks/useServices';
 import { useEmployeeServicesBulk } from '@/hooks/useEmployeeServices';
 import { DateRangePicker } from '@/components/ui/date-range-picker';
+import { ClientQuickCreateDialog } from '@/components/appointments/ClientQuickCreateDialog';
 import { isWithinInterval, startOfDay, endOfDay } from 'date-fns';
 import type { Database } from '@/integrations/supabase/types';
 
@@ -720,12 +721,17 @@ const Agendamentos = () => {
             <div className="grid gap-4 py-4">
               <div className="space-y-2">
                 <Label>Cliente *</Label>
-                <Select value={formData.client_id} onValueChange={(v) => setFormData(p => ({ ...p, client_id: v }))}>
-                  <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-                  <SelectContent>
-                    {clients.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+                <div className="flex gap-2">
+                  <Select value={formData.client_id} onValueChange={(v) => setFormData(p => ({ ...p, client_id: v }))}>
+                    <SelectTrigger className="flex-1"><SelectValue placeholder="Selecione" /></SelectTrigger>
+                    <SelectContent>
+                      {clients.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  <ClientQuickCreateDialog
+                    onClientCreated={(id) => setFormData(p => ({ ...p, client_id: id }))}
+                  />
+                </div>
               </div>
               <div className="space-y-2">
                 <Label>Serviços e Profissionais *</Label>
