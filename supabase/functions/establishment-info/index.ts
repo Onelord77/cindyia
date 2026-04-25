@@ -221,7 +221,7 @@ serve(async (req) => {
     // Build services query
     let servicesQuery = supabase
       .from('services')
-      .select('id, name, duration, price, category, is_active')
+      .select('id, name, duration, price, category, is_active, requires_quote')
       .eq('tenant_id', tenantId);
 
     // Filter by active status (default: true - only active services)
@@ -251,15 +251,25 @@ serve(async (req) => {
       // Don't fail the whole request, just return empty services
     }
 
+    // Services that require a quote (price varies by hair length, area, etc.)
+    const quoteKeywords = ['coloraç', 'colorac', 'progressiva', 'mechas', 'luzes', 'ombr'];
+    const nameNorm = (n: string) => n.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
     // Map services to response format
-    const services = (servicesData || []).map(service => ({
-      id: service.id,
-      name: service.name,
-      durationMin: service.duration,
-      price: Number(service.price),
-      category: service.category,
-      isActive: service.is_active
-    }));
+    const services = (servicesData || []).map(service => {
+      const requiresQuote = service.requires_quote === true
+        || Number(service.price) === 0
+        || quoteKeywords.some(k => nameNorm(service.name).includes(k));
+      return {
+        id: service.id,
+        name: service.name,
+        durationMin: service.duration,
+        price: Number(service.price),
+        category: service.category,
+        isActive: service.is_active,
+        requiresQuote,
+      };
+    });
 
     // Build response (excluding sensitive data)
     const response = {

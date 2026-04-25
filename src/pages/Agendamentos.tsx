@@ -1,10 +1,12 @@
 import { useState, useMemo, useEffect } from 'react';
 import { DateRange } from 'react-day-picker';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
@@ -25,7 +27,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Search, Filter, Plus, MoreVertical, Edit, Calendar, X, Loader2, CheckCircle } from 'lucide-react';
+import { Search, Filter, Plus, MoreVertical, Edit, Calendar, X, Loader2, CheckCircle, DollarSign, ClipboardList } from 'lucide-react';
 import { cn, toSaoPauloDateTime, createSaoPauloDate, formatTimeInSaoPaulo, getTodayInSaoPaulo, getDateInSaoPaulo } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useAppointments } from '@/hooks/useAppointments';
@@ -36,6 +38,7 @@ import { useEmployeeServicesBulk } from '@/hooks/useEmployeeServices';
 import { DateRangePicker } from '@/components/ui/date-range-picker';
 import { ClientQuickCreateDialog } from '@/components/appointments/ClientQuickCreateDialog';
 import { isWithinInterval, startOfDay, endOfDay } from 'date-fns';
+import { supabase } from '@/integrations/supabase/client';
 import type { Database } from '@/integrations/supabase/types';
 
 type AppointmentStatus = Database['public']['Enums']['appointment_status'];
@@ -55,8 +58,16 @@ const paymentConfig: Record<string, { label: string; class: string }> = {
   refunded: { label: 'Reembolsado', class: 'bg-muted text-muted-foreground' },
 };
 
+const quoteKeywords = ['colorac', 'progressiva', 'mechas', 'luzes', 'ombr'];
+const isQuoteService = (name: string, requiresQuote?: boolean) => {
+  if (requiresQuote === true) return true;
+  const n = name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  return quoteKeywords.some(k => n.includes(k));
+};
+
 const Agendamentos = () => {
   const isMobile = useIsMobile();
+  const queryClient = useQueryClient();
   const { appointments, isLoading, addAppointment, updateAppointment, updateStatus, markAsCompleted, deleteAppointment } = useAppointments();
   const { clients } = useClients();
   const { employees } = useEmployees();
@@ -69,6 +80,7 @@ const Agendamentos = () => {
   // Memoize active services to avoid filtering on every render
   const activeServices = useMemo(() => services.filter(s => s.is_active), [services]);
 
+  const [activeTab, setActiveTab] = useState('todos');
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
@@ -77,6 +89,9 @@ const Agendamentos = () => {
   const [editingAppointmentId, setEditingAppointmentId] = useState<string | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [deletingAppointmentId, setDeletingAppointmentId] = useState<string | null>(null);
+  const [isQuoteDialogOpen, setIsQuoteDialogOpen] = useState(false);
+  const [confirmingQuoteId, setConfirmingQuoteId] = useState<string | null>(null);
+  const [quotePrice, setQuotePrice] = useState('');
 
   const [formData, setFormData] = useState({
     client_id: '',
@@ -143,6 +158,57 @@ const Agendamentos = () => {
       return { ...prev, service_employees: cleaned };
     });
   }, [editFormData.service_ids]);
+
+  // Build set of service IDs that require a quote
+  const quoteServiceIds = useMemo(() => {
+    return new Set(
+      services.filter(s => isQuoteService(s.name, (s as any).requires_quote)).map(s => s.id)
+    );
+  }, [services]);
+
+  // Appointments that have at least one requires-quote service and are still pending/confirmed
+  const quoteAppointments = useMemo(() => {
+    return appointments.filter(apt => {
+      if (apt.status === 'completed' || apt.status === 'cancelled') return false;
+      const svcIds = apt.appointment_services?.map(as => as.service_id) || (apt.service_id ? [apt.service_id] : []);
+      return svcIds.some(id => quoteServiceIds.has(id));
+    });
+  }, [appointments, quoteServiceIds]);
+
+  const confirmQuoteMutation = useMutation({
+    mutationFn: async ({ id, price }: { id: string; price: number }) => {
+      const { error } = await supabase
+        .from('appointments')
+        .update({ price, status: 'confirmed' })
+        .eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['appointments'] });
+      toast.success('Orçamento confirmado! Agendamento atualizado.');
+      setIsQuoteDialogOpen(false);
+      setConfirmingQuoteId(null);
+      setQuotePrice('');
+    },
+    onError: () => toast.error('Erro ao confirmar orçamento'),
+  });
+
+  const handleOpenQuoteDialog = (appointmentId: string) => {
+    const apt = appointments.find(a => a.id === appointmentId);
+    setConfirmingQuoteId(appointmentId);
+    setQuotePrice(apt ? String(Number(apt.price || 0).toFixed(2)) : '');
+    setIsQuoteDialogOpen(true);
+  };
+
+  const handleConfirmQuote = () => {
+    if (!confirmingQuoteId) return;
+    const price = parseFloat(quotePrice.replace(',', '.'));
+    if (isNaN(price) || price <= 0) {
+      toast.error('Informe um valor válido para o orçamento.');
+      return;
+    }
+    confirmQuoteMutation.mutate({ id: confirmingQuoteId, price });
+  };
 
   const filteredAppointments = useMemo(() => {
     return appointments.filter((appointment) => {
@@ -443,6 +509,8 @@ const Agendamentos = () => {
     );
   }
 
+  const confirmingAppointment = appointments.find(a => a.id === confirmingQuoteId);
+
   return (
     <MainLayout>
       <div className="space-y-4 sm:space-y-6">
@@ -457,6 +525,25 @@ const Agendamentos = () => {
           </Button>
         </div>
 
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList className="w-full sm:w-auto">
+            <TabsTrigger value="todos" className="flex items-center gap-2">
+              <ClipboardList className="h-4 w-4" />
+              Todos
+            </TabsTrigger>
+            <TabsTrigger value="orcamento" className="flex items-center gap-2">
+              <DollarSign className="h-4 w-4" />
+              Pendente de Orçamento
+              {quoteAppointments.length > 0 && (
+                <Badge variant="destructive" className="ml-1 h-5 w-5 flex items-center justify-center p-0 text-xs">
+                  {quoteAppointments.length}
+                </Badge>
+              )}
+            </TabsTrigger>
+          </TabsList>
+
+          {/* ─── ABA: TODOS ─── */}
+          <TabsContent value="todos" className="space-y-4 mt-4">
         <Card>
           <CardContent className="p-4">
             <div className="flex flex-col gap-4">
@@ -711,6 +798,165 @@ const Agendamentos = () => {
             </CardContent>
           </Card>
         )}
+          </TabsContent>
+
+          {/* ─── ABA: PENDENTE DE ORÇAMENTO ─── */}
+          <TabsContent value="orcamento" className="mt-4">
+            {quoteAppointments.length === 0 ? (
+              <Card className="p-10 text-center text-muted-foreground">
+                <DollarSign className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                <p>Nenhum agendamento pendente de orçamento.</p>
+              </Card>
+            ) : isMobile ? (
+              <div className="space-y-3">
+                {quoteAppointments.map((appointment) => {
+                  const status = statusConfig[appointment.status || 'scheduled'];
+                  const times = formatTime(appointment.scheduled_at, appointment.duration);
+                  const serviceNames = appointment.appointment_services?.length
+                    ? appointment.appointment_services.map(as => as.services?.name).filter(Boolean).join(', ')
+                    : appointment.services?.name || '-';
+                  return (
+                    <MobileCard
+                      key={appointment.id}
+                      title={appointment.clients?.name || 'Cliente'}
+                      subtitle={serviceNames}
+                      badge={<Badge variant="outline" className="bg-warning/10 text-warning border-warning/30 text-xs">Orçamento pendente</Badge>}
+                      fields={[
+                        { label: 'Data', value: new Date(appointment.scheduled_at).toLocaleDateString('pt-BR') },
+                        { label: 'Horário', value: `${times.startTime} - ${times.endTime}` },
+                        { label: 'Status', value: status?.label },
+                      ]}
+                      actions={
+                        <Button className="w-full gap-2" onClick={() => handleOpenQuoteDialog(appointment.id)}>
+                          <DollarSign className="h-4 w-4" /> Definir Orçamento
+                        </Button>
+                      }
+                    />
+                  );
+                })}
+              </div>
+            ) : (
+              <Card>
+                <CardContent className="p-0 overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Data/Hora</TableHead>
+                        <TableHead>Cliente</TableHead>
+                        <TableHead>Serviço</TableHead>
+                        <TableHead>Profissional</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="text-right">Ação</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {quoteAppointments.map((appointment) => {
+                        const status = statusConfig[appointment.status || 'scheduled'];
+                        const times = formatTime(appointment.scheduled_at, appointment.duration);
+                        return (
+                          <TableRow key={appointment.id}>
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                <Calendar className="h-4 w-4 text-muted-foreground" />
+                                <div>
+                                  <p className="font-medium text-sm">{new Date(appointment.scheduled_at).toLocaleDateString('pt-BR')}</p>
+                                  <p className="text-xs text-muted-foreground">{times.startTime} - {times.endTime}</p>
+                                </div>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <p className="font-medium text-sm">{appointment.clients?.name}</p>
+                              <p className="text-xs text-muted-foreground">{appointment.clients?.phone}</p>
+                            </TableCell>
+                            <TableCell>
+                              <p className="font-medium text-sm truncate max-w-[200px]">
+                                {appointment.appointment_services?.length
+                                  ? appointment.appointment_services.map(as => as.services?.name).filter(Boolean).join(', ')
+                                  : appointment.services?.name}
+                              </p>
+                              <p className="text-xs text-warning font-medium">Preço a consultar</p>
+                            </TableCell>
+                            <TableCell>
+                              <span className="text-sm">
+                                {appointment.appointment_services?.length
+                                  ? [...new Set(appointment.appointment_services.map(as => as.employees?.name).filter(Boolean))].join(', ')
+                                  : appointment.employees?.name || '-'}
+                              </span>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className={cn(status?.class, 'text-xs')}>{status?.label}</Badge>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Button size="sm" className="gap-1.5" onClick={() => handleOpenQuoteDialog(appointment.id)}>
+                                <DollarSign className="h-3.5 w-3.5" />
+                                Definir Orçamento
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+        </Tabs>
+
+        {/* Dialog: Confirmar Orçamento */}
+        <Dialog open={isQuoteDialogOpen} onOpenChange={setIsQuoteDialogOpen}>
+          <DialogContent className="sm:max-w-[420px]">
+            <DialogHeader>
+              <DialogTitle>Definir Orçamento</DialogTitle>
+              <DialogDescription>
+                Informe o valor cobrado e confirme o agendamento.
+              </DialogDescription>
+            </DialogHeader>
+            {confirmingAppointment && (
+              <div className="py-2 space-y-3">
+                <div className="rounded-md bg-muted/50 p-3 space-y-1 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Cliente</span>
+                    <span className="font-medium">{confirmingAppointment.clients?.name}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Serviço</span>
+                    <span className="font-medium truncate max-w-[200px] text-right">
+                      {confirmingAppointment.appointment_services?.length
+                        ? confirmingAppointment.appointment_services.map(as => as.services?.name).filter(Boolean).join(', ')
+                        : confirmingAppointment.services?.name}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Data/Hora</span>
+                    <span className="font-medium">
+                      {new Date(confirmingAppointment.scheduled_at).toLocaleDateString('pt-BR')} às {formatTimeInSaoPaulo(confirmingAppointment.scheduled_at)}
+                    </span>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="quotePrice">Valor do orçamento (R$) *</Label>
+                  <Input
+                    id="quotePrice"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="Ex: 250,00"
+                    value={quotePrice}
+                    onChange={(e) => setQuotePrice(e.target.value)}
+                  />
+                </div>
+              </div>
+            )}
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsQuoteDialogOpen(false)}>Cancelar</Button>
+              <Button onClick={handleConfirmQuote} disabled={confirmQuoteMutation.isPending}>
+                {confirmQuoteMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Confirmar Orçamento
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
