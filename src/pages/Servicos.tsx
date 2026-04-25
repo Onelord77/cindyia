@@ -102,6 +102,7 @@ const Servicos = () => {
     tenant_id: '',
     category_id: '',
     image_url: '' as string | null,
+    requires_quote: false,
   });
 
   const [categoryFormData, setCategoryFormData] = useState({
@@ -147,7 +148,7 @@ const Servicos = () => {
     : 0;
 
   const resetForm = () => {
-    setFormData({ name: '', description: '', duration: '', price: '', tenant_id: selectedTenantId || '', category_id: '', image_url: null });
+    setFormData({ name: '', description: '', duration: '', price: '', tenant_id: selectedTenantId || '', category_id: '', image_url: null, requires_quote: false });
     setEditingService(null);
   };
 
@@ -171,6 +172,7 @@ const Servicos = () => {
       tenant_id: service.tenant_id,
       category_id: service.category_id || '',
       image_url: service.image_url || null,
+      requires_quote: (service as any).requires_quote === true,
     });
     setIsDialogOpen(true);
   };
@@ -200,26 +202,30 @@ const Servicos = () => {
       return;
     }
 
+    const price = formData.requires_quote ? 0 : parseFloat(formData.price);
+
     if (editingService) {
       await updateService.mutateAsync({
         id: editingService.id,
         name: formData.name,
         description: formData.description || null,
         duration: parseInt(formData.duration),
-        price: parseFloat(formData.price),
+        price,
         category_id: formData.category_id || null,
         image_url: formData.image_url || null,
-      });
+        requires_quote: formData.requires_quote,
+      } as any);
     } else {
       await addService.mutateAsync({
         name: formData.name,
         description: formData.description || null,
         duration: parseInt(formData.duration),
-        price: parseFloat(formData.price),
+        price,
         tenant_id: formData.tenant_id || undefined,
         category_id: formData.category_id || null,
         image_url: formData.image_url || null,
-      });
+        requires_quote: formData.requires_quote,
+      } as any);
     }
 
     setIsDialogOpen(false);
@@ -344,7 +350,11 @@ const Servicos = () => {
         </div>
       </TableCell>
       <TableCell>
-        <span className="font-semibold">R$ {Number(service.price).toFixed(2)}</span>
+        {(service as any).requires_quote ? (
+          <Badge variant="outline" className="bg-warning/10 text-warning border-warning/30 text-xs whitespace-nowrap">Preço a consultar</Badge>
+        ) : (
+          <span className="font-semibold">R$ {Number(service.price).toFixed(2)}</span>
+        )}
       </TableCell>
       <TableCell>
         <div className="flex items-center gap-2">
@@ -663,54 +673,65 @@ const Servicos = () => {
 
         {/* Create/Edit Service Dialog */}
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogContent className="sm:max-w-[500px]">
+          <DialogContent className="sm:max-w-[780px] w-full">
             <DialogHeader>
               <DialogTitle>{editingService ? 'Editar Serviço' : 'Novo Serviço'}</DialogTitle>
               <DialogDescription>
                 {editingService ? 'Atualize as informações do serviço' : 'Adicione um novo serviço ao catálogo'}
               </DialogDescription>
             </DialogHeader>
-            <div className="grid gap-4 py-4">
-              {isSuperAdmin && !editingService && !profile?.tenant_id && (
-                <div className="space-y-2">
-                  <Label>Empresa *</Label>
-                  <Select
-                    value={formData.tenant_id}
-                    onValueChange={(value) => setFormData(prev => ({ ...prev, tenant_id: value }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione a empresa" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {tenants.map((tenant) => (
-                        <SelectItem key={tenant.id} value={tenant.id}>
-                          {tenant.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-              {(() => {
-                const uploadTenantId = editingService?.tenant_id || formData.tenant_id || selectedTenantId || profile?.tenant_id || '';
-                return (
-                  <div className="space-y-2">
-                    <Label>Foto do Serviço</Label>
-                    <ImageUpload
-                      value={formData.image_url}
-                      onChange={(url) => setFormData(prev => ({ ...prev, image_url: url }))}
-                      bucket="service-images"
-                      folder={uploadTenantId}
-                      aspectRatio="video"
-                      maxSizeMB={5}
-                      disabled={!uploadTenantId}
-                    />
-                    {!uploadTenantId && (
-                      <p className="text-xs text-muted-foreground">Selecione uma empresa antes de enviar a foto</p>
-                    )}
+            <div className="grid sm:grid-cols-2 gap-x-6 gap-y-4 py-2">
+              {/* Coluna esquerda: Foto */}
+              <div className="space-y-2 sm:row-span-4">
+                {isSuperAdmin && !editingService && !profile?.tenant_id && (
+                  <div className="space-y-2 mb-2">
+                    <Label>Empresa *</Label>
+                    <Select
+                      value={formData.tenant_id}
+                      onValueChange={(value) => setFormData(prev => ({ ...prev, tenant_id: value }))}
+                    >
+                      <SelectTrigger><SelectValue placeholder="Selecione a empresa" /></SelectTrigger>
+                      <SelectContent>
+                        {tenants.map((tenant) => (
+                          <SelectItem key={tenant.id} value={tenant.id}>{tenant.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
-                );
-              })()}
+                )}
+                {(() => {
+                  const uploadTenantId = editingService?.tenant_id || formData.tenant_id || selectedTenantId || profile?.tenant_id || '';
+                  return (
+                    <>
+                      <Label>Foto do Serviço</Label>
+                      <ImageUpload
+                        value={formData.image_url}
+                        onChange={(url) => setFormData(prev => ({ ...prev, image_url: url }))}
+                        bucket="service-images"
+                        folder={uploadTenantId}
+                        aspectRatio="video"
+                        maxSizeMB={5}
+                        disabled={!uploadTenantId}
+                      />
+                      {!uploadTenantId && (
+                        <p className="text-xs text-muted-foreground">Selecione uma empresa antes de enviar a foto</p>
+                      )}
+                    </>
+                  );
+                })()}
+                <div className="space-y-2 pt-2">
+                  <Label htmlFor="description">Descrição (opcional)</Label>
+                  <Textarea
+                    id="description"
+                    placeholder="Descrição do serviço..."
+                    className="resize-none h-[80px]"
+                    value={formData.description}
+                    onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                  />
+                </div>
+              </div>
+
+              {/* Coluna direita: campos principais */}
               <div className="space-y-2">
                 <Label htmlFor="name">Nome do Serviço *</Label>
                 <Input
@@ -734,10 +755,7 @@ const Servicos = () => {
                     {categories.map((cat) => (
                       <SelectItem key={cat.id} value={cat.id}>
                         <div className="flex items-center gap-2">
-                          <div
-                            className="w-3 h-3 rounded-full"
-                            style={{ backgroundColor: cat.color || '#6366f1' }}
-                          />
+                          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: cat.color || '#6366f1' }} />
                           {cat.name}
                         </div>
                       </SelectItem>
@@ -746,42 +764,42 @@ const Servicos = () => {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="description">Descrição (opcional)</Label>
-                <Textarea
-                  id="description"
-                  placeholder="Descrição do serviço..."
-                  value={formData.description}
-                  onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                <Label htmlFor="duration">Duração (min) *</Label>
+                <Input
+                  id="duration"
+                  type="number"
+                  placeholder="45"
+                  value={formData.duration}
+                  onChange={(e) => setFormData(prev => ({ ...prev, duration: e.target.value }))}
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="duration">Duração (min) *</Label>
-                  <Input
-                    id="duration"
-                    type="number"
-                    placeholder="45"
-                    value={formData.duration}
-                    onChange={(e) => setFormData(prev => ({ ...prev, duration: e.target.value }))}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="price">Preço (R$) *</Label>
-                  <Input
-                    id="price"
-                    type="number"
-                    step="0.01"
-                    placeholder="80.00"
-                    value={formData.price}
-                    onChange={(e) => setFormData(prev => ({ ...prev, price: e.target.value }))}
-                  />
+              <div className="space-y-2">
+                <Label htmlFor="price">Preço (R$) *</Label>
+                <Input
+                  id="price"
+                  type="number"
+                  step="0.01"
+                  placeholder="80.00"
+                  disabled={formData.requires_quote}
+                  value={formData.requires_quote ? '' : formData.price}
+                  onChange={(e) => setFormData(prev => ({ ...prev, price: e.target.value }))}
+                />
+              </div>
+              {/* Toggle Preço a consultar */}
+              <div className="sm:col-start-2 flex items-start gap-3 rounded-lg border p-3 bg-muted/30">
+                <Switch
+                  id="requires_quote"
+                  checked={formData.requires_quote}
+                  onCheckedChange={(v) => setFormData(prev => ({ ...prev, requires_quote: v, price: v ? '' : prev.price }))}
+                />
+                <div>
+                  <Label htmlFor="requires_quote" className="font-medium cursor-pointer">Preço a consultar</Label>
+                  <p className="text-xs text-muted-foreground mt-0.5">O valor varia por avaliação (ex: coloração, progressiva). A IA nunca informará preço.</p>
                 </div>
               </div>
             </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
-                Cancelar
-              </Button>
+            <DialogFooter className="mt-2">
+              <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancelar</Button>
               <Button onClick={handleSave} disabled={addService.isPending || updateService.isPending}>
                 {(addService.isPending || updateService.isPending) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {editingService ? 'Salvar Alterações' : 'Criar Serviço'}
