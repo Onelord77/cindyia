@@ -192,7 +192,7 @@ const Servicos = () => {
   };
 
   const handleSave = async () => {
-    if (!formData.name || !formData.duration || !formData.price) {
+    if (!formData.name || !formData.duration || (!formData.requires_quote && !formData.price)) {
       toast.error('Preencha todos os campos obrigatórios');
       return;
     }
