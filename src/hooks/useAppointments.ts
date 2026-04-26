@@ -61,6 +61,8 @@ export function useAppointments() {
       return data as AppointmentWithRelations[];
     },
     enabled: !!tenantId,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
   });
 
   // Validate if employee can perform the service (single - backward compat)
