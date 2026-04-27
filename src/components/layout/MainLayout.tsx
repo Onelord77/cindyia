@@ -13,6 +13,7 @@ interface MainLayoutProps {
 export function MainLayout({ children }: MainLayoutProps) {
   const isMobile = useIsMobile();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   return (
     <div className="min-h-screen bg-background">
@@ -23,11 +24,11 @@ export function MainLayout({ children }: MainLayoutProps) {
           </SheetContent>
         </Sheet>
       ) : (
-        <Sidebar />
+        <Sidebar collapsed={sidebarCollapsed} onCollapsedChange={setSidebarCollapsed} />
       )}
       <div className={cn(
         "transition-all duration-300",
-        !isMobile && "pl-[260px]"
+        !isMobile && (sidebarCollapsed ? "pl-[70px]" : "pl-[260px]")
       )}>
         <Header onMenuClick={() => setSidebarOpen(true)} showMenuButton={isMobile} />
         <main className="min-h-[calc(100vh-4rem)] p-4 sm:p-6">

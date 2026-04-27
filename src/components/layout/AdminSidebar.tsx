@@ -33,11 +33,24 @@ const menuItems: SidebarItem[] = [
 interface AdminSidebarProps {
   mobile?: boolean;
   onNavigate?: () => void;
+  collapsed?: boolean;
+  onCollapsedChange?: (collapsed: boolean) => void;
 }
 
-export function AdminSidebar({ mobile, onNavigate }: AdminSidebarProps = {}) {
-  const [collapsed, setCollapsed] = useState(false);
+export function AdminSidebar({ mobile, onNavigate, collapsed: collapsedProp, onCollapsedChange }: AdminSidebarProps = {}) {
+  const [internalCollapsed, setInternalCollapsed] = useState(false);
   const location = useLocation();
+
+  const collapsed = collapsedProp !== undefined ? collapsedProp : internalCollapsed;
+
+  const handleToggleCollapse = () => {
+    const next = !collapsed;
+    if (onCollapsedChange) {
+      onCollapsedChange(next);
+    } else {
+      setInternalCollapsed(next);
+    }
+  };
 
   const handleNavClick = () => {
     if (mobile && onNavigate) {
@@ -45,7 +58,6 @@ export function AdminSidebar({ mobile, onNavigate }: AdminSidebarProps = {}) {
     }
   };
 
-  // Em mobile, nunca fica colapsada
   const isCollapsed = mobile ? false : collapsed;
 
   return (
@@ -79,7 +91,7 @@ export function AdminSidebar({ mobile, onNavigate }: AdminSidebarProps = {}) {
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => setCollapsed(!collapsed)}
+            onClick={handleToggleCollapse}
             className="h-8 w-8 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
           >
             {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}

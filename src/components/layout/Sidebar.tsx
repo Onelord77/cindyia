@@ -42,11 +42,24 @@ const menuItems: SidebarItem[] = [
 interface SidebarProps {
   mobile?: boolean;
   onNavigate?: () => void;
+  collapsed?: boolean;
+  onCollapsedChange?: (collapsed: boolean) => void;
 }
 
-export function Sidebar({ mobile, onNavigate }: SidebarProps = {}) {
-  const [collapsed, setCollapsed] = useState(false);
+export function Sidebar({ mobile, onNavigate, collapsed: collapsedProp, onCollapsedChange }: SidebarProps = {}) {
+  const [internalCollapsed, setInternalCollapsed] = useState(false);
   const location = useLocation();
+
+  const collapsed = collapsedProp !== undefined ? collapsedProp : internalCollapsed;
+
+  const handleToggleCollapse = () => {
+    const next = !collapsed;
+    if (onCollapsedChange) {
+      onCollapsedChange(next);
+    } else {
+      setInternalCollapsed(next);
+    }
+  };
 
   const handleNavClick = () => {
     if (mobile && onNavigate) {
@@ -82,7 +95,7 @@ export function Sidebar({ mobile, onNavigate }: SidebarProps = {}) {
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => setCollapsed(!collapsed)}
+            onClick={handleToggleCollapse}
             className="h-8 w-8 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
           >
             {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}

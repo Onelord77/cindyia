@@ -65,6 +65,11 @@ const Agenda = () => {
   const isMobile = useIsMobile();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [view, setView] = useState<'day' | 'week'>('week');
+
+  // Force day view on mobile to avoid cramped 7-column week grid
+  useEffect(() => {
+    if (isMobile) setView('day');
+  }, [isMobile]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [formData, setFormData] = useState({
     client_id: '',

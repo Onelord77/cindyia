@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { DateRange } from 'react-day-picker';
 import { MainLayout } from '@/components/layout/MainLayout';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -71,6 +72,7 @@ const incomeCategories = ['Serviços', 'Produtos', 'Outros'];
 const expenseCategories = ['Aluguel', 'Materiais', 'Salários', 'Contas', 'Outros'];
 
 const Financeiro = () => {
+  const isMobile = useIsMobile();
   const { financialEntries: entries, isLoading, addFinancialEntry: addEntry, updateFinancialEntry: updateEntry, deleteFinancialEntry: deleteEntry } = useFinancialEntries();
   const { appointments } = useAppointments();
   
@@ -311,38 +313,21 @@ const Financeiro = () => {
 
           <TabsContent value={activeTab} className="space-y-4">
             <Card>
-              <CardContent className="p-0 overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="min-w-[100px]">Data</TableHead>
-                      <TableHead className="min-w-[100px]">Tipo</TableHead>
-                      <TableHead className="min-w-[100px]">Categoria</TableHead>
-                      <TableHead className="min-w-[150px]">Descrição</TableHead>
-                      <TableHead className="text-right min-w-[100px]">Valor</TableHead>
-                      <TableHead className="text-right min-w-[80px]">Ações</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredEntries.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                          Nenhum lançamento encontrado
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      filteredEntries.map((entry) => (
-                        <TableRow key={entry.id} className="group">
-                          <TableCell>
-                            <div className="flex items-center gap-2">
-                              <Calendar className="h-4 w-4 text-muted-foreground hidden sm:block" />
-                              {new Date(entry.date).toLocaleDateString('pt-BR')}
-                            </div>
-                          </TableCell>
-                          <TableCell>
+              <CardContent className="p-0">
+                {filteredEntries.length === 0 ? (
+                  <p className="text-center py-8 text-muted-foreground text-sm">
+                    Nenhum lançamento encontrado
+                  </p>
+                ) : isMobile ? (
+                  <div className="divide-y">
+                    {filteredEntries.map((entry) => (
+                      <div key={entry.id} className="flex items-start justify-between p-4 gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1 flex-wrap">
                             <Badge
                               variant="outline"
                               className={cn(
+                                'text-xs',
                                 entry.type === 'income'
                                   ? 'border-success/30 bg-success/10 text-success'
                                   : 'border-destructive/30 bg-destructive/10 text-destructive'
@@ -353,48 +338,118 @@ const Financeiro = () => {
                               ) : (
                                 <ArrowDownCircle className="mr-1 h-3 w-3" />
                               )}
-                              <span className="hidden sm:inline">{entry.type === 'income' ? 'Receita' : 'Despesa'}</span>
+                              {entry.type === 'income' ? 'Receita' : 'Despesa'}
                             </Badge>
-                          </TableCell>
-                          <TableCell>{entry.category}</TableCell>
-                          <TableCell className="max-w-[200px] truncate">{entry.description}</TableCell>
-                          <TableCell className="text-right">
-                            <span
-                              className={cn(
-                                'font-semibold',
-                                entry.type === 'income' ? 'text-success' : 'text-destructive'
-                              )}
-                            >
-                              {entry.type === 'income' ? '+' : '-'} R$ {Number(entry.amount).toFixed(2)}
+                            <span className="text-xs text-muted-foreground">
+                              {new Date(entry.date).toLocaleDateString('pt-BR')}
                             </span>
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-10 w-10 sm:opacity-0 sm:group-hover:opacity-100">
-                                  <MoreVertical className="h-4 w-4" />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={() => openEditDialog(entry)}>
-                                  <Edit className="mr-2 h-4 w-4" />
-                                  Editar
-                                </DropdownMenuItem>
-                                <DropdownMenuItem 
-                                  className="text-destructive"
-                                  onClick={() => openDeleteDialog(entry.id)}
-                                >
-                                  <Trash2 className="mr-2 h-4 w-4" />
-                                  Excluir
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </TableCell>
+                          </div>
+                          <p className="text-sm font-medium truncate">{entry.description}</p>
+                          <p className="text-xs text-muted-foreground">{entry.category}</p>
+                          <p className={cn(
+                            'text-base font-bold mt-1',
+                            entry.type === 'income' ? 'text-success' : 'text-destructive'
+                          )}>
+                            {entry.type === 'income' ? '+' : '-'} R$ {Number(entry.amount).toFixed(2)}
+                          </p>
+                        </div>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-10 w-10 flex-shrink-0">
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => openEditDialog(entry)}>
+                              <Edit className="mr-2 h-4 w-4" />
+                              Editar
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              className="text-destructive"
+                              onClick={() => openDeleteDialog(entry.id)}
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Excluir
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="min-w-[100px]">Data</TableHead>
+                          <TableHead className="min-w-[100px]">Tipo</TableHead>
+                          <TableHead className="min-w-[100px]">Categoria</TableHead>
+                          <TableHead className="min-w-[150px]">Descrição</TableHead>
+                          <TableHead className="text-right min-w-[100px]">Valor</TableHead>
+                          <TableHead className="text-right min-w-[80px]">Ações</TableHead>
                         </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
+                      </TableHeader>
+                      <TableBody>
+                        {filteredEntries.map((entry) => (
+                          <TableRow key={entry.id} className="group">
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                <Calendar className="h-4 w-4 text-muted-foreground" />
+                                {new Date(entry.date).toLocaleDateString('pt-BR')}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <Badge
+                                variant="outline"
+                                className={cn(
+                                  entry.type === 'income'
+                                    ? 'border-success/30 bg-success/10 text-success'
+                                    : 'border-destructive/30 bg-destructive/10 text-destructive'
+                                )}
+                              >
+                                {entry.type === 'income' ? (
+                                  <ArrowUpCircle className="mr-1 h-3 w-3" />
+                                ) : (
+                                  <ArrowDownCircle className="mr-1 h-3 w-3" />
+                                )}
+                                {entry.type === 'income' ? 'Receita' : 'Despesa'}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>{entry.category}</TableCell>
+                            <TableCell className="max-w-[200px] truncate">{entry.description}</TableCell>
+                            <TableCell className="text-right">
+                              <span className={cn('font-semibold', entry.type === 'income' ? 'text-success' : 'text-destructive')}>
+                                {entry.type === 'income' ? '+' : '-'} R$ {Number(entry.amount).toFixed(2)}
+                              </span>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="icon" className="h-10 w-10 opacity-0 group-hover:opacity-100">
+                                    <MoreVertical className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem onClick={() => openEditDialog(entry)}>
+                                    <Edit className="mr-2 h-4 w-4" />
+                                    Editar
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    className="text-destructive"
+                                    onClick={() => openDeleteDialog(entry.id)}
+                                  >
+                                    <Trash2 className="mr-2 h-4 w-4" />
+                                    Excluir
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>

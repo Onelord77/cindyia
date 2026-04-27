@@ -36,3 +36,4 @@ dist-ssr
 
 # n8n workflows and prompts (internal)
 n8n/
+.vercel

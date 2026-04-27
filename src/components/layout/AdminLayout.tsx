@@ -13,6 +13,7 @@ interface AdminLayoutProps {
 export function AdminLayout({ children }: AdminLayoutProps) {
   const isMobile = useIsMobile();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   return (
     <div className="min-h-screen bg-background">
@@ -24,9 +25,9 @@ export function AdminLayout({ children }: AdminLayoutProps) {
           </SheetContent>
         </Sheet>
       ) : (
-        <AdminSidebar />
+        <AdminSidebar collapsed={sidebarCollapsed} onCollapsedChange={setSidebarCollapsed} />
       )}
-      <div className={cn("transition-all duration-300", !isMobile && "pl-[260px]")}>
+      <div className={cn("transition-all duration-300", !isMobile && (sidebarCollapsed ? "pl-[70px]" : "pl-[260px]"))}>
         <AdminHeader onMenuClick={() => setSidebarOpen(true)} showMenuButton={isMobile} />
         <main className="min-h-[calc(100vh-4rem)] p-4 sm:p-6">
           {children}

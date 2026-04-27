@@ -285,6 +285,7 @@ serve(async (req) => {
       workingHours,
       policies,
       services,
+      aiKnowledgeBase: settings.aiKnowledgeBase || null,
     };
 
     return new Response(
