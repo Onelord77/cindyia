@@ -1,4 +1,29 @@
-# Logs
+# ============================================
+# DEPENDÊNCIAS
+# ============================================
+node_modules/
+.pnp
+.pnp.js
+
+# ============================================
+# BUILD E PRODUÇÃO
+# ============================================
+dist
+dist-ssr
+build
+.vercel
+
+# ============================================
+# AMBIENTES E SECRETS (NUNCA COMMITAR)
+# ============================================
+.env
+.env.local
+.env.*.local
+.env.production
+
+# ============================================
+# LOGS
+# ============================================
 logs
 *.log
 npm-debug.log*
@@ -6,24 +31,11 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
+bun-debug.log*
 
-node_modules
-dist
-dist-ssr
-*.local
-
-# Environment variables
-.env
-.env.*
-!.env.example
-
-# Claude Code local settings
-.claude/
-
-# MCP configuration
-.mcp.json
-
-# Editor directories and files
+# ============================================
+# EDITORES E IDEs
+# ============================================
 .vscode/*
 !.vscode/extensions.json
 .idea
@@ -34,6 +46,69 @@ dist-ssr
 *.sln
 *.sw?
 
-# n8n workflows and prompts (internal)
+# ============================================
+# SUPABASE - ARQUIVOS LOCAIS DO CLI
+# ============================================
+supabase/.temp/
+supabase/.branches/
+
+# ============================================
+# SCRIPTS DE DEBUG/FIX/TESTE NA RAIZ
+# ============================================
+/debug_*.mjs
+/debug_*.js
+/fix_*.mjs
+/fix_*.js
+/fix-*.js
+/inspecionar_*.mjs
+/testar_*.mjs
+/testar_*.js
+/test-*.js
+/test_*.js
+/verificar_*.mjs
+/verificar_*.js
+/ver_*.mjs
+/ver_*.js
+/diagnostico*.mjs
+/diagnostico*.js
+/check-*.js
+/check_*.mjs
+/check_*.js
+/n8n-fix-*.js
+/n8n-pin-*.js
+/n8n-import-*.js
+/n8n-update-*.js
+/finalizar_setup.mjs
+/patch_profile_role.mjs
+/pegar_instance_token.mjs
+/registrar_instancia.mjs
+/reset_e_criar_usuario.mjs
+/simular_confirmacao.mjs
+/update_n8n_audio.*
+/update_system_prompt.mjs
+/atualizar_tenant_n8n.mjs
+/adicionar_criar_cliente.mjs
+
+# ============================================
+# BACKUPS DE WORKFLOW N8N
+# ============================================
+/n8n-workflow-*.json
+/n8n_workflow_backup.json
+/UsersIVOAppDataLocalTempworkflow.txt
+
+# ============================================
+# PASTA LEGACY (scripts antigos arquivados)
+# ============================================
+scripts/legacy/
+
+# ============================================
+# OUTROS ARQUIVOS TEMPORÁRIOS
+# ============================================
+*.tmp
+*.bak
+.cache/
+
+# ============================================
+# N8N WORKFLOWS INTERNOS
+# ============================================
 n8n/
-.vercel
