@@ -14,11 +14,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Building2, Clock, Bell, Save, Loader2, Palette } from 'lucide-react';
+import { Building2, Clock, Bell, Save, Loader2, Palette, Bot } from 'lucide-react';
 import { useTenantSettings } from '@/hooks/useTenantSettings';
 import { BUSINESS_TYPES, OTHER_BUSINESS_TYPE, splitBusinessType } from '@/lib/business-types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { BrandingSettings } from '@/features/branding/BrandingSettings';
+import { AIContextSettings } from '@/components/ai-context/AIContextSettings';
 
 const DAYS_OF_WEEK = [
   { key: 'seg', label: 'Seg' },
@@ -68,7 +69,7 @@ const Configuracoes = () => {
         </div>
 
         <Tabs defaultValue="company" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4 lg:w-auto lg:grid-cols-none lg:flex">
+          <TabsList className="grid w-full grid-cols-5 lg:w-auto lg:grid-cols-none lg:flex">
             <TabsTrigger value="company" className="gap-2">
               <Building2 className="h-4 w-4" />
               <span className="hidden sm:inline">Empresa</span>
@@ -84,6 +85,10 @@ const Configuracoes = () => {
             <TabsTrigger value="branding" className="gap-2">
               <Palette className="h-4 w-4" />
               <span className="hidden sm:inline">Identidade Visual</span>
+            </TabsTrigger>
+            <TabsTrigger value="ai-context" className="gap-2">
+              <Bot className="h-4 w-4" />
+              <span className="hidden sm:inline">Contexto da IA</span>
             </TabsTrigger>
           </TabsList>
 
@@ -333,6 +338,19 @@ const Configuracoes = () => {
           {/* Branding Settings */}
           <TabsContent value="branding">
             <BrandingSettings />
+          </TabsContent>
+
+          {/* AI Context Settings */}
+          <TabsContent value="ai-context">
+            <Card>
+              <CardHeader>
+                <CardTitle>Contexto da IA</CardTitle>
+                <CardDescription>Configure a personalidade e o conhecimento do seu atendente virtual</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <AIContextSettings />
+              </CardContent>
+            </Card>
           </TabsContent>
 
         </Tabs>
