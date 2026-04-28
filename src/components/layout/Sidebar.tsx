@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { useBrandingContext } from '@/components/branding/BrandingProvider';
 
 interface SidebarItem {
   label: string;
@@ -49,6 +50,7 @@ interface SidebarProps {
 export function Sidebar({ mobile, onNavigate, collapsed: collapsedProp, onCollapsedChange }: SidebarProps = {}) {
   const [internalCollapsed, setInternalCollapsed] = useState(false);
   const location = useLocation();
+  const { branding } = useBrandingContext();
 
   const collapsed = collapsedProp !== undefined ? collapsedProp : internalCollapsed;
 
@@ -81,14 +83,20 @@ export function Sidebar({ mobile, onNavigate, collapsed: collapsedProp, onCollap
       <div className="flex h-16 items-center justify-between border-b border-sidebar-border px-4">
         <div className={cn('flex items-center gap-2 overflow-hidden', isCollapsed && !mobile && 'justify-center')}>
           <img
-            src="/assets/images/logo.png"
-            alt="Cindy IA"
-            className="h-9 w-9 rounded-lg object-cover"
+            src={branding.logoUrl || '/assets/images/logo.png'}
+            alt={branding.displayName || 'Cindy IA'}
+            className="h-9 w-9 rounded-lg object-contain"
           />
           {(!isCollapsed || mobile) && (
-            <span className="text-lg font-bold text-sidebar-foreground">
-              Cindy <span className="text-sidebar-primary">IA</span>
-            </span>
+            branding.displayName ? (
+              <span className="text-sm font-bold text-sidebar-foreground truncate leading-tight">
+                {branding.displayName}
+              </span>
+            ) : (
+              <span className="text-lg font-bold text-sidebar-foreground">
+                Cindy <span className="text-sidebar-primary">IA</span>
+              </span>
+            )
           )}
         </div>
         {!mobile && (

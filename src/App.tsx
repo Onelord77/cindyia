@@ -7,6 +7,7 @@ import { AuthProvider } from "@/hooks/useAuth";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { NotificationProvider } from "@/components/notifications";
 import { ThemeProvider } from "@/components/theme";
+import { BrandingProvider } from "@/components/branding/BrandingProvider";
 import Login from "./pages/Login";
 import EsqueciSenha from "./pages/EsqueciSenha";
 import RedefinirSenha from "./pages/RedefinirSenha";
@@ -37,6 +38,7 @@ const App = () => (
     <ThemeProvider defaultTheme="system" storageKey="cindy-ia-theme">
       <TooltipProvider>
         <AuthProvider>
+          <BrandingProvider>
           <NotificationProvider>
             <Toaster />
             <Sonner />
@@ -78,6 +80,7 @@ const App = () => (
               </Routes>
             </BrowserRouter>
           </NotificationProvider>
+          </BrandingProvider>
         </AuthProvider>
       </TooltipProvider>
     </ThemeProvider>

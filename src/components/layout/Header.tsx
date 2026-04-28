@@ -14,6 +14,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import { NotificationDropdown } from '@/components/notifications';
 import { ThemeToggle } from '@/components/theme';
+import { useBrandingContext } from '@/components/branding/BrandingProvider';
 
 interface HeaderProps {
   onMenuClick?: () => void;
@@ -23,9 +24,10 @@ interface HeaderProps {
 export function Header({ onMenuClick, showMenuButton }: HeaderProps) {
   const navigate = useNavigate();
   const { profile, signOut } = useAuth();
-  
+  const { branding } = useBrandingContext();
+
   const userName = profile?.full_name || 'Usuário';
-  const tenantName = 'Cindy IA';
+  const tenantName = branding.displayName || 'Cindy IA';
 
   const handleProfile = () => {
     navigate('/configuracoes');

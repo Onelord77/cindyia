@@ -219,6 +219,20 @@ export function useTenantSettings() {
       // Separate base tenant fields from settings
       const { companyName, phone, address, email, businessType, ...restSettings } = newSettings;
 
+      // FIX: lê as settings atuais antes de salvar para fazer MERGE em vez de substituição.
+      // Sem esse merge, salvar as configurações gerais sobrescreveria o JSONB inteiro,
+      // apagando outras chaves como `branding` e `aiKnowledgeBase`.
+      const { data: currentTenant } = await supabase
+        .from('tenants')
+        .select('settings')
+        .eq('id', tenantId)
+        .single();
+
+      const currentSettings = (currentTenant?.settings as Record<string, unknown>) || {};
+      // Merge: preserva todas as chaves existentes (branding, aiKnowledgeBase, etc.)
+      // e atualiza apenas as chaves controladas por este hook.
+      const mergedSettings = { ...currentSettings, ...restSettings };
+
       const { error } = await supabase
         .from('tenants')
         .update({
@@ -227,7 +241,7 @@ export function useTenantSettings() {
           address,
           email,
           business_type: businessType || null,
-          settings: restSettings,
+          settings: mergedSettings,
           updated_at: new Date().toISOString(),
         })
         .eq('id', tenantId);

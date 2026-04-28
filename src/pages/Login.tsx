@@ -6,7 +6,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
-import { Loader2, Calendar, Eye, EyeOff } from 'lucide-react';
+import { Loader2, Eye, EyeOff } from 'lucide-react';
+import { useBrandingContext } from '@/components/branding/BrandingProvider';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -15,6 +16,7 @@ export default function Login() {
   const [isLoading, setIsLoading] = useState(false);
   const { signIn } = useAuth();
   const navigate = useNavigate();
+  const { branding } = useBrandingContext();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,17 +35,32 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+    <div
+      className="min-h-screen flex items-center justify-center bg-background p-4"
+      style={
+        branding.loginBackgroundUrl
+          ? {
+              backgroundImage: `url(${branding.loginBackgroundUrl})`,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+            }
+          : undefined
+      }
+    >
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
-            <div className="rounded-full bg-primary/10 p-3">
-              <Calendar className="h-8 w-8 text-primary" />
-            </div>
+            <img
+              src={branding.logoUrl || '/assets/images/logo.png'}
+              alt={branding.displayName || 'Cindy IA'}
+              className="h-16 w-16 rounded-xl object-contain"
+            />
           </div>
-          <CardTitle className="text-2xl">CindyIa</CardTitle>
+          <CardTitle className="text-2xl">
+            {branding.displayName || 'CindyIA'}
+          </CardTitle>
           <CardDescription>
-            Faça login para acessar sua conta
+            {branding.tagline || 'Faça login para acessar sua conta'}
           </CardDescription>
         </CardHeader>
         <form onSubmit={handleSubmit}>
