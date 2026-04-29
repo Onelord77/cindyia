@@ -67,6 +67,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useTenants } from '@/hooks/useTenants';
 import { ImageUpload } from '@/components/ui/image-upload';
 import { ServiceCriteriaTab } from '@/components/criteria/ServiceCriteriaTab';
+import { ServiceAIContextTab } from '@/components/ai-context/ServiceAIContextTab';
 import { toast } from 'sonner';
 
 // Cores predefinidas para categorias
@@ -100,7 +101,7 @@ const Servicos = () => {
   const [deletingServiceId, setDeletingServiceId] = useState<string | null>(null);
   const [deletingCategoryId, setDeletingCategoryId] = useState<string | null>(null);
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(['uncategorized']));
-  const [dialogTab, setDialogTab] = useState<'geral' | 'criterios'>('geral');
+  const [dialogTab, setDialogTab] = useState<'geral' | 'criterios' | 'contexto-ia'>('geral');
 
   const [formData, setFormData] = useState({
     name: '',
@@ -690,7 +691,7 @@ const Servicos = () => {
                 {editingService ? 'Atualize as informações do serviço' : 'Adicione um novo serviço ao catálogo'}
               </DialogDescription>
             </DialogHeader>
-            <Tabs value={dialogTab} onValueChange={v => setDialogTab(v as 'geral' | 'criterios')}>
+            <Tabs value={dialogTab} onValueChange={v => setDialogTab(v as 'geral' | 'criterios' | 'contexto-ia')}>
               <TabsList className="mb-2">
                 <TabsTrigger value="geral">Geral</TabsTrigger>
                 <TabsTrigger value="criterios" disabled={!editingService} className="gap-1.5">
@@ -700,9 +701,19 @@ const Servicos = () => {
                     <span className="text-xs text-muted-foreground ml-1">(salve primeiro)</span>
                   )}
                 </TabsTrigger>
+                <TabsTrigger value="contexto-ia" disabled={!editingService} className="gap-1.5">
+                  <Sparkles className="h-4 w-4" />
+                  Contexto IA
+                  {!editingService && (
+                    <span className="text-xs text-muted-foreground ml-1">(salve primeiro)</span>
+                  )}
+                </TabsTrigger>
               </TabsList>
               <TabsContent value="criterios" className="mt-0">
                 {editingService && <ServiceCriteriaTab serviceId={editingService.id} />}
+              </TabsContent>
+              <TabsContent value="contexto-ia" className="mt-0">
+                {editingService && <ServiceAIContextTab serviceId={editingService.id} />}
               </TabsContent>
               <TabsContent value="geral" className="mt-0">
             <div className="grid sm:grid-cols-2 gap-x-6 gap-y-4 py-2">
