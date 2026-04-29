@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { DateRange } from 'react-day-picker';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { MainLayout } from '@/components/layout/MainLayout';
@@ -40,6 +40,10 @@ import { ClientQuickCreateDialog } from '@/components/appointments/ClientQuickCr
 import { isWithinInterval, startOfDay, endOfDay } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import type { Database } from '@/integrations/supabase/types';
+import { useAppointmentCriteria, type CriteriaResponsesMap } from '@/hooks/useAppointmentCriteria';
+import { AppointmentCriteriaSection } from '@/components/criteria/AppointmentCriteriaSection';
+import { MissingCriteriaDialog } from '@/components/criteria/MissingCriteriaDialog';
+import type { ServiceCriterion } from '@/types/criteria';
 
 type AppointmentStatus = Database['public']['Enums']['appointment_status'];
 
@@ -92,6 +96,13 @@ const Agendamentos = () => {
   const [isQuoteDialogOpen, setIsQuoteDialogOpen] = useState(false);
   const [confirmingQuoteId, setConfirmingQuoteId] = useState<string | null>(null);
   const [quotePrice, setQuotePrice] = useState('');
+
+  // Criteria responses state
+  const [criteriaResponses, setCriteriaResponses] = useState<CriteriaResponsesMap>(new Map());
+  const [editCriteriaResponses, setEditCriteriaResponses] = useState<CriteriaResponsesMap>(new Map());
+  const [isMissingCriteriaDialogOpen, setIsMissingCriteriaDialogOpen] = useState(false);
+  const [pendingSaveAction, setPendingSaveAction] = useState<'create' | 'edit' | null>(null);
+  const [missingCriteriaList, setMissingCriteriaList] = useState<ServiceCriterion[]>([]);
 
   const [formData, setFormData] = useState({
     client_id: '',
@@ -158,6 +169,63 @@ const Agendamentos = () => {
       return { ...prev, service_employees: cleaned };
     });
   }, [editFormData.service_ids]);
+
+  // Criteria hooks for both forms
+  const {
+    criteria: newCriteria,
+    isLoading: newCriteriaLoading,
+    saveResponses: saveNewResponses,
+  } = useAppointmentCriteria(formData.service_ids);
+
+  const {
+    criteria: editCriteria,
+    responsesMap: editResponsesMap,
+    isLoading: editCriteriaLoading,
+    saveResponses: saveEditResponses,
+  } = useAppointmentCriteria(editFormData.service_ids, editingAppointmentId);
+
+  // Initialize edit criteria responses when DB data loads or appointment changes
+  const editInitializedForRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!editingAppointmentId) return;
+    if (editInitializedForRef.current === editingAppointmentId) return;
+    if (editCriteriaLoading) return;
+    editInitializedForRef.current = editingAppointmentId;
+    setEditCriteriaResponses(new Map(editResponsesMap));
+  }, [editingAppointmentId, editCriteriaLoading, editResponsesMap]);
+
+  // Reset initialized flag and edit criteria when edit dialog closes
+  useEffect(() => {
+    if (!isEditDialogOpen) {
+      editInitializedForRef.current = null;
+      setEditCriteriaResponses(new Map());
+    }
+  }, [isEditDialogOpen]);
+
+  // Clean up criteria responses for deselected services
+  useEffect(() => {
+    if (newCriteria.length === 0) return;
+    const validCriterionIds = new Set(newCriteria.map(c => c.id));
+    setCriteriaResponses(prev => {
+      const next = new Map(prev);
+      for (const key of next.keys()) {
+        if (!validCriterionIds.has(key)) next.delete(key);
+      }
+      return next;
+    });
+  }, [newCriteria]);
+
+  useEffect(() => {
+    if (editCriteria.length === 0) return;
+    const validCriterionIds = new Set(editCriteria.map(c => c.id));
+    setEditCriteriaResponses(prev => {
+      const next = new Map(prev);
+      for (const key of next.keys()) {
+        if (!validCriterionIds.has(key)) next.delete(key);
+      }
+      return next;
+    });
+  }, [editCriteria]);
 
   // Build set of service IDs that require a quote
   const quoteServiceIds = useMemo(() => {
@@ -243,6 +311,41 @@ const Agendamentos = () => {
       date: getTodayInSaoPaulo(),
       time: '09:00',
     });
+    setCriteriaResponses(new Map());
+  };
+
+  function getMissingRequiredCriteria(
+    criteria: ServiceCriterion[],
+    responses: CriteriaResponsesMap
+  ): ServiceCriterion[] {
+    return criteria.filter(c => {
+      if (!c.isRequired) return false;
+      const r = responses.get(c.id);
+      return !r || !r.value || r.value.trim() === '';
+    });
+  }
+
+  const doCreateAppointment = async () => {
+    const result = await addAppointment.mutateAsync({
+      client_id: formData.client_id,
+      service_ids: formData.service_ids,
+      service_employees: formData.service_employees,
+      scheduled_at: toSaoPauloDateTime(formData.date, formData.time),
+    });
+
+    if (result?.id && criteriaResponses.size > 0) {
+      await saveNewResponses.mutateAsync({
+        appointmentId: result.id,
+        responses: Array.from(criteriaResponses.entries()).map(([criterionId, r]) => ({
+          criterionId,
+          value: r.value,
+          isCustomAnswer: r.isCustomAnswer,
+        })),
+      });
+    }
+
+    setIsDialogOpen(false);
+    resetForm();
   };
 
   const handleSave = async () => {
@@ -336,15 +439,16 @@ const Agendamentos = () => {
       }
     }
 
-    await addAppointment.mutateAsync({
-      client_id: formData.client_id,
-      service_ids: formData.service_ids,
-      service_employees: formData.service_employees,
-      scheduled_at: toSaoPauloDateTime(formData.date, formData.time),
-    });
+    // Check required criteria
+    const requiredMissing = getMissingRequiredCriteria(newCriteria, criteriaResponses);
+    if (requiredMissing.length > 0) {
+      setMissingCriteriaList(requiredMissing);
+      setPendingSaveAction('create');
+      setIsMissingCriteriaDialogOpen(true);
+      return;
+    }
 
-    setIsDialogOpen(false);
-    resetForm();
+    await doCreateAppointment();
   };
 
   const handleStatusChange = async (id: string, status: AppointmentStatus) => {
@@ -480,7 +584,22 @@ const Agendamentos = () => {
       }
     }
 
-    await updateAppointment.mutateAsync({
+    // Check required criteria
+    const requiredMissing = getMissingRequiredCriteria(editCriteria, editCriteriaResponses);
+    if (requiredMissing.length > 0) {
+      setMissingCriteriaList(requiredMissing);
+      setPendingSaveAction('edit');
+      setIsMissingCriteriaDialogOpen(true);
+      return;
+    }
+
+    await doEditAppointment();
+  };
+
+  const doEditAppointment = async () => {
+    if (!editingAppointmentId) return;
+
+    const result = await updateAppointment.mutateAsync({
       id: editingAppointmentId,
       client_id: editFormData.client_id,
       service_ids: editFormData.service_ids,
@@ -488,8 +607,25 @@ const Agendamentos = () => {
       scheduled_at: toSaoPauloDateTime(editFormData.date, editFormData.time),
     });
 
+    await saveEditResponses.mutateAsync({
+      appointmentId: editingAppointmentId,
+      responses: Array.from(editCriteriaResponses.entries()).map(([criterionId, r]) => ({
+        criterionId,
+        value: r.value,
+        isCustomAnswer: r.isCustomAnswer,
+      })),
+    });
+
+    void result;
     setIsEditDialogOpen(false);
     setEditingAppointmentId(null);
+  };
+
+  const handleConfirmMissing = async () => {
+    setIsMissingCriteriaDialogOpen(false);
+    if (pendingSaveAction === 'create') await doCreateAppointment();
+    else if (pendingSaveAction === 'edit') await doEditAppointment();
+    setPendingSaveAction(null);
   };
 
   const formatTime = (scheduledAt: string, duration: number) => {
@@ -1051,6 +1187,14 @@ const Agendamentos = () => {
                   </div>
                 )}
               </div>
+              <AppointmentCriteriaSection
+                criteria={newCriteria}
+                serviceIds={formData.service_ids}
+                responses={criteriaResponses}
+                onResponsesChange={setCriteriaResponses}
+                appointmentId={null}
+                isLoading={newCriteriaLoading}
+              />
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Data *</Label>
@@ -1158,6 +1302,14 @@ const Agendamentos = () => {
                   </div>
                 )}
               </div>
+              <AppointmentCriteriaSection
+                criteria={editCriteria}
+                serviceIds={editFormData.service_ids}
+                responses={editCriteriaResponses}
+                onResponsesChange={setEditCriteriaResponses}
+                appointmentId={editingAppointmentId}
+                isLoading={editCriteriaLoading}
+              />
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Data *</Label>
@@ -1178,6 +1330,14 @@ const Agendamentos = () => {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        <MissingCriteriaDialog
+          open={isMissingCriteriaDialogOpen}
+          onOpenChange={setIsMissingCriteriaDialogOpen}
+          missingCriteria={missingCriteriaList}
+          onConfirm={handleConfirmMissing}
+          actionLabel={pendingSaveAction === 'edit' ? 'Salvar mesmo assim' : 'Criar mesmo assim'}
+        />
 
         <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
           <AlertDialogContent>
