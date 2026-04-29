@@ -37,6 +37,9 @@ import { useServices } from '@/hooks/useServices';
 import { useEmployeeServicesBulk } from '@/hooks/useEmployeeServices';
 import { DateRangePicker } from '@/components/ui/date-range-picker';
 import { ClientQuickCreateDialog } from '@/components/appointments/ClientQuickCreateDialog';
+import { PendingAppointmentCard } from '@/components/appointments/PendingAppointmentCard';
+import { SuggestSlotsDialog } from '@/components/appointments/SuggestSlotsDialog';
+import { RejectAppointmentDialog } from '@/components/appointments/RejectAppointmentDialog';
 import { isWithinInterval, startOfDay, endOfDay } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import type { Database } from '@/integrations/supabase/types';
@@ -53,6 +56,7 @@ const statusConfig: Record<string, { label: string; class: string }> = {
   completed: { label: 'Concluído', class: 'status-completed' },
   cancelled: { label: 'Cancelado', class: 'status-cancelled' },
   no_show: { label: 'Não compareceu', class: 'status-cancelled' },
+  suggested: { label: 'Horário sugerido', class: 'bg-blue-500/10 text-blue-600 border-blue-300' },
 };
 
 const paymentConfig: Record<string, { label: string; class: string }> = {
@@ -96,6 +100,9 @@ const Agendamentos = () => {
   const [isQuoteDialogOpen, setIsQuoteDialogOpen] = useState(false);
   const [confirmingQuoteId, setConfirmingQuoteId] = useState<string | null>(null);
   const [quotePrice, setQuotePrice] = useState('');
+  const [isSuggestDialogOpen, setIsSuggestDialogOpen] = useState(false);
+  const [isRejectDialogOpen, setIsRejectDialogOpen] = useState(false);
+  const [actionAppointmentId, setActionAppointmentId] = useState<string | null>(null);
 
   // Criteria responses state
   const [criteriaResponses, setCriteriaResponses] = useState<CriteriaResponsesMap>(new Map());
@@ -234,7 +241,7 @@ const Agendamentos = () => {
     );
   }, [services]);
 
-  // Appointments that have at least one requires-quote service and are still pending/confirmed
+  // Appointments that have at least one requires-quote service and are still actionable
   const quoteAppointments = useMemo(() => {
     return appointments.filter(apt => {
       if (apt.status === 'completed' || apt.status === 'cancelled') return false;
@@ -945,98 +952,18 @@ const Agendamentos = () => {
                 <DollarSign className="h-8 w-8 mx-auto mb-2 opacity-30" />
                 <p>Nenhum agendamento pendente de orçamento.</p>
               </Card>
-            ) : isMobile ? (
-              <div className="space-y-3">
-                {quoteAppointments.map((appointment) => {
-                  const status = statusConfig[appointment.status || 'scheduled'];
-                  const times = formatTime(appointment.scheduled_at, appointment.duration);
-                  const serviceNames = appointment.appointment_services?.length
-                    ? appointment.appointment_services.map(as => as.services?.name).filter(Boolean).join(', ')
-                    : appointment.services?.name || '-';
-                  return (
-                    <MobileCard
-                      key={appointment.id}
-                      title={appointment.clients?.name || 'Cliente'}
-                      subtitle={serviceNames}
-                      badge={<Badge variant="outline" className="bg-warning/10 text-warning border-warning/30 text-xs">Orçamento pendente</Badge>}
-                      fields={[
-                        { label: 'Data', value: new Date(appointment.scheduled_at).toLocaleDateString('pt-BR') },
-                        { label: 'Horário', value: `${times.startTime} - ${times.endTime}` },
-                        { label: 'Status', value: status?.label },
-                      ]}
-                      actions={
-                        <Button className="w-full gap-2" onClick={() => handleOpenQuoteDialog(appointment.id)}>
-                          <DollarSign className="h-4 w-4" /> Definir Orçamento
-                        </Button>
-                      }
-                    />
-                  );
-                })}
-              </div>
             ) : (
-              <Card>
-                <CardContent className="p-0 overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Data/Hora</TableHead>
-                        <TableHead>Cliente</TableHead>
-                        <TableHead>Serviço</TableHead>
-                        <TableHead>Profissional</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead className="text-right">Ação</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {quoteAppointments.map((appointment) => {
-                        const status = statusConfig[appointment.status || 'scheduled'];
-                        const times = formatTime(appointment.scheduled_at, appointment.duration);
-                        return (
-                          <TableRow key={appointment.id}>
-                            <TableCell>
-                              <div className="flex items-center gap-2">
-                                <Calendar className="h-4 w-4 text-muted-foreground" />
-                                <div>
-                                  <p className="font-medium text-sm">{new Date(appointment.scheduled_at).toLocaleDateString('pt-BR')}</p>
-                                  <p className="text-xs text-muted-foreground">{times.startTime} - {times.endTime}</p>
-                                </div>
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <p className="font-medium text-sm">{appointment.clients?.name}</p>
-                              <p className="text-xs text-muted-foreground">{appointment.clients?.phone}</p>
-                            </TableCell>
-                            <TableCell>
-                              <p className="font-medium text-sm truncate max-w-[200px]">
-                                {appointment.appointment_services?.length
-                                  ? appointment.appointment_services.map(as => as.services?.name).filter(Boolean).join(', ')
-                                  : appointment.services?.name}
-                              </p>
-                              <p className="text-xs text-warning font-medium">Preço a consultar</p>
-                            </TableCell>
-                            <TableCell>
-                              <span className="text-sm">
-                                {appointment.appointment_services?.length
-                                  ? [...new Set(appointment.appointment_services.map(as => as.employees?.name).filter(Boolean))].join(', ')
-                                  : appointment.employees?.name || '-'}
-                              </span>
-                            </TableCell>
-                            <TableCell>
-                              <Badge variant="outline" className={cn(status?.class, 'text-xs')}>{status?.label}</Badge>
-                            </TableCell>
-                            <TableCell className="text-right">
-                              <Button size="sm" className="gap-1.5" onClick={() => handleOpenQuoteDialog(appointment.id)}>
-                                <DollarSign className="h-3.5 w-3.5" />
-                                Definir Orçamento
-                              </Button>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                </CardContent>
-              </Card>
+              <div className="space-y-3">
+                {quoteAppointments.map((appointment) => (
+                  <PendingAppointmentCard
+                    key={appointment.id}
+                    appointment={appointment}
+                    onDefineQuote={() => handleOpenQuoteDialog(appointment.id)}
+                    onSuggestSlots={() => { setActionAppointmentId(appointment.id); setIsSuggestDialogOpen(true); }}
+                    onReject={() => { setActionAppointmentId(appointment.id); setIsRejectDialogOpen(true); }}
+                  />
+                ))}
+              </div>
             )}
           </TabsContent>
         </Tabs>
@@ -1330,6 +1257,21 @@ const Agendamentos = () => {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {actionAppointmentId && (
+          <>
+            <SuggestSlotsDialog
+              open={isSuggestDialogOpen}
+              onOpenChange={(v) => { setIsSuggestDialogOpen(v); if (!v) setActionAppointmentId(null); }}
+              appointmentId={actionAppointmentId}
+            />
+            <RejectAppointmentDialog
+              open={isRejectDialogOpen}
+              onOpenChange={(v) => { setIsRejectDialogOpen(v); if (!v) setActionAppointmentId(null); }}
+              appointmentId={actionAppointmentId}
+            />
+          </>
+        )}
 
         <MissingCriteriaDialog
           open={isMissingCriteriaDialogOpen}
