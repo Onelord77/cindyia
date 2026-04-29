@@ -31,7 +31,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
-import { Plus, Search, Edit, Trash2, Sparkles, Clock, DollarSign, MoreVertical, Loader2, FolderOpen, ChevronDown, Palette, Tag, ImageIcon } from 'lucide-react';
+import { Plus, Search, Edit, Trash2, Sparkles, Clock, DollarSign, MoreVertical, Loader2, FolderOpen, ChevronDown, Palette, Tag, ImageIcon, ListChecks } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -55,11 +55,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '@/components/ui/tabs';
 import { useServices, type ServiceWithCategory } from '@/hooks/useServices';
 import { useServiceCategories, type ServiceCategory } from '@/hooks/useServiceCategories';
 import { useAuth } from '@/hooks/useAuth';
 import { useTenants } from '@/hooks/useTenants';
 import { ImageUpload } from '@/components/ui/image-upload';
+import { ServiceCriteriaTab } from '@/components/criteria/ServiceCriteriaTab';
 import { toast } from 'sonner';
 
 // Cores predefinidas para categorias
@@ -93,6 +100,7 @@ const Servicos = () => {
   const [deletingServiceId, setDeletingServiceId] = useState<string | null>(null);
   const [deletingCategoryId, setDeletingCategoryId] = useState<string | null>(null);
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set(['uncategorized']));
+  const [dialogTab, setDialogTab] = useState<'geral' | 'criterios'>('geral');
 
   const [formData, setFormData] = useState({
     name: '',
@@ -159,6 +167,7 @@ const Servicos = () => {
 
   const openNewDialog = () => {
     resetForm();
+    setDialogTab('geral');
     setIsDialogOpen(true);
   };
 
@@ -174,6 +183,7 @@ const Servicos = () => {
       image_url: service.image_url || null,
       requires_quote: (service as any).requires_quote === true,
     });
+    setDialogTab('geral');
     setIsDialogOpen(true);
   };
 
@@ -680,6 +690,21 @@ const Servicos = () => {
                 {editingService ? 'Atualize as informações do serviço' : 'Adicione um novo serviço ao catálogo'}
               </DialogDescription>
             </DialogHeader>
+            <Tabs value={dialogTab} onValueChange={v => setDialogTab(v as 'geral' | 'criterios')}>
+              <TabsList className="mb-2">
+                <TabsTrigger value="geral">Geral</TabsTrigger>
+                <TabsTrigger value="criterios" disabled={!editingService} className="gap-1.5">
+                  <ListChecks className="h-4 w-4" />
+                  Critérios
+                  {!editingService && (
+                    <span className="text-xs text-muted-foreground ml-1">(salve primeiro)</span>
+                  )}
+                </TabsTrigger>
+              </TabsList>
+              <TabsContent value="criterios" className="mt-0">
+                {editingService && <ServiceCriteriaTab serviceId={editingService.id} />}
+              </TabsContent>
+              <TabsContent value="geral" className="mt-0">
             <div className="grid sm:grid-cols-2 gap-x-6 gap-y-4 py-2">
               {/* Coluna esquerda: Foto */}
               <div className="space-y-2 sm:row-span-4">
@@ -798,6 +823,8 @@ const Servicos = () => {
                 </div>
               </div>
             </div>
+              </TabsContent>
+            </Tabs>
             <DialogFooter className="mt-2">
               <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancelar</Button>
               <Button onClick={handleSave} disabled={addService.isPending || updateService.isPending}>
