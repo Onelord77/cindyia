@@ -6,6 +6,9 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { KanbanSquare, List } from 'lucide-react';
+import { LeadsKanbanView } from '@/components/clients/LeadsKanbanView';
 import {
   Table,
   TableBody,
@@ -26,6 +29,7 @@ import {
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
 import { Search, Plus, Phone, Mail, Calendar, MoreVertical, Edit, Trash2, User, Users, UserCheck, Loader2 } from 'lucide-react';
 import { WhatsAppIcon } from '@/components/ui/whatsapp-icon';
 import {
@@ -58,6 +62,7 @@ import { toast } from 'sonner';
 const Clientes = () => {
   const isMobile = useIsMobile();
   const [statusFilter, setStatusFilter] = useState<ClientStatusFilter>('all');
+  const [viewMode, setViewMode] = useState<'lista' | 'kanban'>('lista');
   const { clients, isLoading, addClient, updateClient, deleteClient } = useClients(statusFilter);
   const { clients: allClients = [] } = useClients('all');
   const [searchTerm, setSearchTerm] = useState('');
@@ -72,6 +77,7 @@ const Clientes = () => {
     phone: '',
     email: '',
     notes: '',
+    is_lead: false,
   });
 
   const filteredClients = useMemo(() => {
@@ -102,13 +108,13 @@ const Clientes = () => {
     }).length;
   }, [allClients]);
 
-  const resetForm = () => {
-    setFormData({ name: '', ddi: '55', phone: '', email: '', notes: '' });
+  const resetForm = (defaultIsLead = false) => {
+    setFormData({ name: '', ddi: '55', phone: '', email: '', notes: '', is_lead: defaultIsLead });
     setEditingClient(null);
   };
 
   const openNewDialog = () => {
-    resetForm();
+    resetForm(statusFilter === 'lead');
     setIsDialogOpen(true);
   };
 
@@ -120,6 +126,7 @@ const Clientes = () => {
       phone: client.phone ? formatPhoneMask(extractNationalNumber(client.phone)) : '',
       email: client.email || '',
       notes: client.notes || '',
+      is_lead: client.is_lead,
     });
     setIsDialogOpen(true);
   };
@@ -140,6 +147,7 @@ const Clientes = () => {
         phone: phoneWithDDI,
         email: formData.email || null,
         notes: formData.notes || null,
+        is_lead: formData.is_lead,
       });
     } else {
       await addClient.mutateAsync({
@@ -147,6 +155,7 @@ const Clientes = () => {
         phone: phoneWithDDI,
         email: formData.email || null,
         notes: formData.notes || null,
+        is_lead: formData.is_lead,
       });
     }
 
@@ -167,16 +176,6 @@ const Clientes = () => {
     setIsDeleteDialogOpen(true);
   };
 
-  if (isLoading) {
-    return (
-      <MainLayout>
-        <div className="flex items-center justify-center h-64">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-        </div>
-      </MainLayout>
-    );
-  }
-
   return (
     <MainLayout>
       <div className="space-y-6">
@@ -189,18 +188,34 @@ const Clientes = () => {
 
           <Button className="gap-2" onClick={openNewDialog}>
             <Plus className="h-4 w-4" />
-            Novo Cliente
+            {statusFilter === 'lead' ? 'Novo Lead' : 'Novo Cliente'}
           </Button>
         </div>
 
-        {/* Tabs */}
-        <Tabs value={statusFilter} onValueChange={(v) => setStatusFilter(v as ClientStatusFilter)}>
-          <TabsList>
-            <TabsTrigger value="all">Todos</TabsTrigger>
-            <TabsTrigger value="lead">Leads</TabsTrigger>
-            <TabsTrigger value="client">Clientes</TabsTrigger>
-          </TabsList>
-        </Tabs>
+        {/* Tabs + toggle de visualização */}
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <Tabs value={statusFilter} onValueChange={(v) => {
+            setStatusFilter(v as ClientStatusFilter);
+            if (v !== 'lead') setViewMode('lista');
+          }}>
+            <TabsList>
+              <TabsTrigger value="all">Todos</TabsTrigger>
+              <TabsTrigger value="lead">Leads</TabsTrigger>
+              <TabsTrigger value="client">Clientes</TabsTrigger>
+            </TabsList>
+          </Tabs>
+
+          {statusFilter === 'lead' && (
+            <ToggleGroup type="single" value={viewMode} onValueChange={(v) => v && setViewMode(v as 'lista' | 'kanban')} size="sm">
+              <ToggleGroupItem value="lista" aria-label="Visualização lista">
+                <List className="h-4 w-4" />
+              </ToggleGroupItem>
+              <ToggleGroupItem value="kanban" aria-label="Visualização kanban">
+                <KanbanSquare className="h-4 w-4" />
+              </ToggleGroupItem>
+            </ToggleGroup>
+          )}
+        </div>
 
         {/* Stats Cards */}
         <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
@@ -269,8 +284,17 @@ const Clientes = () => {
           </CardContent>
         </Card>
 
+        {/* Kanban view (leads, modo kanban) */}
+        {statusFilter === 'lead' && viewMode === 'kanban' ? (
+          <LeadsKanbanView clients={filteredClients} onEditClient={openEditDialog} />
+        ) : isLoading ? (
+          <div className="flex items-center justify-center h-64">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+        ) : null}
+
         {/* Client List */}
-        {isMobile ? (
+        {(statusFilter !== 'lead' || viewMode !== 'kanban') && !isLoading && isMobile ? (
           /* Mobile: Cards */
           <div className="space-y-3">
             {filteredClients.length === 0 ? (
@@ -369,7 +393,7 @@ const Clientes = () => {
               })
             )}
           </div>
-        ) : (
+        ) : (statusFilter !== 'lead' || viewMode !== 'kanban') && !isLoading ? (
           /* Desktop: Table */
           <Card>
             <CardContent className="p-0 overflow-x-auto">
@@ -498,18 +522,35 @@ const Clientes = () => {
               </Table>
             </CardContent>
           </Card>
-        )}
+        ) : null}
 
         {/* Create/Edit Dialog */}
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogContent className="sm:max-w-[500px]">
             <DialogHeader>
-              <DialogTitle>{editingClient ? 'Editar Cliente' : 'Novo Cliente'}</DialogTitle>
+              <DialogTitle>
+                {editingClient
+                  ? (formData.is_lead ? 'Editar Lead' : 'Editar Cliente')
+                  : (formData.is_lead ? 'Novo Lead' : 'Novo Cliente')}
+              </DialogTitle>
               <DialogDescription>
-                {editingClient ? 'Atualize as informações do cliente' : 'Adicione um novo cliente ao sistema'}
+                {editingClient ? 'Atualize as informações do registro' : 'Adicione um novo registro ao sistema'}
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="is_lead" className="flex flex-col gap-0.5">
+                  <span>Marcar como Lead</span>
+                  <span className="text-xs font-normal text-muted-foreground">
+                    {formData.is_lead ? 'Aparece no funil de leads' : 'Aparece na lista de clientes'}
+                  </span>
+                </Label>
+                <Switch
+                  id="is_lead"
+                  checked={formData.is_lead}
+                  onCheckedChange={(checked) => setFormData(prev => ({ ...prev, is_lead: checked }))}
+                />
+              </div>
               <div className="space-y-2">
                 <Label htmlFor="name">Nome completo *</Label>
                 <Input 
@@ -577,7 +618,7 @@ const Clientes = () => {
               </Button>
               <Button onClick={handleSave} disabled={addClient.isPending || updateClient.isPending}>
                 {(addClient.isPending || updateClient.isPending) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                {editingClient ? 'Salvar Alterações' : 'Cadastrar Cliente'}
+                {editingClient ? 'Salvar Alterações' : (formData.is_lead ? 'Cadastrar Lead' : 'Cadastrar Cliente')}
               </Button>
             </DialogFooter>
           </DialogContent>

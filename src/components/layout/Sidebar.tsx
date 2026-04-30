@@ -31,7 +31,7 @@ const menuItems: SidebarItem[] = [
   { label: 'Agenda', icon: Calendar, href: '/agenda' },
   { label: 'Agendamentos', icon: CalendarCheck, href: '/agendamentos' },
   { label: 'Clientes', icon: Users, href: '/clientes' },
-  { label: 'Equipe', icon: UserCog, href: '/funcionarios' },
+{ label: 'Equipe', icon: UserCog, href: '/funcionarios' },
   { label: 'Serviços', icon: Sparkles, href: '/servicos' },
   { label: 'Financeiro', icon: DollarSign, href: '/financeiro' },
   { label: 'Relatórios', icon: BarChart3, href: '/relatorios' },

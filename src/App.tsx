@@ -67,7 +67,6 @@ const App = () => (
                 <Route path="/integracoes" element={<ProtectedRoute><Integracoes /></ProtectedRoute>} />
                 <Route path="/notificacoes" element={<ProtectedRoute><Notificacoes /></ProtectedRoute>} />
                 <Route path="/configuracoes" element={<ProtectedRoute><Configuracoes /></ProtectedRoute>} />
-
                 {/* Super Admin Only Routes */}
                 <Route path="/admin" element={<ProtectedRoute requiredRoles={['super_admin']}><AdminDashboard /></ProtectedRoute>} />
                 <Route path="/admin/empresas" element={<ProtectedRoute requiredRoles={['super_admin']}><SuperAdminEmpresas /></ProtectedRoute>} />

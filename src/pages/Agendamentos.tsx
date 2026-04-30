@@ -37,9 +37,6 @@ import { useServices } from '@/hooks/useServices';
 import { useEmployeeServicesBulk } from '@/hooks/useEmployeeServices';
 import { DateRangePicker } from '@/components/ui/date-range-picker';
 import { ClientQuickCreateDialog } from '@/components/appointments/ClientQuickCreateDialog';
-import { PendingAppointmentCard } from '@/components/appointments/PendingAppointmentCard';
-import { SuggestSlotsDialog } from '@/components/appointments/SuggestSlotsDialog';
-import { RejectAppointmentDialog } from '@/components/appointments/RejectAppointmentDialog';
 import { isWithinInterval, startOfDay, endOfDay } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import type { Database } from '@/integrations/supabase/types';
@@ -47,6 +44,9 @@ import { useAppointmentCriteria, type CriteriaResponsesMap } from '@/hooks/useAp
 import { AppointmentCriteriaSection } from '@/components/criteria/AppointmentCriteriaSection';
 import { MissingCriteriaDialog } from '@/components/criteria/MissingCriteriaDialog';
 import type { ServiceCriterion } from '@/types/criteria';
+import { SuggestSlotsDialog } from '@/components/appointments/SuggestSlotsDialog';
+import { RejectAppointmentDialog } from '@/components/appointments/RejectAppointmentDialog';
+import { PendingAppointmentCard } from '@/components/appointments/PendingAppointmentCard';
 
 type AppointmentStatus = Database['public']['Enums']['appointment_status'];
 
@@ -81,11 +81,9 @@ const Agendamentos = () => {
   const { employees } = useEmployees();
   const { services } = useServices();
 
-  // Get employee services for validation
   const employeeIds = employees.map(e => e.id);
   const { data: employeeServicesMap = {} } = useEmployeeServicesBulk(employeeIds);
 
-  // Memoize active services to avoid filtering on every render
   const activeServices = useMemo(() => services.filter(s => s.is_active), [services]);
 
   const [activeTab, setActiveTab] = useState('todos');
@@ -104,7 +102,6 @@ const Agendamentos = () => {
   const [isRejectDialogOpen, setIsRejectDialogOpen] = useState(false);
   const [actionAppointmentId, setActionAppointmentId] = useState<string | null>(null);
 
-  // Criteria responses state
   const [criteriaResponses, setCriteriaResponses] = useState<CriteriaResponsesMap>(new Map());
   const [editCriteriaResponses, setEditCriteriaResponses] = useState<CriteriaResponsesMap>(new Map());
   const [isMissingCriteriaDialogOpen, setIsMissingCriteriaDialogOpen] = useState(false);
@@ -114,7 +111,7 @@ const Agendamentos = () => {
   const [formData, setFormData] = useState({
     client_id: '',
     service_ids: [] as string[],
-    service_employees: {} as Record<string, string>, // service_id -> employee_id
+    service_employees: {} as Record<string, string>,
     date: getTodayInSaoPaulo(),
     time: '09:00',
   });
@@ -122,12 +119,11 @@ const Agendamentos = () => {
   const [editFormData, setEditFormData] = useState({
     client_id: '',
     service_ids: [] as string[],
-    service_employees: {} as Record<string, string>, // service_id -> employee_id
+    service_employees: {} as Record<string, string>,
     date: '',
     time: '',
   });
 
-  // Get employees that can perform a specific service
   const getEmployeesForService = useMemo(() => {
     return (serviceId: string) => {
       return employees.filter(e => {
@@ -138,7 +134,6 @@ const Agendamentos = () => {
     };
   }, [employees, employeeServicesMap]);
 
-  // Calculate totals for selected services (create form)
   const selectedServicesTotals = useMemo(() => {
     const selectedSvcs = activeServices.filter(s => formData.service_ids.includes(s.id));
     return {
@@ -147,7 +142,6 @@ const Agendamentos = () => {
     };
   }, [formData.service_ids, activeServices]);
 
-  // Calculate totals for selected services (edit form)
   const editServicesTotals = useMemo(() => {
     const selectedSvcs = activeServices.filter(s => editFormData.service_ids.includes(s.id));
     return {
@@ -156,7 +150,6 @@ const Agendamentos = () => {
     };
   }, [editFormData.service_ids, activeServices]);
 
-  // Clean up service_employees when services are unchecked
   useEffect(() => {
     setFormData(prev => {
       const cleaned = { ...prev.service_employees };
@@ -177,7 +170,6 @@ const Agendamentos = () => {
     });
   }, [editFormData.service_ids]);
 
-  // Criteria hooks for both forms
   const {
     criteria: newCriteria,
     isLoading: newCriteriaLoading,
@@ -191,7 +183,6 @@ const Agendamentos = () => {
     saveResponses: saveEditResponses,
   } = useAppointmentCriteria(editFormData.service_ids, editingAppointmentId);
 
-  // Initialize edit criteria responses when DB data loads or appointment changes
   const editInitializedForRef = useRef<string | null>(null);
   useEffect(() => {
     if (!editingAppointmentId) return;
@@ -201,7 +192,6 @@ const Agendamentos = () => {
     setEditCriteriaResponses(new Map(editResponsesMap));
   }, [editingAppointmentId, editCriteriaLoading, editResponsesMap]);
 
-  // Reset initialized flag and edit criteria when edit dialog closes
   useEffect(() => {
     if (!isEditDialogOpen) {
       editInitializedForRef.current = null;
@@ -209,7 +199,6 @@ const Agendamentos = () => {
     }
   }, [isEditDialogOpen]);
 
-  // Clean up criteria responses for deselected services
   useEffect(() => {
     if (newCriteria.length === 0) return;
     const validCriterionIds = new Set(newCriteria.map(c => c.id));
@@ -234,14 +223,12 @@ const Agendamentos = () => {
     });
   }, [editCriteria]);
 
-  // Build set of service IDs that require a quote
   const quoteServiceIds = useMemo(() => {
     return new Set(
       services.filter(s => isQuoteService(s.name, (s as any).requires_quote)).map(s => s.id)
     );
   }, [services]);
 
-  // Appointments that have at least one requires-quote service and are still actionable
   const quoteAppointments = useMemo(() => {
     return appointments.filter(apt => {
       if (apt.status === 'completed' || apt.status === 'cancelled') return false;
@@ -330,9 +317,7 @@ const Agendamentos = () => {
       const r = responses.get(c.id);
       return !r || !r.value || r.value.trim() === '';
     });
-  }
-
-  const doCreateAppointment = async () => {
+  }const doCreateAppointment = async () => {
     const result = await addAppointment.mutateAsync({
       client_id: formData.client_id,
       service_ids: formData.service_ids,
@@ -356,7 +341,6 @@ const Agendamentos = () => {
   };
 
   const handleSave = async () => {
-    // Validate required fields with specific messages
     if (!formData.client_id) {
       toast.error('Selecione um cliente para criar o agendamento.');
       return;
@@ -366,7 +350,6 @@ const Agendamentos = () => {
       return;
     }
 
-    // Validate each service has an employee assigned
     const missingEmployee = formData.service_ids.find(sId => !formData.service_employees[sId]);
     if (missingEmployee) {
       const svc = activeServices.find(s => s.id === missingEmployee);
@@ -374,7 +357,6 @@ const Agendamentos = () => {
       return;
     }
 
-    // Validate each employee can perform their assigned service (frontend validation)
     for (const [svcId, empId] of Object.entries(formData.service_employees)) {
       const empServices = employeeServicesMap[empId] || [];
       if (!empServices.some(es => es.serviceId === svcId)) {
@@ -388,7 +370,6 @@ const Agendamentos = () => {
     const scheduledAt = createSaoPauloDate(formData.date, formData.time);
     const duration = selectedServicesTotals.duration || 30;
 
-    // Validate working day/time for each unique employee
     const uniqueEmployeeIds = [...new Set(Object.values(formData.service_employees))];
     const dayKeysPt = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab'];
     const dayLabelsPt: Record<string, string> = {
@@ -422,7 +403,6 @@ const Agendamentos = () => {
         }
       }
 
-      // Frontend validation for time conflict per employee
       const newStart = scheduledAt.getTime();
       const newEnd = newStart + duration * 60000;
       const activeStatuses = ['scheduled', 'confirmed', 'in_progress'];
@@ -446,7 +426,6 @@ const Agendamentos = () => {
       }
     }
 
-    // Check required criteria
     const requiredMissing = getMissingRequiredCriteria(newCriteria, criteriaResponses);
     if (requiredMissing.length > 0) {
       setMissingCriteriaList(requiredMissing);
@@ -483,7 +462,6 @@ const Agendamentos = () => {
     const dateStr = getDateInSaoPaulo(appointmentDate);
     const timeStr = formatTimeInSaoPaulo(appointmentDate);
 
-    // Load service_ids and service_employees from appointment_services
     let serviceIds: string[] = [];
     const serviceEmployees: Record<string, string> = {};
 
@@ -522,7 +500,6 @@ const Agendamentos = () => {
       return;
     }
 
-    // Validate each service has an employee assigned
     const missingEmployee = editFormData.service_ids.find(sId => !editFormData.service_employees[sId]);
     if (missingEmployee) {
       const svc = activeServices.find(s => s.id === missingEmployee);
@@ -533,7 +510,6 @@ const Agendamentos = () => {
     const scheduledAt = createSaoPauloDate(editFormData.date, editFormData.time);
     const duration = editServicesTotals.duration || 30;
 
-    // Validate working day/time and conflicts for each unique employee
     const uniqueEmployeeIds = [...new Set(Object.values(editFormData.service_employees))];
     const dayKeysPt = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab'];
     const dayLabelsPt: Record<string, string> = {
@@ -591,7 +567,6 @@ const Agendamentos = () => {
       }
     }
 
-    // Check required criteria
     const requiredMissing = getMissingRequiredCriteria(editCriteria, editCriteriaResponses);
     if (requiredMissing.length > 0) {
       setMissingCriteriaList(requiredMissing);
@@ -687,7 +662,6 @@ const Agendamentos = () => {
             </TabsTrigger>
           </TabsList>
 
-          {/* ─── ABA: TODOS ─── */}
           <TabsContent value="todos" className="space-y-4 mt-4">
         <Card>
           <CardContent className="p-4">
@@ -723,9 +697,7 @@ const Agendamentos = () => {
           </CardContent>
         </Card>
 
-        {/* Appointment List */}
         {isMobile ? (
-          /* Mobile: Cards */
           <div className="space-y-3">
             {filteredAppointments.length === 0 ? (
               <Card className="p-8 text-center text-muted-foreground">
@@ -811,7 +783,6 @@ const Agendamentos = () => {
             )}
           </div>
         ) : (
-          /* Desktop: Table */
           <Card>
             <CardContent className="p-0 overflow-x-auto">
               <Table>
@@ -943,10 +914,7 @@ const Agendamentos = () => {
             </CardContent>
           </Card>
         )}
-          </TabsContent>
-
-          {/* ─── ABA: PENDENTE DE ORÇAMENTO ─── */}
-          <TabsContent value="orcamento" className="mt-4">
+          </TabsContent><TabsContent value="orcamento" className="mt-4">
             {quoteAppointments.length === 0 ? (
               <Card className="p-10 text-center text-muted-foreground">
                 <DollarSign className="h-8 w-8 mx-auto mb-2 opacity-30" />
@@ -968,7 +936,6 @@ const Agendamentos = () => {
           </TabsContent>
         </Tabs>
 
-        {/* Dialog: Confirmar Orçamento */}
         <Dialog open={isQuoteDialogOpen} onOpenChange={setIsQuoteDialogOpen}>
           <DialogContent className="sm:max-w-[420px]">
             <DialogHeader>
@@ -1258,6 +1225,14 @@ const Agendamentos = () => {
           </DialogContent>
         </Dialog>
 
+        <MissingCriteriaDialog
+          open={isMissingCriteriaDialogOpen}
+          onOpenChange={setIsMissingCriteriaDialogOpen}
+          missingCriteria={missingCriteriaList}
+          onConfirm={handleConfirmMissing}
+          actionLabel={pendingSaveAction === 'edit' ? 'Salvar mesmo assim' : 'Criar mesmo assim'}
+        />
+
         {actionAppointmentId && (
           <>
             <SuggestSlotsDialog
@@ -1272,14 +1247,6 @@ const Agendamentos = () => {
             />
           </>
         )}
-
-        <MissingCriteriaDialog
-          open={isMissingCriteriaDialogOpen}
-          onOpenChange={setIsMissingCriteriaDialogOpen}
-          missingCriteria={missingCriteriaList}
-          onConfirm={handleConfirmMissing}
-          actionLabel={pendingSaveAction === 'edit' ? 'Salvar mesmo assim' : 'Criar mesmo assim'}
-        />
 
         <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
           <AlertDialogContent>
