@@ -251,6 +251,52 @@ serve(async (req) => {
       // Don't fail the whole request, just return empty services
     }
 
+    // Fetch AI context for tenant + per-service context + criteria in parallel
+    const serviceIds = (servicesData ?? []).map(s => s.id);
+
+    const [aiContextResult, serviceContextsResult, criteriaResult] = await Promise.all([
+      supabase
+        .from('tenant_ai_context')
+        .select('ai_name, ai_tone, business_intro, specialties, differentials, cancellation_policy, payment_policy, late_policy, rescheduling_policy, ethical_rules, faq, escalation_keywords, escalation_phone, alt_phone')
+        .eq('tenant_id', tenantId)
+        .maybeSingle(),
+
+      serviceIds.length > 0
+        ? supabase
+            .from('service_ai_context')
+            .select('service_id, description, indications, contraindications, post_procedure_care')
+            .in('service_id', serviceIds)
+        : Promise.resolve({ data: [], error: null }),
+
+      serviceIds.length > 0
+        ? supabase
+            .from('service_criteria')
+            .select('service_id, label, type, options, is_required, display_order')
+            .in('service_id', serviceIds)
+            .order('display_order', { ascending: true })
+        : Promise.resolve({ data: [], error: null }),
+    ]);
+
+    if (aiContextResult.error) console.warn('tenant_ai_context fetch error:', aiContextResult.error);
+    if (serviceContextsResult.error) console.warn('service_ai_context fetch error:', serviceContextsResult.error);
+    if (criteriaResult.error) console.warn('service_criteria fetch error:', criteriaResult.error);
+
+    // Build lookup maps keyed by service_id
+    const contextByServiceId = new Map(
+      (serviceContextsResult.data ?? []).map(ctx => [ctx.service_id, ctx])
+    );
+
+    const criteriaByServiceId = new Map<string, Array<{ label: string; type: string; options: unknown; isRequired: boolean }>>()
+    ;(criteriaResult.data ?? []).forEach(c => {
+      if (!criteriaByServiceId.has(c.service_id)) criteriaByServiceId.set(c.service_id, []);
+      criteriaByServiceId.get(c.service_id)!.push({
+        label: c.label,
+        type: c.type,
+        options: c.options ?? [],
+        isRequired: c.is_required ?? false,
+      });
+    });
+
     // Services that require a quote (price varies by hair length, area, etc.)
     const quoteKeywords = ['coloraç', 'colorac', 'progressiva', 'mechas', 'luzes', 'ombr'];
     const nameNorm = (n: string) => n.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
@@ -260,6 +306,7 @@ serve(async (req) => {
       const requiresQuote = service.requires_quote === true
         || Number(service.price) === 0
         || quoteKeywords.some(k => nameNorm(service.name).includes(k));
+      const ctx = contextByServiceId.get(service.id);
       return {
         id: service.id,
         name: service.name,
@@ -268,6 +315,13 @@ serve(async (req) => {
         category: service.category,
         isActive: service.is_active,
         requiresQuote,
+        aiContext: ctx ? {
+          description: ctx.description ?? null,
+          indications: ctx.indications ?? null,
+          contraindications: ctx.contraindications ?? null,
+          postProcedureCare: ctx.post_procedure_care ?? null,
+        } : null,
+        criteria: criteriaByServiceId.get(service.id) ?? [],
       };
     });
 
@@ -286,6 +340,7 @@ serve(async (req) => {
       policies,
       services,
       aiKnowledgeBase: settings.aiKnowledgeBase || null,
+      aiContext: aiContextResult.data ?? null,
     };
 
     return new Response(
