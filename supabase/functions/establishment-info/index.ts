@@ -271,7 +271,7 @@ serve(async (req) => {
       serviceIds.length > 0
         ? supabase
             .from('service_criteria')
-            .select('service_id, label, type, options, is_required, display_order')
+            .select('id, service_id, label, type, options, is_required, display_order')
             .in('service_id', serviceIds)
             .order('display_order', { ascending: true })
         : Promise.resolve({ data: [], error: null }),
@@ -286,10 +286,11 @@ serve(async (req) => {
       (serviceContextsResult.data ?? []).map(ctx => [ctx.service_id, ctx])
     );
 
-    const criteriaByServiceId = new Map<string, Array<{ label: string; type: string; options: unknown; isRequired: boolean }>>()
+    const criteriaByServiceId = new Map<string, Array<{ id: string; label: string; type: string; options: unknown; isRequired: boolean }>>()
     ;(criteriaResult.data ?? []).forEach(c => {
       if (!criteriaByServiceId.has(c.service_id)) criteriaByServiceId.set(c.service_id, []);
       criteriaByServiceId.get(c.service_id)!.push({
+        id: c.id,
         label: c.label,
         type: c.type,
         options: c.options ?? [],

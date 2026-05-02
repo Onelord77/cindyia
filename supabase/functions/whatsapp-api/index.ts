@@ -255,6 +255,45 @@ Deno.serve(async (req) => {
           .eq('tenant_id', tenantId)
           .eq('instance_name', instanceName.trim());
 
+        // Auto-configurar webhook se URL existir em system_settings
+        try {
+          const { data: webhookSetting } = await adminClient
+            .from('system_settings')
+            .select('value')
+            .eq('key', 'whatsapp_webhook_url')
+            .single();
+
+          const webhookUrl = webhookSetting?.value?.trim();
+
+          if (webhookUrl) {
+            const webhookRes = await fetch(`${UAZAPI_URL}/webhook`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'token': instance.instance_token,
+              },
+              body: JSON.stringify({
+                enabled: true,
+                url: webhookUrl,
+                events: ['messages', 'connection'],
+                excludeMessages: ['wasSentByApi', 'isGroupYes'],
+              }),
+            });
+
+            if (!webhookRes.ok) {
+              const errText = await webhookRes.text();
+              console.error('Auto set-webhook failed (não bloqueia connect):', errText);
+            } else {
+              console.log(`Webhook auto-configurado para instância ${instanceName.trim()}`);
+            }
+          } else {
+            console.log('whatsapp_webhook_url não cadastrado em system_settings — webhook não auto-configurado');
+          }
+        } catch (webhookErr) {
+          console.error('Exceção ao auto-configurar webhook (não bloqueia connect):', webhookErr);
+        }
+
         return new Response(
           JSON.stringify({
             success: true,
