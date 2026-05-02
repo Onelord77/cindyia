@@ -44,3 +44,12 @@ CREATE POLICY "tenant_select_suggestions"
 CREATE POLICY "tenant_insert_suggestions"
   ON public.appointment_suggestions FOR INSERT
   WITH CHECK (tenant_id IN (SELECT tenant_id FROM public.profiles WHERE id = auth.uid()));
+
+CREATE POLICY "tenant_update_suggestions"
+  ON public.appointment_suggestions FOR UPDATE
+  USING (tenant_id IN (SELECT tenant_id FROM public.profiles WHERE id = auth.uid()))
+  WITH CHECK (tenant_id IN (SELECT tenant_id FROM public.profiles WHERE id = auth.uid()));
+
+CREATE POLICY "tenant_delete_suggestions"
+  ON public.appointment_suggestions FOR DELETE
+  USING (tenant_id IN (SELECT tenant_id FROM public.profiles WHERE id = auth.uid()));

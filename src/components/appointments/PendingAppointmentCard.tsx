@@ -2,13 +2,14 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { DollarSign, MessageCircle, Calendar, Ban, Clock, AlertTriangle, Image as ImageIcon } from 'lucide-react';
+import { DollarSign, MessageCircle, Calendar, Ban, Clock, AlertTriangle, Image as ImageIcon, CheckCircle } from 'lucide-react';
 import { cn, formatTimeInSaoPaulo } from '@/lib/utils';
 import { useAppointmentCriteria } from '@/hooks/useAppointmentCriteria';
 import type { ServiceCriterion } from '@/types/criteria';
 
 interface Props {
   appointment: any;  // tipo herdado de useAppointments
+  onConfirm: () => void;
   onDefineQuote: () => void;
   onSuggestSlots: () => void;
   onReject: () => void;
@@ -74,7 +75,7 @@ function renderCriterionValue(criterion: ServiceCriterion, value: string, isCust
   }
 }
 
-export function PendingAppointmentCard({ appointment, onDefineQuote, onSuggestSlots, onReject }: Props) {
+export function PendingAppointmentCard({ appointment, onConfirm, onDefineQuote, onSuggestSlots, onReject }: Props) {
   // Atualiza o timer a cada minuto
   const [, forceUpdate] = useState(0);
   useEffect(() => {
@@ -183,6 +184,10 @@ export function PendingAppointmentCard({ appointment, onDefineQuote, onSuggestSl
 
         {/* Botões de ação */}
         <div className="flex flex-wrap gap-2 pt-1">
+          <Button size="sm" variant="outline" className="gap-1.5 text-success hover:text-success" onClick={onConfirm}>
+            <CheckCircle className="h-3.5 w-3.5" />
+            Confirmar
+          </Button>
           <Button size="sm" className="gap-1.5" onClick={onDefineQuote}>
             <DollarSign className="h-3.5 w-3.5" />
             Orçamento

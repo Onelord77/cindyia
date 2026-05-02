@@ -67,6 +67,48 @@ export type Database = {
           },
         ]
       }
+      appointment_suggestions: {
+        Row: {
+          appointment_id: string
+          created_at: string
+          id: string
+          observation: string | null
+          suggested_slots: Json
+          tenant_id: string
+        }
+        Insert: {
+          appointment_id: string
+          created_at?: string
+          id?: string
+          observation?: string | null
+          suggested_slots: Json
+          tenant_id: string
+        }
+        Update: {
+          appointment_id?: string
+          created_at?: string
+          id?: string
+          observation?: string | null
+          suggested_slots?: Json
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "appointment_suggestions_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointment_suggestions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       appointments: {
         Row: {
           client_id: string | null
@@ -80,11 +122,13 @@ export type Database = {
           price: number | null
           scheduled_at: string
           service_id: string | null
+          cancellation_reason: string | null
           status: Database["public"]["Enums"]["appointment_status"] | null
           tenant_id: string
           updated_at: string | null
         }
         Insert: {
+          cancellation_reason?: string | null
           client_id?: string | null
           created_at?: string | null
           created_by?: string | null
@@ -101,6 +145,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          cancellation_reason?: string | null
           client_id?: string | null
           created_at?: string | null
           created_by?: string | null
@@ -876,6 +921,7 @@ export type Database = {
         | "completed"
         | "cancelled"
         | "no_show"
+        | "suggested"
       financial_type: "income" | "expense"
       payment_status: "pending" | "paid" | "partial" | "refunded"
       tenant_status: "active" | "inactive" | "suspended"

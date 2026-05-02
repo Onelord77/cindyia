@@ -442,6 +442,11 @@ const Agendamentos = () => {
     toast.success(`Status atualizado para ${statusConfig[status]?.label}`);
   };
 
+  const handleConfirmAppointment = async (id: string) => {
+    await updateStatus.mutateAsync({ id, status: 'confirmed' });
+    toast.success('Agendamento confirmado!');
+  };
+
   const handleMarkAsCompleted = async (appointmentId: string, price: number) => {
     await markAsCompleted.mutateAsync({ appointmentId, price });
   };
@@ -926,6 +931,7 @@ const Agendamentos = () => {
                   <PendingAppointmentCard
                     key={appointment.id}
                     appointment={appointment}
+                    onConfirm={() => handleConfirmAppointment(appointment.id)}
                     onDefineQuote={() => handleOpenQuoteDialog(appointment.id)}
                     onSuggestSlots={() => { setActionAppointmentId(appointment.id); setIsSuggestDialogOpen(true); }}
                     onReject={() => { setActionAppointmentId(appointment.id); setIsRejectDialogOpen(true); }}
