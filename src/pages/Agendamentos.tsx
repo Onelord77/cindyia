@@ -100,11 +100,11 @@ const Agendamentos = () => {
     } else if (preset === 'today') {
       setDateRange({ from: today, to: today });
     } else if (preset === '7days') {
-      const from = new Date(); from.setDate(today.getDate() - 7);
-      setDateRange({ from, to: today });
+      const to = new Date(); to.setDate(today.getDate() + 7);
+      setDateRange({ from: today, to });
     } else if (preset === '30days') {
-      const from = new Date(); from.setDate(today.getDate() - 30);
-      setDateRange({ from, to: today });
+      const to = new Date(); to.setDate(today.getDate() + 30);
+      setDateRange({ from: today, to });
     }
   };
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -302,8 +302,17 @@ const Agendamentos = () => {
     confirmQuoteMutation.mutate({ id: confirmingQuoteId, price });
   };
 
+  const STATUS_ORDER: Record<string, number> = {
+    scheduled: 0,
+    pending_quote: 1,
+    confirmed: 2,
+    completed: 3,
+    cancelled: 4,
+    no_show: 4,
+  };
+
   const filteredAppointments = useMemo(() => {
-    return appointments.filter((appointment) => {
+    const filtered = appointments.filter((appointment) => {
       const serviceNames = appointment.appointment_services && appointment.appointment_services.length > 0
         ? appointment.appointment_services.map(as => as.services?.name || '').join(' ')
         : appointment.services?.name || '';
@@ -311,7 +320,7 @@ const Agendamentos = () => {
         appointment.clients?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         serviceNames.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesStatus = statusFilter === 'all' || appointment.status === statusFilter;
-      
+
       if (dateRange?.from && dateRange?.to) {
         const appointmentDate = new Date(appointment.scheduled_at);
         const isInRange = isWithinInterval(appointmentDate, {
@@ -320,8 +329,14 @@ const Agendamentos = () => {
         });
         return matchesSearch && matchesStatus && isInRange;
       }
-      
+
       return matchesSearch && matchesStatus;
+    });
+
+    return filtered.sort((a, b) => {
+      const statusDiff = (STATUS_ORDER[a.status] ?? 5) - (STATUS_ORDER[b.status] ?? 5);
+      if (statusDiff !== 0) return statusDiff;
+      return new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime();
     });
   }, [appointments, searchTerm, statusFilter, dateRange]);
 
