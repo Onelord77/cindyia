@@ -1,7 +1,6 @@
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Clock, AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
@@ -157,21 +156,21 @@ export function WorkingHoursEditor({ value, onChange, companyHours }: WorkingHou
         </Alert>
       )}
       
-      <ScrollArea className="h-[280px] rounded-md border">
-        <div className="space-y-2 p-3">
+      <div className="rounded-md border">
+        <div className="space-y-1 p-2">
           {DAYS_OF_WEEK.map((day) => {
             const schedule = normalizedValue[day.key];
             const dayAvailable = isDayAvailable(day.key);
             const isDisabledByCompany = !dayAvailable;
             
             return (
-              <div 
-                key={day.key} 
-                className={`flex items-center gap-3 p-2 rounded-md transition-colors ${
-                  isDisabledByCompany 
-                    ? 'bg-muted/50 opacity-60' 
-                    : schedule.enabled 
-                      ? 'bg-primary/5' 
+              <div
+                key={day.key}
+                className={`flex items-center gap-2 p-2 rounded-md transition-colors ${
+                  isDisabledByCompany
+                    ? 'bg-muted/50 opacity-60'
+                    : schedule.enabled
+                      ? 'bg-primary/5'
                       : 'bg-muted/30'
                 }`}
               >
@@ -181,33 +180,33 @@ export function WorkingHoursEditor({ value, onChange, companyHours }: WorkingHou
                   disabled={isDisabledByCompany}
                   aria-label={`Ativar ${day.label}`}
                 />
-                <span className={`w-20 text-sm font-medium ${
-                  isDisabledByCompany 
+                <span className={`w-16 shrink-0 text-sm font-medium ${
+                  isDisabledByCompany
                     ? 'text-muted-foreground line-through'
-                    : schedule.enabled 
-                      ? 'text-foreground' 
+                    : schedule.enabled
+                      ? 'text-foreground'
                       : 'text-muted-foreground'
                 }`}>
                   {day.label}
                 </span>
                 {schedule.enabled && dayAvailable && (
-                  <div className="flex items-center gap-2 flex-1">
+                  <div className="flex items-center gap-1.5 flex-1 min-w-0">
                     <Input
                       type="time"
                       value={schedule.start}
                       onChange={(e) => updateTime(day.key, 'start', e.target.value)}
                       min={companyHours?.openTime}
                       max={companyHours?.closeTime}
-                      className="w-28 h-8 text-sm"
+                      className="flex-1 min-w-0 h-8 text-sm"
                     />
-                    <span className="text-muted-foreground text-sm">até</span>
+                    <span className="text-muted-foreground text-xs shrink-0">–</span>
                     <Input
                       type="time"
                       value={schedule.end}
                       onChange={(e) => updateTime(day.key, 'end', e.target.value)}
                       min={companyHours?.openTime}
                       max={companyHours?.closeTime}
-                      className="w-28 h-8 text-sm"
+                      className="flex-1 min-w-0 h-8 text-sm"
                     />
                   </div>
                 )}
@@ -221,7 +220,7 @@ export function WorkingHoursEditor({ value, onChange, companyHours }: WorkingHou
             );
           })}
         </div>
-      </ScrollArea>
+      </div>
     </div>
   );
 }

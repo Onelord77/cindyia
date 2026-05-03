@@ -541,7 +541,7 @@ const Funcionarios = () => {
         </div>
 
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogContent className="max-w-3xl w-[95vw] max-h-[90vh] overflow-hidden flex flex-col">
             <DialogHeader>
               <DialogTitle>{editingEmployee ? 'Editar' : 'Novo'} Funcionário</DialogTitle>
               <DialogDescription>
