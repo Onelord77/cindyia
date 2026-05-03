@@ -231,7 +231,7 @@ const Agendamentos = () => {
 
   const quoteAppointments = useMemo(() => {
     return appointments.filter(apt => {
-      if (apt.status === 'completed' || apt.status === 'cancelled') return false;
+      if (apt.status === 'completed' || apt.status === 'cancelled' || apt.status === 'confirmed') return false;
       const svcIds = (apt.appointment_services && apt.appointment_services.length > 0)
         ? apt.appointment_services.map(as => as.service_id)
         : (apt.service_id ? [apt.service_id] : []);
