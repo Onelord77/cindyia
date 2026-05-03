@@ -754,19 +754,21 @@ const Funcionarios = () => {
                   </div>
                 </TabsContent>
 
-                <TabsContent value="horarios" className="mt-0 pr-4 space-y-6">
-                  <WorkingHoursEditor
-                    value={formData.workingHours}
-                    onChange={(value) => setFormData(p => ({ ...p, workingHours: value }))}
-                    companyHours={companyHours}
-                  />
-                  
-                  <BreaksEditor
-                    value={formData.breaks}
-                    onChange={(value) => setFormData(p => ({ ...p, breaks: value }))}
-                    workingHoursStart={formData.workingHours?.default?.start || companyHours?.openTime || '09:00'}
-                    workingHoursEnd={formData.workingHours?.default?.end || companyHours?.closeTime || '18:00'}
-                  />
+                <TabsContent value="horarios" className="mt-0 pr-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <WorkingHoursEditor
+                      value={formData.workingHours}
+                      onChange={(value) => setFormData(p => ({ ...p, workingHours: value }))}
+                      companyHours={companyHours}
+                    />
+
+                    <BreaksEditor
+                      value={formData.breaks}
+                      onChange={(value) => setFormData(p => ({ ...p, breaks: value }))}
+                      workingHoursStart={formData.workingHours?.default?.start || companyHours?.openTime || '09:00'}
+                      workingHoursEnd={formData.workingHours?.default?.end || companyHours?.closeTime || '18:00'}
+                    />
+                  </div>
                 </TabsContent>
               </ScrollArea>
             </Tabs>
