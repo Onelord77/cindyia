@@ -22,7 +22,7 @@ type RawResponse = {
   appointment_id: string;
   criterion_id: string;
   tenant_id: string;
-  answer: { value: string; isCustomAnswer: boolean } | null;
+  answer: { value: unknown; isCustomAnswer?: boolean; raw_text?: string } | null;
   created_at: string | null;
 };
 
@@ -42,7 +42,7 @@ function mapCriterion(row: RawCriterion): ServiceCriterion {
   };
 }
 
-export type CriterionResponseEntry = { value: string; isCustomAnswer: boolean };
+export type CriterionResponseEntry = { value: string; rawText?: string; isCustomAnswer: boolean };
 export type CriteriaResponsesMap = Map<string, CriterionResponseEntry>;
 
 export function useAppointmentCriteria(
@@ -85,8 +85,8 @@ export function useAppointmentCriteria(
   // Build map from DB responses: criterionId -> { value, isCustomAnswer }
   const responsesMap: CriteriaResponsesMap = new Map(
     rawResponses
-      .filter(r => r.answer?.value)
-      .map(r => [r.criterion_id, { value: r.answer!.value, isCustomAnswer: r.answer!.isCustomAnswer ?? false }])
+      .filter(r => r.answer != null)
+      .map(r => [r.criterion_id, { value: String(r.answer!.value), rawText: r.answer!.raw_text || undefined, isCustomAnswer: r.answer!.isCustomAnswer ?? false }])
   );
 
   const saveResponses = useMutation({

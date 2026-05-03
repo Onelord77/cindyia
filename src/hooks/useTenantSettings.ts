@@ -21,6 +21,7 @@ export interface TenantSettings {
   notifyOnReminder: boolean;
   reminderHours: string;
   notifyOnCancellation: boolean;
+  notificationGroupJid: string;
 }
 
 const defaultSettings: TenantSettings = {
@@ -36,6 +37,7 @@ const defaultSettings: TenantSettings = {
   notifyOnReminder: true,
   reminderHours: '2',
   notifyOnCancellation: true,
+  notificationGroupJid: '',
 };
 
 // Função helper para ajustar horários dos funcionários (fora do hook)
@@ -198,6 +200,7 @@ export function useTenantSettings() {
         notifyOnReminder: storedSettings.notifyOnReminder !== false,
         reminderHours: (storedSettings.reminderHours as string) || '2',
         notifyOnCancellation: storedSettings.notifyOnCancellation !== false,
+        notificationGroupJid: (storedSettings.notificationGroupJid as string) || '',
       });
     } catch (error) {
       console.error('Error in fetchSettings:', error);

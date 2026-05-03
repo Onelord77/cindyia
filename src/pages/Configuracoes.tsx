@@ -317,13 +317,26 @@ const Configuracoes = () => {
                       Notificar quando agendamento for cancelado
                     </p>
                   </div>
-                  <Switch 
+                  <Switch
                     checked={settings.notifyOnCancellation}
                     onCheckedChange={(checked) => updateSetting('notifyOnCancellation', checked)}
                   />
                 </div>
 
                 <Separator />
+
+                <div className="space-y-2">
+                  <Label htmlFor="notificationGroupJid">Grupo de Notificações (WhatsApp)</Label>
+                  <p className="text-sm text-muted-foreground">
+                    ID do grupo para receber alertas de novos agendamentos pendentes e leads. Ex: <code className="text-xs bg-muted px-1 rounded">120363XXXXXXXX@g.us</code>
+                  </p>
+                  <Input
+                    id="notificationGroupJid"
+                    placeholder="120363XXXXXXXX@g.us"
+                    value={settings.notificationGroupJid}
+                    onChange={(e) => updateSetting('notificationGroupJid', e.target.value)}
+                  />
+                </div>
 
                 <div className="flex justify-end">
                   <Button className="gap-2" onClick={handleSave} disabled={saving}>

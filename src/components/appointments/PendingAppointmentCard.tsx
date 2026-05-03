@@ -174,7 +174,12 @@ export function PendingAppointmentCard({ appointment, onConfirm, onDefineQuote, 
                 return (
                   <div key={c.id} className="flex justify-between gap-2 text-xs">
                     <span className="text-muted-foreground">{c.label}:</span>
-                    <div>{renderCriterionValue(c, response.value, response.isCustomAnswer)}</div>
+                    <div>
+                      {response.rawText
+                        ? <span className="font-medium">{response.rawText}</span>
+                        : renderCriterionValue(c, response.value, response.isCustomAnswer)
+                      }
+                    </div>
                   </div>
                 );
               })}
