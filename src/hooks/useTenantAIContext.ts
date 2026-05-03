@@ -24,6 +24,7 @@ function toFrontend(row: Record<string, unknown>): TenantAIContext {
     paymentPolicy: (row.payment_policy as string) ?? '',
     latePolicy: (row.late_policy as string) ?? '',
     ethicalRules: (row.ethical_rules as string[]) ?? defaultAIContext.ethicalRules,
+    errorExamples: (row.error_examples as string) ?? '',
   };
 }
 
@@ -43,6 +44,7 @@ function toDatabase(data: TenantAIContext, tenantId: string): Record<string, unk
     payment_policy: data.paymentPolicy,
     late_policy: data.latePolicy,
     ethical_rules: data.ethicalRules,
+    error_examples: data.errorExamples,
   };
 }
 

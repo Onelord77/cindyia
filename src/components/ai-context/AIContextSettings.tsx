@@ -300,6 +300,33 @@ export function AIContextSettings() {
           </AccordionContent>
         </AccordionItem>
 
+        {/* Seção 5: Aprendizado de Erros */}
+        <AccordionItem value="errors" className="border rounded-lg px-4">
+          <AccordionTrigger className="text-base font-semibold hover:no-underline">
+            Aprendizado de Erros
+          </AccordionTrigger>
+          <AccordionContent className="space-y-4 pb-4">
+            <p className="text-sm text-muted-foreground">
+              Cole aqui exemplos de situações em que a IA errou. Ela vai evitar repetir esses comportamentos.
+            </p>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="errorExamples">Exemplos de erros</Label>
+                <span className="text-xs text-muted-foreground">{form.errorExamples.length}/2000</span>
+              </div>
+              <Textarea
+                id="errorExamples"
+                value={form.errorExamples}
+                onChange={(e) => {
+                  if (e.target.value.length <= 2000) update('errorExamples', e.target.value);
+                }}
+                placeholder={'Exemplo:\n- A IA agendou sem perguntar os critérios obrigatórios quando cliente disse "quero agendar amanhã às 10h"\n- A IA inventou um preço para coloração quando deveria dizer "a consultar"'}
+                rows={8}
+              />
+            </div>
+          </AccordionContent>
+        </AccordionItem>
+
       </Accordion>
 
       <Separator />

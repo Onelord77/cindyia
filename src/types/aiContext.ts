@@ -26,6 +26,9 @@ export interface TenantAIContext {
 
   // Regras éticas
   ethicalRules: string[];
+
+  // Aprendizado de erros
+  errorExamples: string;
 }
 
 export const defaultAIContext: TenantAIContext = {
@@ -46,4 +49,5 @@ export const defaultAIContext: TenantAIContext = {
     'Não recomendar medicação',
     'Não fazer prognóstico',
   ],
+  errorExamples: '',
 };

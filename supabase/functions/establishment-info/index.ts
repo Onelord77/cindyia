@@ -257,7 +257,7 @@ serve(async (req) => {
     const [aiContextResult, serviceContextsResult, criteriaResult] = await Promise.all([
       supabase
         .from('tenant_ai_context')
-        .select('ai_name, ai_tone, business_intro, specialties, differentials, cancellation_policy, payment_policy, late_policy, rescheduling_policy, ethical_rules, faq, escalation_keywords, escalation_phone, alt_phone')
+        .select('ai_name, ai_tone, business_intro, specialties, differentials, cancellation_policy, payment_policy, late_policy, rescheduling_policy, ethical_rules, faq, escalation_keywords, escalation_phone, alt_phone, error_examples')
         .eq('tenant_id', tenantId)
         .maybeSingle(),
 
