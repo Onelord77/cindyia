@@ -922,6 +922,7 @@ export type Database = {
         | "cancelled"
         | "no_show"
         | "suggested"
+        | "awaiting_approval"
       financial_type: "income" | "expense"
       payment_status: "pending" | "paid" | "partial" | "refunded"
       tenant_status: "active" | "inactive" | "suspended"

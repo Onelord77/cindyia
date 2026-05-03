@@ -27,7 +27,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Search, Filter, Plus, MoreVertical, Edit, Calendar, X, Loader2, CheckCircle, DollarSign, ClipboardList } from 'lucide-react';
+import { Search, Filter, Plus, MoreVertical, Edit, Calendar, X, Loader2, CheckCircle, ClipboardList } from 'lucide-react';
 import { cn, toSaoPauloDateTime, createSaoPauloDate, formatTimeInSaoPaulo, getTodayInSaoPaulo, getDateInSaoPaulo } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useAppointments } from '@/hooks/useAppointments';
@@ -657,8 +657,8 @@ const Agendamentos = () => {
               Todos
             </TabsTrigger>
             <TabsTrigger value="orcamento" className="flex items-center gap-2">
-              <DollarSign className="h-4 w-4" />
-              Pendente de Orçamento
+              <CheckCircle className="h-4 w-4" />
+              Pendente de Aprovação
               {quoteAppointments.length > 0 && (
                 <Badge variant="destructive" className="ml-1 h-5 w-5 flex items-center justify-center p-0 text-xs">
                   {quoteAppointments.length}
@@ -922,8 +922,8 @@ const Agendamentos = () => {
           </TabsContent><TabsContent value="orcamento" className="mt-4">
             {quoteAppointments.length === 0 ? (
               <Card className="p-10 text-center text-muted-foreground">
-                <DollarSign className="h-8 w-8 mx-auto mb-2 opacity-30" />
-                <p>Nenhum agendamento pendente de orçamento.</p>
+                <CheckCircle className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                <p>Nenhum agendamento pendente de aprovação.</p>
               </Card>
             ) : (
               <div className="space-y-3">
