@@ -13,6 +13,7 @@ interface Props {
   onDefineQuote: () => void;
   onSuggestSlots: () => void;
   onReject: () => void;
+  onPauseAI?: (clientId: string) => void;
 }
 
 // Calcula tempo de espera desde created_at
@@ -75,7 +76,7 @@ function renderCriterionValue(criterion: ServiceCriterion, value: string, isCust
   }
 }
 
-export function PendingAppointmentCard({ appointment, onConfirm, onDefineQuote, onSuggestSlots, onReject }: Props) {
+export function PendingAppointmentCard({ appointment, onConfirm, onDefineQuote, onSuggestSlots, onReject, onPauseAI }: Props) {
   // Atualiza o timer a cada minuto
   const [, forceUpdate] = useState(0);
   useEffect(() => {
@@ -198,11 +199,17 @@ export function PendingAppointmentCard({ appointment, onConfirm, onDefineQuote, 
             Orçamento
           </Button>
           {whatsappUrl ? (
-            <Button size="sm" variant="outline" className="gap-1.5" asChild>
-              <a href={whatsappUrl} target="_blank" rel="noopener noreferrer">
-                <MessageCircle className="h-3.5 w-3.5" />
-                WhatsApp
-              </a>
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1.5"
+              onClick={() => {
+                if (onPauseAI && appointment.client_id) onPauseAI(appointment.client_id);
+                window.open(whatsappUrl, '_blank', 'noopener,noreferrer');
+              }}
+            >
+              <MessageCircle className="h-3.5 w-3.5" />
+              WhatsApp
             </Button>
           ) : (
             <Button size="sm" variant="outline" className="gap-1.5" disabled title="Sem telefone cadastrado">

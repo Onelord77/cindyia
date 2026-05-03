@@ -246,6 +246,12 @@ const Agendamentos = () => {
         .update({ price, status: 'confirmed' })
         .eq('id', id);
       if (error) throw error;
+      // Resume AI for this client
+      const apt = appointments.find(a => a.id === id);
+      const clientId = apt?.client_id;
+      if (clientId) {
+        await supabase.from('clients').update({ ai_paused: false } as any).eq('id', clientId);
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['appointments'] });
@@ -256,6 +262,11 @@ const Agendamentos = () => {
     },
     onError: () => toast.error('Erro ao confirmar orçamento'),
   });
+
+  const handlePauseAI = async (clientId: string) => {
+    await supabase.from('clients').update({ ai_paused: true } as any).eq('id', clientId);
+    toast.info('IA pausada para este cliente. Ela retoma após confirmar o orçamento.');
+  };
 
   const handleOpenQuoteDialog = (appointmentId: string) => {
     const apt = appointments.find(a => a.id === appointmentId);
@@ -935,6 +946,7 @@ const Agendamentos = () => {
                     onDefineQuote={() => handleOpenQuoteDialog(appointment.id)}
                     onSuggestSlots={() => { setActionAppointmentId(appointment.id); setIsSuggestDialogOpen(true); }}
                     onReject={() => { setActionAppointmentId(appointment.id); setIsRejectDialogOpen(true); }}
+                    onPauseAI={handlePauseAI}
                   />
                 ))}
               </div>

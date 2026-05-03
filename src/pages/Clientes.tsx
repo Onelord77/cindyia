@@ -63,7 +63,10 @@ const Clientes = () => {
   const isMobile = useIsMobile();
   const [statusFilter, setStatusFilter] = useState<ClientStatusFilter>('all');
   const [viewMode, setViewMode] = useState<'lista' | 'kanban'>('lista');
-  const { clients, isLoading, addClient, updateClient, deleteClient } = useClients(statusFilter);
+  const { clients, isLoading, addClient, updateClient, deleteClient } = useClients(
+    statusFilter,
+    { excludeWithAppointments: statusFilter === 'lead' && viewMode === 'kanban' }
+  );
   const { clients: allClients = [] } = useClients('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);

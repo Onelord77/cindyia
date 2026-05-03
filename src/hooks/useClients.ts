@@ -10,13 +10,14 @@ type ClientUpdate = Database['public']['Tables']['clients']['Update'];
 
 export type ClientStatusFilter = 'all' | 'lead' | 'client';
 
-export function useClients(statusFilter: ClientStatusFilter = 'all') {
+export function useClients(statusFilter: ClientStatusFilter = 'all', options?: { excludeWithAppointments?: boolean }) {
   const { profile } = useAuth();
   const queryClient = useQueryClient();
   const tenantId = profile?.tenant_id;
+  const excludeWithAppointments = options?.excludeWithAppointments ?? false;
 
   const { data: clients = [], isLoading, error } = useQuery({
-    queryKey: ['clients', tenantId, statusFilter],
+    queryKey: ['clients', tenantId, statusFilter, excludeWithAppointments],
     queryFn: async () => {
       if (!tenantId) return [];
 
@@ -34,6 +35,19 @@ export function useClients(statusFilter: ClientStatusFilter = 'all') {
 
       const { data, error } = await query;
       if (error) throw error;
+
+      // Exclude leads that already have at least one appointment
+      if (excludeWithAppointments && statusFilter === 'lead' && data && data.length > 0) {
+        const clientIds = data.map(c => c.id);
+        const { data: appts } = await supabase
+          .from('appointments')
+          .select('client_id')
+          .in('client_id', clientIds)
+          .eq('tenant_id', tenantId);
+        const withAppt = new Set((appts ?? []).map(a => a.client_id));
+        return data.filter(c => !withAppt.has(c.id));
+      }
+
       return data;
     },
     enabled: !!tenantId,
