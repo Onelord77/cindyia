@@ -90,6 +90,23 @@ const Agendamentos = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
+  const [datePreset, setDatePreset] = useState<'all' | 'today' | '7days' | '30days'>('all');
+
+  const applyDatePreset = (preset: 'all' | 'today' | '7days' | '30days') => {
+    setDatePreset(preset);
+    const today = new Date();
+    if (preset === 'all') {
+      setDateRange(undefined);
+    } else if (preset === 'today') {
+      setDateRange({ from: today, to: today });
+    } else if (preset === '7days') {
+      const from = new Date(); from.setDate(today.getDate() - 7);
+      setDateRange({ from, to: today });
+    } else if (preset === '30days') {
+      const from = new Date(); from.setDate(today.getDate() - 30);
+      setDateRange({ from, to: today });
+    }
+  };
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingAppointmentId, setEditingAppointmentId] = useState<string | null>(null);
@@ -700,10 +717,29 @@ const Agendamentos = () => {
                     <SelectItem value="cancelled">Cancelado</SelectItem>
                   </SelectContent>
                 </Select>
-                <div className="flex items-center gap-2 flex-1">
-                  <DateRangePicker dateRange={dateRange} onDateRangeChange={setDateRange} placeholder="Filtrar por período" className="flex-1" />
+                <div className="flex flex-wrap items-center gap-1.5 flex-1">
+                  {(['all', 'today', '7days', '30days'] as const).map((preset) => (
+                    <Button
+                      key={preset}
+                      size="sm"
+                      variant={datePreset === preset && !(!dateRange && preset !== 'all') ? 'default' : datePreset === preset ? 'default' : 'outline'}
+                      onClick={() => applyDatePreset(preset)}
+                      className="h-9"
+                    >
+                      {preset === 'all' ? 'Tudo' : preset === 'today' ? 'Hoje' : preset === '7days' ? '7 dias' : '30 dias'}
+                    </Button>
+                  ))}
+                  <DateRangePicker
+                    dateRange={datePreset === 'all' || dateRange === undefined ? undefined : dateRange}
+                    onDateRangeChange={(range) => {
+                      setDateRange(range);
+                      setDatePreset('all');
+                    }}
+                    placeholder="Período"
+                    className="flex-1 min-w-[130px]"
+                  />
                   {dateRange && (
-                    <Button variant="ghost" size="icon" onClick={() => setDateRange(undefined)}>
+                    <Button variant="ghost" size="icon" onClick={() => { setDateRange(undefined); setDatePreset('all'); }}>
                       <X className="h-4 w-4" />
                     </Button>
                   )}

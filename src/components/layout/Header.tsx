@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { User, Settings, LogOut, Menu } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -15,6 +16,7 @@ import { toast } from 'sonner';
 import { NotificationDropdown } from '@/components/notifications';
 import { ThemeToggle } from '@/components/theme';
 import { useBrandingContext } from '@/components/branding/BrandingProvider';
+import { AccountDialog } from '@/components/account/AccountDialog';
 
 interface HeaderProps {
   onMenuClick?: () => void;
@@ -25,14 +27,12 @@ export function Header({ onMenuClick, showMenuButton }: HeaderProps) {
   const navigate = useNavigate();
   const { profile, signOut } = useAuth();
   const { branding } = useBrandingContext();
+  const [accountOpen, setAccountOpen] = useState(false);
 
   const userName = profile?.full_name || 'Usuário';
   const tenantName = branding.displayName || 'Cindy IA';
 
-  const handleProfile = () => {
-    navigate('/configuracoes');
-    toast.info('Abrindo perfil...');
-  };
+  const handleProfile = () => setAccountOpen(true);
 
   const handleSettings = () => {
     navigate('/configuracoes');
@@ -107,6 +107,12 @@ export function Header({ onMenuClick, showMenuButton }: HeaderProps) {
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+
+      <AccountDialog
+        open={accountOpen}
+        onOpenChange={setAccountOpen}
+        currentEmail={profile?.email || ''}
+      />
     </header>
   );
 }

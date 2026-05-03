@@ -168,39 +168,41 @@ export function BreaksEditor({ value, onChange, workingHoursStart = '09:00', wor
         <ScrollArea className="max-h-[200px] rounded-md border">
           <div className="space-y-2 p-3">
             {sortedBreaks.map((breakItem) => (
-              <div 
+              <div
                 key={breakItem.id}
-                className="flex items-center gap-2 p-2 rounded-md bg-muted/30"
+                className="flex flex-wrap items-center gap-2 p-2 rounded-md bg-muted/30"
               >
                 <Input
                   type="text"
                   value={breakItem.label || ''}
                   onChange={(e) => updateBreak(breakItem.id, 'label', e.target.value)}
                   placeholder="Descrição"
-                  className="w-24 h-8 text-sm"
+                  className="flex-1 min-w-[80px] h-8 text-sm"
                 />
-                <Input
-                  type="time"
-                  value={breakItem.start}
-                  onChange={(e) => updateBreak(breakItem.id, 'start', e.target.value)}
-                  min={safeWorkingHoursStart}
-                  max={safeWorkingHoursEnd}
-                  className="w-28 h-8 text-sm"
-                />
-                <span className="text-muted-foreground text-sm">até</span>
-                <Input
-                  type="time"
-                  value={breakItem.end}
-                  onChange={(e) => updateBreak(breakItem.id, 'end', e.target.value)}
-                  min={safeWorkingHoursStart}
-                  max={safeWorkingHoursEnd}
-                  className="w-28 h-8 text-sm"
-                />
+                <div className="flex items-center gap-1.5">
+                  <Input
+                    type="time"
+                    value={breakItem.start}
+                    onChange={(e) => updateBreak(breakItem.id, 'start', e.target.value)}
+                    min={safeWorkingHoursStart}
+                    max={safeWorkingHoursEnd}
+                    className="w-[100px] h-8 text-sm"
+                  />
+                  <span className="text-muted-foreground text-xs shrink-0">até</span>
+                  <Input
+                    type="time"
+                    value={breakItem.end}
+                    onChange={(e) => updateBreak(breakItem.id, 'end', e.target.value)}
+                    min={safeWorkingHoursStart}
+                    max={safeWorkingHoursEnd}
+                    className="w-[100px] h-8 text-sm"
+                  />
+                </div>
                 <Button
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="h-8 w-8 text-destructive hover:text-destructive"
+                  className="h-8 w-8 text-destructive hover:text-destructive shrink-0"
                   onClick={() => removeBreak(breakItem.id)}
                 >
                   <Trash2 className="h-4 w-4" />

@@ -196,20 +196,20 @@ const Clientes = () => {
         </div>
 
         {/* Tabs + toggle de visualização */}
-        <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div className="flex flex-wrap items-center gap-3">
           <Tabs value={statusFilter} onValueChange={(v) => {
             setStatusFilter(v as ClientStatusFilter);
             if (v !== 'lead') setViewMode('lista');
-          }}>
-            <TabsList>
-              <TabsTrigger value="all">Todos</TabsTrigger>
-              <TabsTrigger value="lead">Leads</TabsTrigger>
-              <TabsTrigger value="client">Clientes</TabsTrigger>
+          }} className="flex-1 min-w-0">
+            <TabsList className="w-full sm:w-auto">
+              <TabsTrigger value="all" className="flex-1 sm:flex-none">Todos</TabsTrigger>
+              <TabsTrigger value="lead" className="flex-1 sm:flex-none">Leads</TabsTrigger>
+              <TabsTrigger value="client" className="flex-1 sm:flex-none">Clientes</TabsTrigger>
             </TabsList>
           </Tabs>
 
           {statusFilter === 'lead' && (
-            <ToggleGroup type="single" value={viewMode} onValueChange={(v) => v && setViewMode(v as 'lista' | 'kanban')} size="sm">
+            <ToggleGroup type="single" value={viewMode} onValueChange={(v) => v && setViewMode(v as 'lista' | 'kanban')} size="sm" className="shrink-0">
               <ToggleGroupItem value="lista" aria-label="Visualização lista">
                 <List className="h-4 w-4" />
               </ToggleGroupItem>
@@ -529,7 +529,7 @@ const Clientes = () => {
 
         {/* Create/Edit Dialog */}
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogContent className="sm:max-w-[500px]">
+          <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
                 {editingClient

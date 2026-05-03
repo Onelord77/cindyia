@@ -160,7 +160,7 @@ export function LeadsKanbanView({ clients, onEditClient }: LeadsKanbanViewProps)
   ];
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col min-h-0">
       {/* Header */}
       <div className="flex items-center justify-between py-3 shrink-0">
         <p className="text-sm text-muted-foreground">
@@ -215,8 +215,8 @@ export function LeadsKanbanView({ clients, onEditClient }: LeadsKanbanViewProps)
         </div>
       ) : (
         <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-          <div className="flex-1 overflow-x-auto">
-            <div className="flex gap-4 pb-6 h-full" style={{ minWidth: 'max-content' }}>
+          <div className="overflow-x-auto">
+            <div className="flex gap-4 pb-6 min-h-[400px]" style={{ minWidth: 'max-content' }}>
               {COLUMN_KEYS_ORDER.map((key) => (
                 <LeadKanbanColumn
                   key={key}
