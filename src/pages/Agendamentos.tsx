@@ -27,7 +27,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Search, Filter, Plus, MoreVertical, Edit, Calendar, X, Loader2, CheckCircle, ClipboardList } from 'lucide-react';
+import { Search, Filter, Plus, MoreVertical, Edit, Calendar, X, Loader2, CheckCircle, ClipboardList, RefreshCw } from 'lucide-react';
 import { cn, toSaoPauloDateTime, createSaoPauloDate, formatTimeInSaoPaulo, getTodayInSaoPaulo, getDateInSaoPaulo } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useAppointments } from '@/hooks/useAppointments';
@@ -336,7 +336,14 @@ const Agendamentos = () => {
     return filtered.sort((a, b) => {
       const statusDiff = (STATUS_ORDER[a.status] ?? 5) - (STATUS_ORDER[b.status] ?? 5);
       if (statusDiff !== 0) return statusDiff;
-      return new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime();
+      const now = Date.now();
+      const aTime = new Date(a.scheduled_at).getTime();
+      const bTime = new Date(b.scheduled_at).getTime();
+      const aFuture = aTime >= now;
+      const bFuture = bTime >= now;
+      if (aFuture !== bFuture) return aFuture ? -1 : 1;
+      if (aFuture) return aTime - bTime;
+      return bTime - aTime;
     });
   }, [appointments, searchTerm, statusFilter, dateRange]);
 
@@ -714,9 +721,14 @@ const Agendamentos = () => {
         <Card>
           <CardContent className="p-4">
             <div className="flex flex-col gap-4">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input placeholder="Buscar..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10" />
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input placeholder="Buscar..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10" />
+                </div>
+                <Button variant="outline" size="icon" onClick={() => queryClient.invalidateQueries({ queryKey: ['appointments'] })} title="Atualizar">
+                  <RefreshCw className="h-4 w-4" />
+                </Button>
               </div>
               <div className="flex flex-col sm:flex-row gap-2">
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
