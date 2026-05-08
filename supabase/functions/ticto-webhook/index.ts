@@ -29,7 +29,7 @@ async function sendWhatsApp(
   message: string
 ): Promise<void> {
   const normalized = normalizePhone(phone);
-  const res = await fetch(`${uazapiUrl}/message/send/text`, {
+  const res = await fetch(`${uazapiUrl}/send/text`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -37,8 +37,8 @@ async function sendWhatsApp(
       'token': instanceToken,
     },
     body: JSON.stringify({
-      phone: normalized,
-      message,
+      number: normalized,
+      text: message,
     }),
   });
 
