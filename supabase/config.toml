@@ -38,3 +38,10 @@ verify_jwt = false
 
 [functions.availability-summary]
 verify_jwt = false
+
+# ===========================================
+# WEBHOOK TICTO (sem JWT — chamado pela Ticto)
+# ===========================================
+
+[functions.ticto-webhook]
+verify_jwt = false

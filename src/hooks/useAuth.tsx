@@ -12,6 +12,7 @@ interface Profile {
   phone: string | null;
   avatar_url: string | null;
   tenant_id: string | null;
+  must_change_password: boolean | null;
 }
 
 interface AuthContextType {
@@ -20,12 +21,14 @@ interface AuthContextType {
   profile: Profile | null;
   roles: AppRole[];
   isLoading: boolean;
+  mustChangePassword: boolean;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   hasRole: (role: AppRole) => boolean;
   isSuperAdmin: boolean;
   isAdmin: boolean;
   isManager: boolean;
+  clearMustChangePassword: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -36,6 +39,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [roles, setRoles] = useState<AppRole[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [mustChangePassword, setMustChangePassword] = useState(false);
 
   const fetchProfile = async (userId: string) => {
     const { data, error } = await supabase
@@ -48,6 +52,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error('Error fetching profile:', error);
       return null;
     }
+    setMustChangePassword(data?.must_change_password === true);
     return data as Profile;
   };
 
@@ -85,6 +90,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } else {
           setProfile(null);
           setRoles([]);
+          setMustChangePassword(false);
           setIsLoading(false);
         }
       }
@@ -126,7 +132,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSession(null);
     setProfile(null);
     setRoles([]);
+    setMustChangePassword(false);
   };
+
+  const clearMustChangePassword = () => setMustChangePassword(false);
 
   const hasRole = (role: AppRole) => roles.includes(role);
   const isSuperAdmin = hasRole('super_admin');
@@ -141,12 +150,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         profile,
         roles,
         isLoading,
+        mustChangePassword,
         signIn,
         signOut,
         hasRole,
         isSuperAdmin,
         isAdmin,
         isManager,
+        clearMustChangePassword,
       }}
     >
       {children}

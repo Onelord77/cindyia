@@ -12,7 +12,7 @@ interface ProtectedRouteProps {
 }
 
 export function ProtectedRoute({ children, requiredRoles }: ProtectedRouteProps) {
-  const { user, isLoading, hasRole, isSuperAdmin } = useAuth();
+  const { user, isLoading, hasRole, isSuperAdmin, mustChangePassword } = useAuth();
   const { isOnboardingComplete, isLoading: isOnboardingLoading } = useOnboardingStatus();
   const location = useLocation();
 
@@ -29,6 +29,11 @@ export function ProtectedRoute({ children, requiredRoles }: ProtectedRouteProps)
 
   if (!user) {
     return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  // Troca de senha obrigatória (primeiro acesso via webhook Ticto)
+  if (mustChangePassword && location.pathname !== '/redefinir-senha') {
+    return <Navigate to="/redefinir-senha" state={{ firstAccess: true }} replace />;
   }
 
   // Super admin acessando rota de tenant → redirect para /admin

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -10,6 +11,8 @@ import { toast } from 'sonner';
 
 const RedefinirSenha = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { clearMustChangePassword } = useAuth();
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -18,7 +21,16 @@ const RedefinirSenha = () => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
+  // Fluxo de primeiro acesso vindo do ProtectedRoute
+  const isFirstAccess = (location.state as { firstAccess?: boolean } | null)?.firstAccess === true;
+
   useEffect(() => {
+    // Primeiro acesso: usuário já está autenticado, não precisa de link de recovery
+    if (isFirstAccess) {
+      setHasRecoverySession(true);
+      return;
+    }
+
     // 1) Verifica se a URL já traz um erro do Supabase (token expirado, consumido, etc.)
     const hash = window.location.hash.startsWith('#') ? window.location.hash.slice(1) : '';
     const hashParams = new URLSearchParams(hash);
@@ -60,11 +72,10 @@ const RedefinirSenha = () => {
       } else if (!recoveryInProgress) {
         setHasRecoverySession(false);
       }
-      // se recoveryInProgress === true e ainda não há sessão, mantém loading até o evento chegar
     });
 
     return () => subscription.subscription.unsubscribe();
-  }, []);
+  }, [isFirstAccess]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -80,17 +91,33 @@ const RedefinirSenha = () => {
 
     setIsLoading(true);
     const { error } = await supabase.auth.updateUser({ password });
-    setIsLoading(false);
 
     if (error) {
+      setIsLoading(false);
       console.error('Update password error:', error);
       toast.error('Não foi possível atualizar a senha. Tente novamente.');
       return;
     }
 
+    // Limpa a flag must_change_password no banco
+    if (isFirstAccess) {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await supabase.from('profiles').update({ must_change_password: false }).eq('id', user.id);
+        clearMustChangePassword();
+      }
+    }
+
+    setIsLoading(false);
     setSuccess(true);
-    await supabase.auth.signOut();
-    setTimeout(() => navigate('/login'), 2500);
+
+    if (isFirstAccess) {
+      // Já está logado: redireciona para o app diretamente
+      setTimeout(() => navigate('/'), 2000);
+    } else {
+      await supabase.auth.signOut();
+      setTimeout(() => navigate('/login'), 2500);
+    }
   };
 
   if (hasRecoverySession === null) {
@@ -109,9 +136,13 @@ const RedefinirSenha = () => {
             <img src="/assets/images/logo.png" alt="Cindy IA" className="h-12 w-12 rounded-lg" />
           </div>
           <div>
-            <CardTitle className="text-2xl">Redefinir senha</CardTitle>
+            <CardTitle className="text-2xl">
+              {isFirstAccess ? 'Crie sua senha' : 'Redefinir senha'}
+            </CardTitle>
             <CardDescription className="mt-2">
-              Crie uma nova senha para acessar sua conta.
+              {isFirstAccess
+                ? 'Bem-vindo! Defina uma senha pessoal para continuar.'
+                : 'Crie uma nova senha para acessar sua conta.'}
             </CardDescription>
           </div>
         </CardHeader>
@@ -150,7 +181,9 @@ const RedefinirSenha = () => {
               <div>
                 <h3 className="font-semibold">Senha atualizada!</h3>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Você será redirecionado para o login em instantes...
+                  {isFirstAccess
+                    ? 'Tudo certo! Redirecionando para o sistema...'
+                    : 'Você será redirecionado para o login em instantes...'}
                 </p>
               </div>
             </div>
